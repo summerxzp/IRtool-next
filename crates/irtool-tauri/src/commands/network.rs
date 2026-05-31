@@ -98,7 +98,7 @@ pub async fn cmd_network_set_polling(
         let history = state.net_history.clone();
         let retention_now = state.net_polling.lock().retention;
         let app_clone = app.clone();
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             run_polling_loop(collector, history, retention_now, app_clone, new_interval, token)
                 .await;
         });
@@ -163,7 +163,7 @@ pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     let retention = state.net_polling.lock().retention;
     let interval = state.net_polling.lock().interval_ms;
     let app_clone = app.clone();
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         run_polling_loop(collector, history, retention, app_clone, interval, token).await;
     });
 }

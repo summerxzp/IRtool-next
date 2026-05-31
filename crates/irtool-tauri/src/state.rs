@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct AppState {
+    #[allow(dead_code)]
     pub tasks: Arc<TaskRegistry>,
     pub net_collector: Arc<WindowsNetCollector>,
     pub net_history: Arc<HistoryStore>,
