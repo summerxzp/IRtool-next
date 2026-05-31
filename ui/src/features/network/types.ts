@@ -1,3 +1,7 @@
+export type Proto = "tcp" | "udp";
+
+export type Family = "v4" | "v6";
+
 export type ConnState =
   | "CLOSED"
   | "LISTEN"
@@ -19,8 +23,8 @@ export interface NetEndpoint {
 }
 
 export interface NetConn {
-  proto: "tcp" | "udp";
-  family: "v4" | "v6";
+  proto: Proto;
+  family: Family;
   local: NetEndpoint;
   remote: NetEndpoint;
   state: ConnState;
@@ -31,4 +35,20 @@ export interface NetConn {
   first_seen: number;
   last_seen: number;
   is_current: boolean;
+}
+
+export interface NetworkSnapshotPayload {
+  connections: NetConn[];
+  timestamp: number;
+}
+
+export type RetentionPolicyDto =
+  | "Forever"
+  | "None"
+  | { Seconds: number };
+
+export interface NetworkPollingControl {
+  interval_ms: number;
+  paused: boolean;
+  retention: RetentionPolicyDto;
 }
