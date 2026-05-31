@@ -1,5 +1,6 @@
 mod logger;
 mod single_instance;
+#[allow(dead_code)]
 mod types;
 
 use serde::Serialize;
