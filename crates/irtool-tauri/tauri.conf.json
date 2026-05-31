@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../../ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter ui dev",
-    "beforeBuildCommand": "pnpm --filter ui build"
+    "beforeDevCommand": "pnpm --filter irtool-ui dev",
+    "beforeBuildCommand": "pnpm --filter irtool-ui build"
   },
   "app": {
     "windows": [

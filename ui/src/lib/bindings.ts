@@ -9,6 +9,38 @@
 export const commands = {
 async cmdAppInfo() : Promise<AppInfo> {
     return await TAURI_INVOKE("cmd_app_info");
+},
+async cmdNetworkSnapshot() : Promise<Result<NetworkSnapshotPayload, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_snapshot") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdNetworkKillProcess(pid: number) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_kill_process", { pid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdNetworkSetPolling(control: NetworkPollingControl) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_set_polling", { control }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdNetworkClearHistory() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_clear_history") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -23,6 +55,15 @@ async cmdAppInfo() : Promise<AppInfo> {
 /** user-defined types **/
 
 export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
+export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
+export type Family = "v4" | "v6"
+export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
+export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; first_seen: number; last_seen: number; is_current: boolean }
+export type NetEndpoint = { addr: string; port: number }
+export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
+export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
+export type Proto = "tcp" | "udp"
+export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 
 /** tauri-specta globals **/
 
