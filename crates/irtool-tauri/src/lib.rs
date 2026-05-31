@@ -1,8 +1,13 @@
+mod commands;
+mod events;
 mod logger;
 mod single_instance;
+mod state;
 #[allow(dead_code)]
 mod types;
 
+use crate::commands::network::*;
+use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
 use specta_typescript::Typescript;
@@ -75,12 +80,17 @@ pub fn run() {
 
     info!("============================================");
     info!("IRtool v{} starting", env!("CARGO_PKG_VERSION"));
-    info!("Log dir: {}", log_dir.display());
     info!("Admin: {}", is_running_as_admin());
     info!("============================================");
 
     let builder = Builder::<tauri::Wry>::new()
-        .commands(collect_commands![cmd_app_info]);
+        .commands(collect_commands![
+            cmd_app_info,
+            cmd_network_snapshot,
+            cmd_network_kill_process,
+            cmd_network_set_polling,
+            cmd_network_clear_history,
+        ]);
 
     #[cfg(debug_assertions)]
     {
@@ -93,7 +103,10 @@ pub fn run() {
             .expect("failed to export bindings.ts");
     }
 
+    let app_state = AppState::new();
+
     tauri::Builder::default()
+        .manage(app_state.clone())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             single_instance::handle_second_instance(app, args, cwd);
         }))
@@ -103,7 +116,8 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            info!("main window setup");
+            commands::network::start_default_polling(&app_state, &app.handle());
+            info!("main window setup; default polling started");
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();
