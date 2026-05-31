@@ -12,3 +12,7 @@ thiserror = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 specta = { workspace = true, features = ["derive", "serde"] }
+dashmap = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
