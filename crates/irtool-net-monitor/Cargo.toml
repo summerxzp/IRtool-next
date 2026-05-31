@@ -1,0 +1,12 @@
+[package]
+name = "irtool-net-monitor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }
+serde = { workspace = true }
+tokio = { workspace = true }
+specta = { workspace = true, features = ["derive", "serde"] }

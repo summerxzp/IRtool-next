@@ -1,0 +1,18 @@
+[package]
+name = "irtool-threat-intel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+intel-weibu = []
+intel-virustotal = []
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }
+serde = { workspace = true }
+async-trait = "0.1"
+tokio = { workspace = true }
+specta = { workspace = true, features = ["derive", "serde"] }

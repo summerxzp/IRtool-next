@@ -1,0 +1,9 @@
+[package]
+name = "irtool-tauri"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }

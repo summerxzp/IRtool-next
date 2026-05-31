@@ -1,0 +1,11 @@
+[package]
+name = "irtool-rules"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }
+serde = { workspace = true }
+specta = { workspace = true, features = ["derive", "serde"] }
