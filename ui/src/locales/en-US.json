@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "IRtool",
+    "tagline": "Windows Incident Response Tool"
+  },
+  "nav": {
+    "network": "Network",
+    "log-collector": "Log Collector",
+    "autoruns": "Autoruns",
+    "workspace": "Workspace",
+    "settings": "Settings"
+  },
+  "status": {
+    "admin": "Admin",
+    "non-admin": "Non-admin",
+    "sysmon-installed": "Sysmon installed",
+    "sysmon-running": "Sysmon running",
+    "sysmon-not-installed": "Sysmon not installed"
+  },
+  "common": {
+    "loading": "Loading…",
+    "empty": "No data",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  }
+}

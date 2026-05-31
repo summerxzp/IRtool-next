@@ -7,6 +7,7 @@ Cargo.lock.bak
 ui/node_modules/
 ui/dist/
 *.tsbuildinfo
+ui/src/routeTree.gen.ts
 
 # Tauri
 crates/irtool-tauri/gen/
