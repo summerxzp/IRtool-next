@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { commands, type AppInfo } from "@/lib/bindings";
 import { useTranslation } from "react-i18next";
 import { Shield, ShieldOff, Clock } from "lucide-react";
-
-interface AppInfo {
-  name: string;
-  version: string;
-  build: string;
-  is_admin: boolean;
-}
 
 export function StatusBar() {
   const { t } = useTranslation();
@@ -16,7 +9,7 @@ export function StatusBar() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    invoke<AppInfo>("cmd_app_info").then(setInfo).catch(() => null);
+    commands.cmdAppInfo().then(setInfo).catch(() => null);
   }, []);
 
   useEffect(() => {
