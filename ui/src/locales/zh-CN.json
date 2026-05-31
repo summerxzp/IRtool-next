@@ -23,5 +23,70 @@
     "retry": "重试",
     "cancel": "取消",
     "confirm": "确认"
+  },
+  "network": {
+    "title": "网络监控",
+    "toolbar": {
+      "refresh": "刷新",
+      "pause": "暂停",
+      "resume": "恢复",
+      "interval": "间隔",
+      "interval-1s": "1 秒",
+      "interval-2s": "2 秒",
+      "interval-5s": "5 秒",
+      "proto-all": "全部协议",
+      "state-all": "全部状态",
+      "search-placeholder": "PID / IP / 端口 / 进程名",
+      "show-history": "显示历史",
+      "clear-history": "清空历史",
+      "export-csv": "导出 CSV",
+      "kill-process": "终止进程",
+      "retention": "历史保留",
+      "retention-1m": "1 分钟",
+      "retention-5m": "5 分钟",
+      "retention-10m": "10 分钟",
+      "retention-forever": "永久"
+    },
+    "columns": {
+      "proto": "协议",
+      "family": "族",
+      "local": "本地地址",
+      "remote": "远程地址",
+      "state": "状态",
+      "pid": "PID",
+      "process": "进程名",
+      "path": "路径",
+      "first-seen": "首次出现",
+      "last-seen": "最近出现"
+    },
+    "stats": {
+      "endpoints": "端点",
+      "established": "已建立",
+      "listening": "监听",
+      "time-wait": "TimeWait",
+      "close-wait": "CloseWait",
+      "history": "历史"
+    },
+    "detail": {
+      "title": "连接详情",
+      "process": "进程信息",
+      "command-line": "命令行",
+      "command-line-pending": "命令行暂未实装（P4 进程能力）",
+      "first-seen": "首次出现",
+      "last-seen": "最近出现",
+      "select-row": "请选择一条连接查看详情"
+    },
+    "kill-confirm": {
+      "title": "确认终止进程",
+      "message": "将终止 PID {{pid}} ({{name}})。此操作不可撤销。",
+      "confirm": "终止",
+      "cancel": "取消"
+    },
+    "context-menu": {
+      "copy-row": "复制行",
+      "open-explorer": "在资源管理器中打开",
+      "kill": "终止进程",
+      "search-workspace": "在工作台搜索"
+    }
   }
 }

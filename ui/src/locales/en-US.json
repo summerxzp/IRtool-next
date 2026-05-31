@@ -23,5 +23,70 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "confirm": "Confirm"
+  },
+  "network": {
+    "title": "Network Monitor",
+    "toolbar": {
+      "refresh": "Refresh",
+      "pause": "Pause",
+      "resume": "Resume",
+      "interval": "Interval",
+      "interval-1s": "1 sec",
+      "interval-2s": "2 sec",
+      "interval-5s": "5 sec",
+      "proto-all": "All Protocols",
+      "state-all": "All States",
+      "search-placeholder": "PID / IP / Port / Process",
+      "show-history": "Show History",
+      "clear-history": "Clear History",
+      "export-csv": "Export CSV",
+      "kill-process": "Kill Process",
+      "retention": "History Retention",
+      "retention-1m": "1 min",
+      "retention-5m": "5 min",
+      "retention-10m": "10 min",
+      "retention-forever": "Forever"
+    },
+    "columns": {
+      "proto": "Proto",
+      "family": "Family",
+      "local": "Local Address",
+      "remote": "Remote Address",
+      "state": "State",
+      "pid": "PID",
+      "process": "Process",
+      "path": "Path",
+      "first-seen": "First Seen",
+      "last-seen": "Last Seen"
+    },
+    "stats": {
+      "endpoints": "Endpoints",
+      "established": "Established",
+      "listening": "Listening",
+      "time-wait": "TimeWait",
+      "close-wait": "CloseWait",
+      "history": "History"
+    },
+    "detail": {
+      "title": "Connection Detail",
+      "process": "Process Info",
+      "command-line": "Command Line",
+      "command-line-pending": "Command line not yet implemented (P4 process capability)",
+      "first-seen": "First Seen",
+      "last-seen": "Last Seen",
+      "select-row": "Select a connection to view details"
+    },
+    "kill-confirm": {
+      "title": "Confirm Kill Process",
+      "message": "This will kill PID {{pid}} ({{name}}). This action cannot be undone.",
+      "confirm": "Kill",
+      "cancel": "Cancel"
+    },
+    "context-menu": {
+      "copy-row": "Copy Row",
+      "open-explorer": "Open in Explorer",
+      "kill": "Kill Process",
+      "search-workspace": "Search in Workspace"
+    }
   }
 }
