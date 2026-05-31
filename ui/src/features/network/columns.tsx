@@ -62,7 +62,7 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     size: 110,
     cell: ({ row }) => {
       const s = row.original.state;
-      if (!s || s === "None") return <span className="text-fg-tertiary">-</span>;
+      if (!s || s === "NONE") return <span className="text-fg-tertiary">-</span>;
       const variant = STATE_VARIANT[s] ?? "default";
       return <Badge variant={variant}>{s}</Badge>;
     },

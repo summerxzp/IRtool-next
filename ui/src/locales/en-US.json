@@ -63,8 +63,8 @@
       "endpoints": "Endpoints",
       "established": "Established",
       "listening": "Listening",
-      "time-wait": "TimeWait",
-      "close-wait": "CloseWait",
+      "time-wait": "TIME_WAIT",
+      "close-wait": "CLOSE_WAIT",
       "history": "History"
     },
     "detail": {

@@ -29,7 +29,7 @@ export function NetworkDetail({ conn }: Props) {
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="info">{conn.proto.toUpperCase()}</Badge>
           <Badge variant="outline">{conn.family.toUpperCase()}</Badge>
-          {conn.state && conn.state !== "None" && (
+          {conn.state && conn.state !== "NONE" && (
             <Badge>{conn.state}</Badge>
           )}
           {!conn.is_current && <Badge variant="warning">history</Badge>}

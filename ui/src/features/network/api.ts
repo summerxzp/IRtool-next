@@ -1,4 +1,4 @@
-import { commands } from "@/lib/bindings";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   NetConn,
   NetworkPollingControl,
@@ -6,19 +6,19 @@ import type {
 } from "./types";
 
 export async function snapshot(): Promise<NetworkSnapshotPayload> {
-  return commands.cmdNetworkSnapshot();
+  return invoke("cmd_network_snapshot");
 }
 
 export async function killProcess(pid: number): Promise<void> {
-  return commands.cmdNetworkKillProcess(pid);
+  return invoke("cmd_network_kill_process", { pid });
 }
 
 export async function setPolling(control: NetworkPollingControl): Promise<void> {
-  return commands.cmdNetworkSetPolling(control);
+  return invoke("cmd_network_set_polling", { control });
 }
 
 export async function clearHistory(): Promise<void> {
-  return commands.cmdNetworkClearHistory();
+  return invoke("cmd_network_clear_history");
 }
 
 export type { NetConn };
