@@ -5,5 +5,42 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lib]
+name = "irtool_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
 [dependencies]
 irtool-core = { path = "../irtool-core" }
+irtool-net-monitor = { path = "../irtool-net-monitor" }
+irtool-autoruns = { path = "../irtool-autoruns" }
+irtool-sysmon = { path = "../irtool-sysmon" }
+irtool-rules = { path = "../irtool-rules" }
+irtool-threat-intel = { path = "../irtool-threat-intel" }
+irtool-process = { path = "../irtool-process" }
+
+tauri = { workspace = true }
+tauri-plugin-single-instance = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+tauri-plugin-shell = { workspace = true }
+tauri-plugin-process = { workspace = true }
+tauri-plugin-store = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+specta = { workspace = true, features = ["derive", "serde"] }
+specta-typescript = { workspace = true }
+tauri-specta = { workspace = true }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
