@@ -1,5 +1,7 @@
 use tauri::Manager;
+use tracing::info;
 
+mod logger;
 mod single_instance;
 
 #[tauri::command]
@@ -44,6 +46,25 @@ fn is_running_as_admin() -> bool {
 }
 
 pub fn run() {
+    let log_dir = if cfg!(debug_assertions) {
+        std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .join("logs")
+    } else {
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        local.join("IRtool").join("logs")
+    };
+
+    let _logger_guard = logger::init_logger(log_dir.clone());
+
+    info!("============================================");
+    info!("IRtool v{} starting", env!("CARGO_PKG_VERSION"));
+    info!("Log dir: {}", log_dir.display());
+    info!("Admin: {}", is_running_as_admin());
+    info!("============================================");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             single_instance::handle_second_instance(app, args, cwd);
@@ -53,6 +74,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![cmd_app_info])
         .setup(|app| {
+            info!("main window setup");
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();
