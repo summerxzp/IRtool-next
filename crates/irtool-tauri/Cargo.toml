@@ -11,6 +11,7 @@ crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { workspace = true }
+embed-resource = "2"
 
 [dependencies]
 irtool-core = { path = "../irtool-core" }
@@ -28,6 +29,12 @@ tauri-plugin-shell = { workspace = true }
 tauri-plugin-process = { workspace = true }
 tauri-plugin-store = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
+
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Threading",
+] }
 
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

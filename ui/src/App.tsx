@@ -7,6 +7,7 @@ interface AppInfo {
   name: string;
   version: string;
   build: string;
+  is_admin: boolean;
 }
 
 function App() {
