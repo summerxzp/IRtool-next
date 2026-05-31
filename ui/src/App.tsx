@@ -18,12 +18,16 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui, sans-serif" }}>
-      <h1>IRtool v2 boot</h1>
+    <div className="min-h-screen p-6">
+      <h1 className="text-lg font-semibold text-fg-primary mb-4">
+        IRtool v2 boot
+      </h1>
       {info && (
-        <pre>{JSON.stringify(info, null, 2)}</pre>
+        <pre className="bg-bg-elev-1 border border-border p-3 rounded font-mono text-sm text-fg-secondary">
+          {JSON.stringify(info, null, 2)}
+        </pre>
       )}
-      {error && <p style={{ color: "red" }}>error: {error}</p>}
+      {error && <p className="text-danger mt-2">error: {error}</p>}
     </div>
   );
 }
