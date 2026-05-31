@@ -1,0 +1,57 @@
+[workspace]
+members = [
+    "crates/irtool-core",
+    "crates/irtool-net-monitor",
+    "crates/irtool-autoruns",
+    "crates/irtool-sysmon",
+    "crates/irtool-rules",
+    "crates/irtool-threat-intel",
+    "crates/irtool-process",
+    "crates/irtool-tauri",
+]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0-alpha.1"
+edition = "2021"
+rust-version = "1.85"
+authors = ["summerxzp"]
+license = "MIT"
+repository = "https://github.com/summerxzp/IRtool-next"
+
+[workspace.dependencies]
+tokio = { version = "1.40", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+windows = { version = "0.59" }
+encoding_rs = "0.8"
+csv = "1.3"
+quick-xml = "0.36"
+regex = "1.10"
+aho-corasick = "1.1"
+dashmap = "6"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-build = { version = "2" }
+tauri-plugin-single-instance = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-process = "2"
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+specta = "2.0.0-rc"
+specta-typescript = "0.0.7"
+tauri-specta = { version = "2.0.0-rc", features = ["derive", "typescript"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

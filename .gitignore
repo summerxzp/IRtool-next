@@ -1,0 +1,36 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node
+ui/node_modules/
+ui/dist/
+*.tsbuildinfo
+
+# Tauri
+crates/irtool-tauri/gen/
+crates/irtool-tauri/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs / runtime
+logs/
+*.log
+crash.log
+
+# Local env
+.env
+.env.local
+*.local
+
+# Build artifacts
+dist/
+build/
+out/
+release/
