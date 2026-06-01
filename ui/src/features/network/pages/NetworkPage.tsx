@@ -26,7 +26,7 @@ export function NetworkPage() {
   const [contextRow, setContextRow] = useState<NetConn | null>(null);
   const [contextPos, setContextPos] = useState<{ x: number; y: number } | null>(null);
 
-  const data = useMemo(() => query.data?.connections ?? [], [query.data]);
+  const data = useMemo(() => query.data?.items ?? [], [query.data]);
 
   const handleExport = async () => {
     await exportCsv(

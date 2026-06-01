@@ -58,17 +58,17 @@ export function NetworkToolbar({
   }, [searchInput, setFilter]);
 
   const retentionValue =
-    retention === "Forever"
+    retention === "forever"
       ? "forever"
-      : retention === "None"
+      : retention === "none"
         ? "none"
-        : `s${(retention as { Seconds: number }).Seconds}`;
+        : `s${(retention as { seconds: number }).seconds}`;
 
   const handleRetentionChange = (v: string) => {
     let next: RetentionPolicyDto;
-    if (v === "forever") next = "Forever";
-    else if (v === "none") next = "None";
-    else next = { Seconds: parseInt(v.replace("s", ""), 10) };
+    if (v === "forever") next = "forever";
+    else if (v === "none") next = "none";
+    else next = { seconds: parseInt(v.replace("s", ""), 10) };
     setRetention(next);
   };
 

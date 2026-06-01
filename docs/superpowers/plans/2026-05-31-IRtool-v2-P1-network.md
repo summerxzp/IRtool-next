@@ -3701,3 +3701,4 @@ git tag v2.0.0-alpha.P1
 ## 下一阶段
 
 P1 完成并打 tag `v2.0.0-alpha.P1` 后，进入 P2 持久化检测（autoruns + WinTrust 签名验证）。届时再产出 `2026-XX-XX-IRtool-v2-P2-autoruns.md`。
+

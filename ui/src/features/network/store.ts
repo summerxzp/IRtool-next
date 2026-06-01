@@ -42,6 +42,6 @@ export const useNetworkStore = create<NetworkState>((set) => ({
   intervalMs: 1000,
   setIntervalMs: (ms) => set({ intervalMs: ms }),
 
-  retention: { Seconds: 600 } as RetentionPolicyDto,
+  retention: { seconds: 600 } as RetentionPolicyDto,
   setRetention: (retention) => set({ retention }),
 }));
