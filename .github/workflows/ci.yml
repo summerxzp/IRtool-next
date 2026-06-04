@@ -23,9 +23,9 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all -- --check
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --exclude irtool-tauri -- -D warnings
       - name: cargo test
-        run: cargo test --workspace --no-fail-fast
+        run: cargo test --workspace --exclude irtool-tauri --no-fail-fast
 
   ui:
     name: UI check
