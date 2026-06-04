@@ -88,5 +88,65 @@
       "kill": "终止进程",
       "search-workspace": "在工作台搜索"
     }
+  },
+  "autoruns": {
+    "title": "持久化检测",
+    "toolbar": {
+      "scan": "扫描",
+      "cancel": "取消",
+      "all-categories": "全部分类",
+      "status-all": "全部状态",
+      "status-enabled": "已启用",
+      "status-disabled": "已禁用",
+      "signature-all": "全部签名",
+      "signature-valid": "已签名",
+      "signature-invalid": "签名无效",
+      "signature-unsigned": "未签名",
+      "search-placeholder": "条目 / 路径 / 发布者",
+      "verify-signatures": "验证签名",
+      "verifying": "验证中…",
+      "export-csv": "导出 CSV",
+      "detail-bottom": "详情在下方",
+      "detail-right": "详情在右侧"
+    },
+    "stats": {
+      "total": "总计",
+      "signed": "已签名",
+      "disabled": "已禁用",
+      "verifying": "签名验证中"
+    },
+    "detail": {
+      "select-row": "请选择一条持久化项查看详情",
+      "image-path": "文件路径",
+      "launch-string": "启动命令",
+      "location": "注册表位置",
+      "publisher": "发布者",
+      "description": "描述",
+      "timestamp": "时间戳",
+      "version": "版本",
+      "service-name": "服务名称",
+      "file-not-found": "文件不存在",
+      "file-size": "文件大小",
+      "risk-reasons": "风险原因",
+      "delete": "删除",
+      "jump-registry": "跳转注册表",
+      "jump-task": "跳转任务计划",
+      "search-workspace": "在工作台搜索"
+    },
+    "delete-confirm": {
+      "title": "确认删除持久化项",
+      "message": "将删除 {{entry}}（{{category}}）。此操作不可撤销，可能影响系统正常运行。",
+      "confirm": "删除"
+    },
+    "context-menu": {
+      "copy-row": "复制行",
+      "calculate-hash": "计算 Hash",
+      "sigcheck": "验证签名 (Sigcheck)",
+      "delete": "删除",
+      "open-explorer": "在资源管理器中打开",
+      "open-registry": "跳转到注册表位置",
+      "open-services": "打开服务管理器",
+      "search-workspace": "在工作台搜索"
+    }
   }
 }

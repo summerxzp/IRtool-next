@@ -7,6 +7,7 @@ mod state;
 mod types;
 
 use crate::commands::network::*;
+use crate::commands::autoruns::*;
 use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
@@ -90,6 +91,17 @@ pub fn run() {
             cmd_network_kill_process,
             cmd_network_set_polling,
             cmd_network_clear_history,
+            // --- P2 新增 ---
+            cmd_autoruns_scan,
+            cmd_autoruns_get_result,
+            cmd_autoruns_verify_signatures,
+            cmd_autoruns_delete_entry,
+            cmd_autoruns_cancel_scan,
+            cmd_autoruns_calculate_hash,
+            cmd_autoruns_sigcheck,
+            cmd_autoruns_open_explorer,
+            cmd_autoruns_open_regedit,
+            cmd_autoruns_open_services,
         ]);
 
     #[cfg(debug_assertions)]

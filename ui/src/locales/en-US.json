@@ -88,5 +88,65 @@
       "kill": "Kill Process",
       "search-workspace": "Search in Workspace"
     }
+  },
+  "autoruns": {
+    "title": "Persistence Detection",
+    "toolbar": {
+      "scan": "Scan",
+      "cancel": "Cancel",
+      "all-categories": "All Categories",
+      "status-all": "All Status",
+      "status-enabled": "Enabled",
+      "status-disabled": "Disabled",
+      "signature-all": "All Signatures",
+      "signature-valid": "Signed",
+      "signature-invalid": "Invalid",
+      "signature-unsigned": "Unsigned",
+      "search-placeholder": "Entry / Path / Publisher",
+      "verify-signatures": "Verify Signatures",
+      "verifying": "Verifying…",
+      "export-csv": "Export CSV",
+      "detail-bottom": "Detail at Bottom",
+      "detail-right": "Detail at Right"
+    },
+    "stats": {
+      "total": "Total",
+      "signed": "Signed",
+      "disabled": "Disabled",
+      "verifying": "Verifying signatures"
+    },
+    "detail": {
+      "select-row": "Select an entry to view details",
+      "image-path": "Image Path",
+      "launch-string": "Launch String",
+      "location": "Registry Location",
+      "publisher": "Publisher",
+      "description": "Description",
+      "timestamp": "Timestamp",
+      "version": "Version",
+      "service-name": "Service Name",
+      "file-not-found": "File not found",
+      "file-size": "File Size",
+      "risk-reasons": "Risk Reasons",
+      "delete": "Delete",
+      "jump-registry": "Jump to Registry",
+      "jump-task": "Jump to Task Scheduler",
+      "search-workspace": "Search in Workspace"
+    },
+    "delete-confirm": {
+      "title": "Confirm Delete",
+      "message": "Delete {{entry}} ({{category}})? This action cannot be undone and may affect system stability.",
+      "confirm": "Delete"
+    },
+    "context-menu": {
+      "copy-row": "Copy Row",
+      "calculate-hash": "Calculate Hash",
+      "sigcheck": "Verify Signature (Sigcheck)",
+      "delete": "Delete",
+      "open-explorer": "Open in Explorer",
+      "open-registry": "Jump to Registry",
+      "open-services": "Open Services Manager",
+      "search-workspace": "Search in Workspace"
+    }
   }
 }

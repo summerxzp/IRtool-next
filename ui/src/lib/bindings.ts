@@ -41,6 +41,86 @@ async cmdNetworkClearHistory() : Promise<Result<null, IrError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdAutorunsScan(options: ScanOptions) : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_scan", { options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsGetResult() : Promise<Result<AutorunItem[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_get_result") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsVerifySignatures(paths: string[]) : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_verify_signatures", { paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsDeleteEntry(entryId: number) : Promise<Result<DeleteResult, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_delete_entry", { entryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsCancelScan(taskId: number) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_cancel_scan", { taskId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsCalculateHash(entryId: number) : Promise<Result<AutorunItem, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_calculate_hash", { entryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsSigcheck(imagePath: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_sigcheck", { imagePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsOpenExplorer(path: string) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_open_explorer", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsOpenRegedit(registryPath: string) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_open_regedit", { registryPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsOpenServices() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_open_services") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -55,7 +135,9 @@ async cmdNetworkClearHistory() : Promise<Result<null, IrError>> {
 /** user-defined types **/
 
 export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
+export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
+export type DeleteResult = { success: boolean; message: string }
 export type Family = "v4" | "v6"
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; first_seen: number; last_seen: number; is_current: boolean }
@@ -64,6 +146,9 @@ export type NetworkPollingControl = { interval_ms: number | null; paused: boolea
 export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
 export type Proto = "tcp" | "udp"
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
+export type RiskLevel = "safe" | "suspicious" | "high_risk"
+export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
+export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { detail: string } } | { kind: "unsigned" } | { kind: "not_verified" }
 
 /** tauri-specta globals **/
 
