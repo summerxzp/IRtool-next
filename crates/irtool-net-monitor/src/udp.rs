@@ -41,7 +41,7 @@ pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
             return Err(IrError::Internal("udp v4 table size insufficient".into()));
         }
 
-        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size) as *const MIB_UDPROW_OWNER_PID;
+        let rows_ptr = buf.as_ptr().add(header_size) as *const MIB_UDPROW_OWNER_PID;
 
         let now = now_epoch_secs();
         let mut conns = Vec::with_capacity(count);
@@ -102,7 +102,7 @@ pub fn enumerate_udp_v6() -> Result<Vec<NetConn>, IrError> {
             return Err(IrError::Internal("udp v6 table size insufficient".into()));
         }
 
-        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size) as *const MIB_UDP6ROW_OWNER_PID;
+        let rows_ptr = buf.as_ptr().add(header_size) as *const MIB_UDP6ROW_OWNER_PID;
 
         let now = now_epoch_secs();
         let mut conns = Vec::with_capacity(count);

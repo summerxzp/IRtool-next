@@ -18,15 +18,19 @@ pub fn verify(path: &Path) -> Result<SignatureStatus, IrError> {
     let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(std::iter::once(0)).collect();
 
     unsafe {
-        let mut file_info = WINTRUST_FILE_INFO::default();
-        file_info.cbStruct = std::mem::size_of::<WINTRUST_FILE_INFO>() as u32;
-        file_info.pcwszFilePath = PCWSTR(wide.as_ptr());
+        let mut file_info = WINTRUST_FILE_INFO {
+            cbStruct: std::mem::size_of::<WINTRUST_FILE_INFO>() as u32,
+            pcwszFilePath: PCWSTR(wide.as_ptr()),
+            ..Default::default()
+        };
 
-        let mut trust_data = WINTRUST_DATA::default();
-        trust_data.cbStruct = std::mem::size_of::<WINTRUST_DATA>() as u32;
-        trust_data.dwUIChoice = WTD_UI_NONE;
-        trust_data.fdwRevocationChecks = WTD_REVOKE_NONE;
-        trust_data.dwUnionChoice = WTD_CHOICE_FILE;
+        let mut trust_data = WINTRUST_DATA {
+            cbStruct: std::mem::size_of::<WINTRUST_DATA>() as u32,
+            dwUIChoice: WTD_UI_NONE,
+            fdwRevocationChecks: WTD_REVOKE_NONE,
+            dwUnionChoice: WTD_CHOICE_FILE,
+            ..Default::default()
+        };
         trust_data.Anonymous.pFile = &mut file_info;
 
         let wintrust_action = WINTRUST_ACTION_GENERIC_VERIFY_V2;

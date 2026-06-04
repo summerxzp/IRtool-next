@@ -135,7 +135,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            commands::network::start_default_polling(&app_state, &app.handle());
+            commands::network::start_default_polling(&app_state, app.handle());
             info!("main window setup; default polling started");
             #[cfg(debug_assertions)]
             {

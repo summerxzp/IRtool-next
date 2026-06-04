@@ -206,7 +206,8 @@ pub async fn cmd_autoruns_batch_calculate_hash(
         let total = entry_ids.len();
         let progress_counter = std::sync::atomic::AtomicUsize::new(0);
 
-        let results: Vec<(u64, Result<(String, String), IrError>)> = entry_ids
+        type HashResult = (String, String);
+        let results: Vec<(u64, Result<HashResult, IrError>)> = entry_ids
             .par_iter()
             .map(|&entry_id| {
                 let item = match store.get(entry_id) {

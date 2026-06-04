@@ -19,19 +19,18 @@ impl RiskLevel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "detail")]
 pub enum SignatureStatus {
-    Valid { signer: String },
-    Invalid { message: String },
+    Valid {
+        signer: String,
+    },
+    Invalid {
+        message: String,
+    },
     Unsigned,
+    #[default]
     NotVerified,
-}
-
-impl Default for SignatureStatus {
-    fn default() -> Self {
-        Self::NotVerified
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -57,19 +56,10 @@ pub struct AutorunItem {
     pub signature: SignatureStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct ScanOptions {
     pub include_hash: bool,
     pub category_filter: Option<Vec<String>>,
-}
-
-impl Default for ScanOptions {
-    fn default() -> Self {
-        Self {
-            include_hash: false,
-            category_filter: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

@@ -92,12 +92,12 @@ mod win_impls {
 
         // 6. LSA Security Packages — LSA_MULTI_SZ
         if category == "lsa security packages" {
-            return delete_lsa_multi_sz(item, hive, &subkey, &value_name);
+            return delete_lsa_multi_sz(item, hive, &subkey, value_name);
         }
 
         // 7. Known DLLs — LSA_MULTI_SZ
         if category == "known dlls" {
-            return delete_lsa_multi_sz(item, hive, &subkey, &value_name);
+            return delete_lsa_multi_sz(item, hive, &subkey, value_name);
         }
 
         // 8. Winlogon — LSA_MULTI_SZ (Userinit, Shell, Taskman, System)
@@ -110,7 +110,7 @@ mod win_impls {
                     message: "Shell/Userinit 是系统关键值，删除后将无法登录，请手动处理".into(),
                 });
             }
-            return delete_lsa_multi_sz(item, hive, &subkey, &value_name);
+            return delete_lsa_multi_sz(item, hive, &subkey, value_name);
         }
 
         // 10. Office addins / COM — CLSID-based
@@ -119,7 +119,7 @@ mod win_impls {
         }
 
         // 12. Generic registry value delete (Logon, Explorer, Codecs, etc.)
-        delete_registry_value(hive, &subkey, &value_name)
+        delete_registry_value(hive, &subkey, value_name)
     }
 
     fn delete_service(item: &AutorunItem) -> Result<DeleteResult, IrError> {
@@ -401,21 +401,13 @@ fn parse_hive(location: &str) -> Option<windows::Win32::System::Registry::HKEY> 
 #[cfg(windows)]
 fn parse_subkey(location: &str) -> Option<String> {
     let location = location.trim();
-    let rest = if let Some(r) = location.strip_prefix("HKLM\\") {
-        r
-    } else if let Some(r) = location.strip_prefix("HKEY_LOCAL_MACHINE\\") {
-        r
-    } else if let Some(r) = location.strip_prefix("HKCU\\") {
-        r
-    } else if let Some(r) = location.strip_prefix("HKEY_CURRENT_USER\\") {
-        r
-    } else if let Some(r) = location.strip_prefix("HKU\\") {
-        r
-    } else if let Some(r) = location.strip_prefix("HKEY_USERS\\") {
-        r
-    } else {
-        return None;
-    };
+    let rest = location
+        .strip_prefix("HKLM\\")
+        .or_else(|| location.strip_prefix("HKEY_LOCAL_MACHINE\\"))
+        .or_else(|| location.strip_prefix("HKCU\\"))
+        .or_else(|| location.strip_prefix("HKEY_CURRENT_USER\\"))
+        .or_else(|| location.strip_prefix("HKU\\"))
+        .or_else(|| location.strip_prefix("HKEY_USERS\\"))?;
     Some(rest.to_owned())
 }
 
