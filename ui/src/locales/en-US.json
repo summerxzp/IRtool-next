@@ -103,17 +103,19 @@
       "signature-invalid": "Invalid",
       "signature-unsigned": "Unsigned",
       "search-placeholder": "Entry / Path / Publisher",
-      "verify-signatures": "Verify Signatures",
-      "verifying": "Verifying…",
+      "batch-hash": "Batch Hash",
+      "calculating-hash": "Calculating…",
       "export-csv": "Export CSV",
       "detail-bottom": "Detail at Bottom",
       "detail-right": "Detail at Right"
     },
     "stats": {
+      "current": "Current",
       "total": "Total",
       "signed": "Signed",
       "disabled": "Disabled",
-      "verifying": "Verifying signatures"
+      "verifying": "Verifying signatures",
+      "calculating-hash": "Calculating Hash"
     },
     "detail": {
       "select-row": "Select an entry to view details",
@@ -147,6 +149,10 @@
       "open-registry": "Jump to Registry",
       "open-services": "Open Services Manager",
       "search-workspace": "Search in Workspace"
+    },
+    "batch-hash": {
+      "title": "Batch Calculate Hash",
+      "message": "This will calculate MD5 and SHA-256 for all entries without hash. This may take a long time for large datasets. Continue?"
     }
   }
 }

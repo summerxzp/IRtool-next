@@ -47,8 +47,8 @@ pub fn verify(path: &Path) -> Result<SignatureStatus, IrError> {
             }),
             TRUST_E_NOSIGNATURE => Ok(SignatureStatus::Unsigned),
             code => {
-                let detail = format!("WinVerifyTrust error: 0x{:08X}", code as u32);
-                Ok(SignatureStatus::Invalid { detail })
+                let message = format!("WinVerifyTrust error: 0x{:08X}", code as u32);
+                Ok(SignatureStatus::Invalid { message })
             }
         }
     }
@@ -70,7 +70,7 @@ pub fn verify_batch(
         .enumerate()
         .map(|(i, path)| {
             let status = verify(path).unwrap_or(SignatureStatus::Invalid {
-                detail: "verify error".into(),
+                message: "verify error".into(),
             });
             progress(i + 1, paths.len());
             (path.clone(), status)

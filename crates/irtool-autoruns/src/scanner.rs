@@ -299,11 +299,7 @@ impl AutorunsScanner {
             .output()
             .map_err(|e| IrError::Io(format!("sigcheck 启动失败: {}", e)))?;
 
-        let stdout = if output.stdout.len() >= 2 && output.stdout[0] == 0xFF && output.stdout[1] == 0xFE {
-            encoding_rs::UTF_16LE.decode(&output.stdout).0.into_owned()
-        } else {
-            String::from_utf8_lossy(&output.stdout).into_owned()
-        };
+        let stdout = crate::csv_parser::decode_bytes(&output.stdout);
         Ok(stdout)
     }
 }
@@ -346,9 +342,14 @@ pub fn open_in_explorer(path: &str) -> Result<(), IrError> {
     if !p.exists() {
         return Err(IrError::Io(format!("路径不存在: {}", path)));
     }
-    std::process::Command::new("explorer")
-        .args(["/select,", path])
-        .spawn()
+    let mut cmd = std::process::Command::new("explorer");
+    cmd.args(["/select,", path]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    cmd.spawn()
         .map_err(|e| IrError::Io(format!("无法打开资源管理器: {}", e)))?;
     Ok(())
 }

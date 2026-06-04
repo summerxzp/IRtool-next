@@ -1,10 +1,12 @@
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { NetConn } from "../types";
 
 interface Props {
   conn: NetConn | null;
+  onClose?: () => void;
 }
 
 function fmtTime(epoch: number) {
@@ -12,7 +14,7 @@ function fmtTime(epoch: number) {
   return new Date(epoch * 1000).toLocaleString("en-GB", { hour12: false });
 }
 
-export function NetworkDetail({ conn }: Props) {
+export function NetworkDetail({ conn, onClose }: Props) {
   const { t } = useTranslation();
 
   if (!conn) {
@@ -25,19 +27,26 @@ export function NetworkDetail({ conn }: Props) {
 
   return (
     <div className="h-full overflow-auto p-4 space-y-4">
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="info">{conn.proto.toUpperCase()}</Badge>
-          <Badge variant="outline">{conn.family.toUpperCase()}</Badge>
-          {conn.state && conn.state !== "NONE" && (
-            <Badge>{conn.state}</Badge>
-          )}
-          {!conn.is_current && <Badge variant="warning">history</Badge>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="info">{conn.proto.toUpperCase()}</Badge>
+            <Badge variant="outline">{conn.family.toUpperCase()}</Badge>
+            {conn.state && conn.state !== "NONE" && (
+              <Badge>{conn.state}</Badge>
+            )}
+            {!conn.is_current && <Badge variant="warning">history</Badge>}
+          </div>
+          <div className="text-sm font-mono text-fg-primary">
+            {conn.local.addr}:{conn.local.port} → {conn.remote.addr || "*"}:
+            {conn.remote.port || "*"}
+          </div>
         </div>
-        <div className="text-sm font-mono text-fg-primary">
-          {conn.local.addr}:{conn.local.port} → {conn.remote.addr || "*"}:
-          {conn.remote.port || "*"}
-        </div>
+        {onClose && (
+          <button className="text-fg-tertiary hover:text-fg-primary shrink-0 p-0.5" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <Separator />

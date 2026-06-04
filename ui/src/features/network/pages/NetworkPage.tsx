@@ -83,12 +83,17 @@ export function NetworkPage() {
               data={data}
               onRowSelect={setSelected}
               onRowContextMenu={handleContextMenu}
+              selectedRowId={selected ? `${selected.proto}|${selected.family}|${selected.local.addr}:${selected.local.port}|${selected.remote.addr}:${selected.remote.port}|${selected.pid}` : null}
             />
           </Panel>
-          <Separator className="w-px bg-border hover:bg-accent transition-colors" />
-          <Panel defaultSize={30} minSize={20}>
-            <NetworkDetail conn={selected} />
-          </Panel>
+          {selected != null && (
+            <>
+              <Separator className="w-px bg-border hover:bg-accent transition-colors" />
+              <Panel defaultSize={30} minSize={20}>
+                <NetworkDetail conn={selected} onClose={() => setSelected(null)} />
+              </Panel>
+            </>
+          )}
         </Group>
       </div>
 

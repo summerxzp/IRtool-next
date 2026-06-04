@@ -8,6 +8,7 @@ interface Props {
   data: NetConn[];
   onRowSelect: (row: NetConn | null) => void;
   onRowContextMenu?: (row: NetConn, event: React.MouseEvent) => void;
+  selectedRowId?: string | null;
 }
 
 function rowKey(row: NetConn) {
@@ -19,7 +20,7 @@ function rowClassName(row: NetConn) {
   return undefined;
 }
 
-export function NetworkTable({ data, onRowSelect, onRowContextMenu }: Props) {
+export function NetworkTable({ data, onRowSelect, onRowContextMenu, selectedRowId }: Props) {
   const { filters } = useNetworkStore();
 
   const filtered = useMemo(() => {
@@ -54,6 +55,7 @@ export function NetworkTable({ data, onRowSelect, onRowContextMenu }: Props) {
       onRowContextMenu={onRowContextMenu}
       persistKey="network"
       density="compact"
+      selectedRowId={selectedRowId}
     />
   );
 }

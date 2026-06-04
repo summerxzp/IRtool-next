@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { SignatureBadge } from "./SignatureBadge";
@@ -9,9 +10,10 @@ interface Props {
   onDelete: (item: AutorunItem) => void;
   onJumpToRegistry: (item: AutorunItem) => void;
   onSearchInWorkspace: (item: AutorunItem) => void;
+  onClose?: () => void;
 }
 
-export function AutorunsDetail({ item, onDelete, onJumpToRegistry, onSearchInWorkspace }: Props) {
+export function AutorunsDetail({ item, onDelete, onJumpToRegistry, onSearchInWorkspace, onClose }: Props) {
   const { t } = useTranslation();
 
   if (!item) {
@@ -26,14 +28,33 @@ export function AutorunsDetail({ item, onDelete, onJumpToRegistry, onSearchInWor
   const canJumpToTask = item.category === "Scheduled Tasks" || item.category === "Tasks";
 
   return (
-    <div className="h-full overflow-auto p-4 space-y-4">
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <SignatureBadge status={item.signature} />
-          {!item.enabled && <span className="text-xs text-fg-tertiary">已禁用</span>}
+    <div className="h-full overflow-auto p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-fg-primary">{item.entry}</div>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-fg-tertiary flex-wrap">
+            <SignatureBadge status={item.signature} />
+            <span>·</span>
+            <span>{item.category}</span>
+            {item.file_size != null && (
+              <>
+                <span>·</span>
+                <span>{formatSize(item.file_size)}</span>
+              </>
+            )}
+            {!item.enabled && (
+              <>
+                <span>·</span>
+                <span className="text-fg-tertiary">已禁用</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="text-sm font-medium text-fg-primary">{item.entry}</div>
-        <div className="text-xs text-fg-tertiary">{item.category}</div>
+        {onClose && (
+          <button className="text-fg-tertiary hover:text-fg-primary shrink-0 p-0.5" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <Separator />

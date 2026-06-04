@@ -20,6 +20,7 @@ regex = { workspace = true }
 rayon = "1.10"
 md5 = "0.7"
 sha2 = "0.10"
+png = "0.17"
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
@@ -30,4 +31,10 @@ windows = { workspace = true, features = [
     "Win32_System_Registry",
     "Win32_System_Threading",
     "Win32_System_Services",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_Storage_FileSystem",
 ] }
+base64 = "0.22"
+png = "0.17"

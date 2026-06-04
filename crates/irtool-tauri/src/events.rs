@@ -7,3 +7,4 @@ pub const EVT_TASK_FAILED: &str = "evt_task_failed";
 // --- P2 新增 ---
 pub const EVT_AUTORUNS_PROGRESS: &str = "evt_autoruns_progress";
 pub const EVT_AUTORUNS_SIGNATURE_PROGRESS: &str = "evt_autoruns_signature_progress";
+pub const EVT_AUTORUNS_HASH_PROGRESS: &str = "evt_autoruns_hash_progress";

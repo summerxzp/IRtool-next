@@ -7,6 +7,20 @@ import "./lib/i18n";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { routeTree } from "./routeTree.gen";
 
+// Log unhandled JS errors to Rust backend
+window.addEventListener("error", (e) => {
+  console.error("[unhandled]", e.error ?? e.message);
+  import("@/lib/bindings").then(({ commands }) => {
+    commands.cmdLogFrontend(`ERROR: ${e.error?.stack ?? e.message}`);
+  }).catch(() => {});
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("[unhandled rejection]", e.reason);
+  import("@/lib/bindings").then(({ commands }) => {
+    commands.cmdLogFrontend(`REJECTION: ${e.reason?.stack ?? e.reason}`);
+  }).catch(() => {});
+});
+
 const router = createRouter({ routeTree });
 
 const queryClient = new QueryClient({

@@ -35,6 +35,12 @@ fn cmd_app_info() -> AppInfo {
     }
 }
 
+#[tauri::command]
+#[specta::specta]
+fn cmd_log_frontend(message: String) {
+    tracing::warn!("[frontend] {}", message);
+}
+
 #[cfg(windows)]
 fn is_running_as_admin() -> bool {
     use windows::Win32::Foundation::HANDLE;
@@ -66,11 +72,7 @@ fn is_running_as_admin() -> bool {
 }
 
 pub fn run() {
-    let log_dir = if cfg!(debug_assertions) {
-        std::env::current_dir()
-            .unwrap_or_else(|_| std::path::PathBuf::from("."))
-            .join("logs")
-    } else {
+    let log_dir = {
         let local = std::env::var_os("LOCALAPPDATA")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::path::PathBuf::from("."));
@@ -87,6 +89,7 @@ pub fn run() {
     let builder = Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             cmd_app_info,
+            cmd_log_frontend,
             cmd_network_snapshot,
             cmd_network_kill_process,
             cmd_network_set_polling,
@@ -98,10 +101,13 @@ pub fn run() {
             cmd_autoruns_delete_entry,
             cmd_autoruns_cancel_scan,
             cmd_autoruns_calculate_hash,
+            cmd_autoruns_batch_calculate_hash,
             cmd_autoruns_sigcheck,
             cmd_autoruns_open_explorer,
             cmd_autoruns_open_regedit,
             cmd_autoruns_open_services,
+            cmd_autoruns_extract_icon,
+            cmd_autoruns_batch_extract_icons,
         ]);
 
     #[cfg(debug_assertions)]

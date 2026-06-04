@@ -10,6 +10,9 @@ export const commands = {
 async cmdAppInfo() : Promise<AppInfo> {
     return await TAURI_INVOKE("cmd_app_info");
 },
+async cmdLogFrontend(message: string) : Promise<void> {
+    await TAURI_INVOKE("cmd_log_frontend", { message });
+},
 async cmdNetworkSnapshot() : Promise<Result<NetworkSnapshotPayload, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_network_snapshot") };
@@ -90,6 +93,14 @@ async cmdAutorunsCalculateHash(entryId: number) : Promise<Result<AutorunItem, Ir
     else return { status: "error", error: e  as any };
 }
 },
+async cmdAutorunsBatchCalculateHash(entryIds: number[]) : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_batch_calculate_hash", { entryIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdAutorunsSigcheck(imagePath: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_sigcheck", { imagePath }) };
@@ -121,6 +132,22 @@ async cmdAutorunsOpenServices() : Promise<Result<null, IrError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdAutorunsExtractIcon(imagePath: string) : Promise<Result<string | null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_extract_icon", { imagePath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsBatchExtractIcons(paths: string[]) : Promise<Result<([string, string | null])[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_batch_extract_icons", { paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -148,7 +175,7 @@ export type Proto = "tcp" | "udp"
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"
 export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
-export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { detail: string } } | { kind: "unsigned" } | { kind: "not_verified" }
+export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { message: string } } | { kind: "unsigned" } | { kind: "not_verified" }
 
 /** tauri-specta globals **/
 

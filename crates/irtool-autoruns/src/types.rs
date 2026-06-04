@@ -23,7 +23,7 @@ impl RiskLevel {
 #[serde(rename_all = "snake_case", tag = "kind", content = "detail")]
 pub enum SignatureStatus {
     Valid { signer: String },
-    Invalid { detail: String },
+    Invalid { message: String },
     Unsigned,
     NotVerified,
 }

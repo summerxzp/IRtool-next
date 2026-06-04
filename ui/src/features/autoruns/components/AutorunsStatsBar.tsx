@@ -5,10 +5,13 @@ import { useAutorunsStore } from "../store";
 
 interface Props {
   data: AutorunItem[];
+  filteredCount: number;
   scanning: boolean;
   scanProgress: ScanProgress | null;
   verifyingSignatures: boolean;
   signatureProgress: { current: number; total: number } | null;
+  calculatingHash?: boolean;
+  hashProgress?: { current: number; total: number } | null;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -20,7 +23,7 @@ const PHASE_LABELS: Record<string, string> = {
   complete: "完成",
 };
 
-export function AutorunsStatsBar({ data, scanning, scanProgress, verifyingSignatures, signatureProgress }: Props) {
+export function AutorunsStatsBar({ data, filteredCount, scanning, scanProgress, verifyingSignatures, signatureProgress, calculatingHash, hashProgress }: Props) {
   const { t } = useTranslation();
   const lastScanDuration = useAutorunsStore((s) => s.lastScanDuration);
   const stats = useMemo(() => {
@@ -35,6 +38,7 @@ export function AutorunsStatsBar({ data, scanning, scanProgress, verifyingSignat
 
   return (
     <div className="h-7 px-3 flex items-center gap-4 bg-bg-elev-1 border-t border-border text-xs text-fg-secondary">
+      <span>{t("autoruns.stats.current")}: <span className="text-fg-primary font-medium">{filteredCount}</span></span>
       <span>{t("autoruns.stats.total")}: <span className="text-fg-primary font-medium">{stats.total}</span></span>
       <span className="text-success">{t("autoruns.stats.signed")}: <span className="font-medium">{stats.signed}/{stats.total}</span></span>
       {stats.disabled > 0 && <span className="text-fg-tertiary">{t("autoruns.stats.disabled")}: {stats.disabled}</span>}
@@ -46,6 +50,9 @@ export function AutorunsStatsBar({ data, scanning, scanProgress, verifyingSignat
       )}
       {verifyingSignatures && signatureProgress && (
         <span className="text-accent">{t("autoruns.stats.verifying")}: {signatureProgress.current}/{signatureProgress.total}</span>
+      )}
+      {calculatingHash && hashProgress && (
+        <span className="text-accent">{t("autoruns.stats.calculating-hash")}: {hashProgress.current}/{hashProgress.total}</span>
       )}
       {!scanning && lastScanDuration != null && (
         <span className="text-fg-tertiary">耗时 {lastScanDuration.toFixed(1)}s</span>

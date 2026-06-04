@@ -4,7 +4,7 @@ export type RiskLevel = "safe" | "suspicious" | "high_risk";
 
 export type SignatureStatus =
   | { kind: "valid"; detail: { signer: string } }
-  | { kind: "invalid"; detail: { detail: string } }
+  | { kind: "invalid"; detail: { message: string } }
   | { kind: "unsigned" }
   | { kind: "not_verified" };
 
@@ -35,7 +35,7 @@ export interface ScanOptions {
   category_filter: string[] | null;
 }
 
-export type ScanPhase = "running_autorunsc" | "parsing_csv" | "checking_files" | "evaluating_risk" | "complete";
+export type ScanPhase = "running_autorunsc" | "parsing_csv" | "checking_files" | "evaluating_risk" | "verifying_signatures" | "complete";
 
 export interface ScanProgress {
   task_id: number;

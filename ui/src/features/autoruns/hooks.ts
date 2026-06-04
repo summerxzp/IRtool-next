@@ -3,7 +3,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 import * as api from "./api";
 import { useAutorunsStore } from "./store";
-import type { ScanProgress, SignatureProgress } from "./types";
+import { clearIconCache, preloadIcons } from "./columns";
+import type { AutorunItem, ScanProgress, SignatureProgress } from "./types";
 
 const QK_AUTORUNS = ["autoruns", "items"] as const;
 
@@ -22,8 +23,8 @@ export function useAutorunsData() {
     refetchOnWindowFocus: false,
   });
 
-  const settersRef = useRef({ setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration });
-  settersRef.current = { setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration };
+  const settersRef = useRef({ setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration, setCalculatingHash: useAutorunsStore.getState().setCalculatingHash, setHashProgress: useAutorunsStore.getState().setHashProgress });
+  settersRef.current = { setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration, setCalculatingHash: useAutorunsStore.getState().setCalculatingHash, setHashProgress: useAutorunsStore.getState().setHashProgress };
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
@@ -31,7 +32,12 @@ export function useAutorunsData() {
       const { setScanProgress, setScanning, setLastScanDuration } = settersRef.current;
       setScanProgress(e.payload);
       if (e.payload.phase === "complete") {
-        qc.invalidateQueries({ queryKey: QK_AUTORUNS });
+        clearIconCache();
+        qc.invalidateQueries({ queryKey: QK_AUTORUNS }).then(() => {
+          // After data is refreshed, batch preload all icons
+          const data = qc.getQueryData<AutorunItem[]>(QK_AUTORUNS);
+          if (data && data.length > 0) preloadIcons(data);
+        });
         setScanning(false);
         // Extract duration from message like "扫描完成，共 287 项，耗时 12.3s"
         const match = e.payload.message.match(/耗时\s+([\d.]+)s/);
@@ -53,6 +59,24 @@ export function useAutorunsData() {
       if (e.payload.current >= e.payload.total) {
         qc.invalidateQueries({ queryKey: QK_AUTORUNS });
         setVerifyingSignatures(false);
+      }
+    }).then((u) => { unlisten = u; });
+    return () => { unlisten?.(); };
+  }, [qc]);
+
+  // Listen for hash progress events
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    listen<SignatureProgress>("evt_autoruns_hash_progress", (e) => {
+      const { setHashProgress, setCalculatingHash } = settersRef.current;
+      setHashProgress(e.payload);
+      if (e.payload.current % 200 === 0) {
+        qc.invalidateQueries({ queryKey: QK_AUTORUNS });
+      }
+      if (e.payload.current >= e.payload.total) {
+        qc.invalidateQueries({ queryKey: QK_AUTORUNS });
+        setCalculatingHash(false);
+        setHashProgress(null);
       }
     }).then((u) => { unlisten = u; });
     return () => { unlisten?.(); };
@@ -114,9 +138,20 @@ export function useVerifySignatures() {
 
 export function useDeleteEntry() {
   const qc = useQueryClient();
+  const setError = useAutorunsStore((s) => s.setError);
   return useMutation({
     mutationFn: api.deleteEntry,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: QK_AUTORUNS }); },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: QK_AUTORUNS });
+      if (!result.success) {
+        setError(result.message);
+      }
+    },
+    onError: (_err) => {
+      const msg = _err instanceof Error ? _err.message : String(_err);
+      setError(msg);
+      console.error("[autoruns] delete failed:", msg);
+    },
   });
 }
 

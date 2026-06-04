@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, X, Download, ShieldCheck, PanelBottom, PanelRight } from "lucide-react";
+import { Play, X, Download, Hash, PanelBottom, PanelRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,10 +9,10 @@ import { useAutorunsStore } from "../store";
 interface Props {
   onScan: () => void;
   onCancel: () => void;
-  onVerifySignatures: () => void;
+  onBatchCalculateHash: () => void;
   onExport: () => void;
   scanning: boolean;
-  verifyingSignatures: boolean;
+  calculatingHash: boolean;
   hasData: boolean;
   categories: string[];
 }
@@ -20,7 +20,7 @@ interface Props {
 const STATUS_OPTIONS: Array<"all" | "enabled" | "disabled"> = ["all", "enabled", "disabled"];
 const SIGNATURE_OPTIONS: Array<"all" | "valid" | "invalid" | "unsigned"> = ["all", "valid", "invalid", "unsigned"];
 
-export function AutorunsToolbar({ onScan, onCancel, onVerifySignatures, onExport, scanning, verifyingSignatures, hasData, categories }: Props) {
+export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExport, scanning, calculatingHash, hasData, categories }: Props) {
   const { t } = useTranslation();
   const filters = useAutorunsStore((s) => s.filters);
   const setFilter = useAutorunsStore((s) => s.setFilter);
@@ -76,8 +76,8 @@ export function AutorunsToolbar({ onScan, onCancel, onVerifySignatures, onExport
         {detailPosition === "bottom" ? <PanelRight className="h-3.5 w-3.5" /> : <PanelBottom className="h-3.5 w-3.5" />}
       </Button>
 
-      <Button variant="secondary" size="sm" onClick={onVerifySignatures} disabled={!hasData || verifyingSignatures}>
-        <ShieldCheck className="h-3.5 w-3.5 mr-1" />{verifyingSignatures ? t("autoruns.toolbar.verifying") : t("autoruns.toolbar.verify-signatures")}
+      <Button variant="secondary" size="sm" onClick={onBatchCalculateHash} disabled={!hasData || calculatingHash}>
+        <Hash className="h-3.5 w-3.5 mr-1" />{calculatingHash ? t("autoruns.toolbar.calculating-hash") : t("autoruns.toolbar.batch-hash")}
       </Button>
 
       <Button variant="secondary" size="sm" onClick={onExport} disabled={!hasData}>

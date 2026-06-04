@@ -108,12 +108,12 @@ pub fn parse_signer_status(raw_signer: &str) -> SignatureStatus {
         return SignatureStatus::Valid { signer };
     }
     if lower.contains("(error)") {
-        let detail = raw_signer
+        let message = raw_signer
             .replace("(Error)", "")
             .replace("(error)", "")
             .trim()
             .to_owned();
-        return SignatureStatus::Invalid { detail };
+        return SignatureStatus::Invalid { message };
     }
     SignatureStatus::Unsigned
 }
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn parse_signer_error() {
         let status = parse_signer_status("Revoked (Error)");
-        assert!(matches!(status, SignatureStatus::Invalid { detail } if detail == "Revoked"));
+        assert!(matches!(status, SignatureStatus::Invalid { message } if message == "Revoked"));
     }
 
     #[test]

@@ -33,6 +33,12 @@ interface AutorunsState {
   verifyingSignatures: boolean;
   setVerifyingSignatures: (v: boolean) => void;
 
+  calculatingHash: boolean;
+  setCalculatingHash: (v: boolean) => void;
+
+  hashProgress: SignatureProgress | null;
+  setHashProgress: (p: SignatureProgress | null) => void;
+
   error: string | null;
   setError: (e: string | null) => void;
 
@@ -72,6 +78,12 @@ export const useAutorunsStore = create<AutorunsState>((set) => ({
 
   verifyingSignatures: false,
   setVerifyingSignatures: (verifyingSignatures) => set({ verifyingSignatures }),
+
+  calculatingHash: false,
+  setCalculatingHash: (calculatingHash) => set({ calculatingHash }),
+
+  hashProgress: null,
+  setHashProgress: (hashProgress) => set({ hashProgress }),
 
   error: null,
   setError: (error) => set({ error }),

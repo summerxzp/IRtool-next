@@ -7,6 +7,7 @@ pub mod sigcheck;
 pub mod delete;
 pub mod scanner;
 pub mod store;
+pub mod icon;
 
 pub use types::*;
 pub use scanner::AutorunsScanner;
@@ -15,3 +16,5 @@ pub use scanner::open_in_explorer;
 pub use scanner::open_regedit;
 pub use scanner::open_services_msc;
 pub use store::AutorunsStore;
+pub use icon::extract_icon_base64;
+pub use icon::batch_extract_icons;

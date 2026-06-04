@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAutorunsData, useAutorunsScan, useVerifySignatures, useDeleteEntry, useCalculateHash } from "../hooks";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { useAutorunsData, useAutorunsScan, useDeleteEntry, useCalculateHash } from "../hooks";
 import * as api from "../api";
 import { useAutorunsStore } from "../store";
 import { AutorunsToolbar } from "../components/AutorunsToolbar";
@@ -18,7 +19,6 @@ export function AutorunsPage() {
   const { t } = useTranslation();
   const query = useAutorunsData();
   const scanMutation = useAutorunsScan();
-  const verifyMutation = useVerifySignatures();
   const deleteMutation = useDeleteEntry();
   const calculateHashMutation = useCalculateHash();
 
@@ -32,22 +32,47 @@ export function AutorunsPage() {
   const error = useAutorunsStore((s) => s.error);
   const setError = useAutorunsStore((s) => s.setError);
   const setSigcheckResult = useAutorunsStore((s) => s.setSigcheckResult);
+  const calculatingHash = useAutorunsStore((s) => s.calculatingHash);
+  const setCalculatingHash = useAutorunsStore((s) => s.setCalculatingHash);
+  const hashProgress = useAutorunsStore((s) => s.hashProgress);
+  const filters = useAutorunsStore((s) => s.filters);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AutorunItem | null>(null);
   const [contextRow, setContextRow] = useState<AutorunItem | null>(null);
   const [contextPos, setContextPos] = useState<{ x: number; y: number } | null>(null);
+  const [batchHashDialogOpen, setBatchHashDialogOpen] = useState(false);
 
   const data = useMemo(() => query.data ?? [], [query.data]);
   const selectedItem = useMemo(() => data.find((d) => d.id === selectedEntryId) ?? null, [data, selectedEntryId]);
   const categories = useMemo(() => { const set = new Set(data.map((d) => d.category)); return Array.from(set).sort(); }, [data]);
 
+  // Filtering logic (moved from AutorunsTable)
+  const filteredData = useMemo(() => {
+    let result = data;
+    if (filters.status === "enabled") {
+      result = result.filter((r) => r.enabled);
+    } else if (filters.status === "disabled") {
+      result = result.filter((r) => !r.enabled);
+    }
+    if (filters.signature !== "all") {
+      result = result.filter((r) => r.signature.kind === filters.signature);
+    }
+    if (filters.category !== "all") {
+      result = result.filter((r) => r.category === filters.category);
+    }
+    if (filters.search.trim()) {
+      const q = filters.search.toLowerCase();
+      result = result.filter((r) => {
+        const blob = `${r.entry} ${r.image_path ?? ""} ${r.launch_string ?? ""} ${r.publisher} ${r.location} ${r.category}`.toLowerCase();
+        return blob.includes(q);
+      });
+    }
+    return result;
+  }, [data, filters]);
+
   const handleScan = () => { scanMutation.mutate({ include_hash: false, category_filter: null }); };
   const handleCancel = () => { if (scanProgress) { import("../api").then((api) => api.cancelScan(scanProgress.task_id)); } };
-  const handleVerifySignatures = () => {
-    const paths = data.filter((d) => d.image_path && d.signature.kind === "not_verified" && d.file_exists).map((d) => d.image_path!);
-    if (paths.length > 0) verifyMutation.mutate(paths);
-  };
   const handleExport = async () => {
     await exportCsv(
       data.map((d) => ({ category: d.category, entry: d.entry, enabled: d.enabled, location: d.location, image_path: d.image_path ?? "", publisher: d.publisher, risk: d.risk, signature: d.signature.kind })),
@@ -56,9 +81,31 @@ export function AutorunsPage() {
     );
   };
   const handleDelete = (item: AutorunItem) => { setDeleteTarget(item); setDeleteDialogOpen(true); };
-  const handleConfirmDelete = (entryId: number) => { deleteMutation.mutate(entryId); };
+  const handleConfirmDelete = (entryId: number) => {
+    deleteMutation.mutate(entryId);
+    // Close detail panel if the deleted item was selected
+    if (selectedEntryId === entryId) {
+      setSelectedEntryId(null);
+    }
+  };
   const handleJumpToRegistry = (item: AutorunItem) => { api.openRegedit(item.location); };
   const handleContextMenu = (row: AutorunItem, event: React.MouseEvent) => { event.preventDefault(); setContextRow(row); setContextPos({ x: event.clientX, y: event.clientY }); };
+
+  const handleBatchCalculateHash = () => {
+    setBatchHashDialogOpen(false);
+    const entryIds = data.filter((d) => d.image_path && d.file_exists && !d.sha256).map((d) => d.id);
+    if (entryIds.length > 0) {
+      setCalculatingHash(true);
+      api.batchCalculateHash(entryIds).then(() => {
+        setCalculatingHash(false);
+        query.refetch();
+      }).catch((e) => {
+        setCalculatingHash(false);
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+      });
+    }
+  };
 
   const handleContextCalculateHash = () => {
     if (!contextRow) return;
@@ -93,7 +140,7 @@ export function AutorunsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <AutorunsToolbar onScan={handleScan} onCancel={handleCancel} onVerifySignatures={handleVerifySignatures} onExport={handleExport} scanning={scanning} verifyingSignatures={verifyingSignatures} hasData={data.length > 0} categories={categories} />
+      <AutorunsToolbar onScan={handleScan} onCancel={handleCancel} onBatchCalculateHash={() => setBatchHashDialogOpen(true)} onExport={handleExport} scanning={scanning} calculatingHash={calculatingHash} hasData={data.length > 0} categories={categories} />
 
       {error && (
         <div className="px-3 py-1.5 bg-danger/10 text-danger text-xs flex items-center gap-2">
@@ -106,29 +153,50 @@ export function AutorunsPage() {
         {detailPosition === "bottom" ? (
           <Group orientation="vertical">
             <Panel defaultSize={60} minSize={30}>
-              <AutorunsTable data={data} onRowSelect={(row) => setSelectedEntryId(row?.id ?? null)} onRowContextMenu={handleContextMenu} />
+              <AutorunsTable data={filteredData} onRowSelect={(row) => setSelectedEntryId(row?.id ?? null)} onRowContextMenu={handleContextMenu} selectedRowId={selectedEntryId != null ? String(selectedEntryId) : null} />
             </Panel>
-            <Separator className="h-px bg-border hover:bg-accent transition-colors" />
-            <Panel defaultSize={40} minSize={20}>
-              <AutorunsDetail item={selectedItem} onDelete={handleDelete} onJumpToRegistry={handleJumpToRegistry} onSearchInWorkspace={() => {}} />
-            </Panel>
+            {selectedEntryId != null && (
+              <>
+                <Separator className="h-px bg-border hover:bg-accent transition-colors" />
+                <Panel defaultSize={40} minSize={20}>
+                  <AutorunsDetail item={selectedItem} onDelete={handleDelete} onJumpToRegistry={handleJumpToRegistry} onSearchInWorkspace={() => {}} onClose={() => setSelectedEntryId(null)} />
+                </Panel>
+              </>
+            )}
           </Group>
         ) : (
           <Group orientation="horizontal">
             <Panel defaultSize={60} minSize={30}>
-              <AutorunsTable data={data} onRowSelect={(row) => setSelectedEntryId(row?.id ?? null)} onRowContextMenu={handleContextMenu} />
+              <AutorunsTable data={filteredData} onRowSelect={(row) => setSelectedEntryId(row?.id ?? null)} onRowContextMenu={handleContextMenu} selectedRowId={selectedEntryId != null ? String(selectedEntryId) : null} />
             </Panel>
-            <Separator className="w-px bg-border hover:bg-accent transition-colors" />
-            <Panel defaultSize={40} minSize={20}>
-              <AutorunsDetail item={selectedItem} onDelete={handleDelete} onJumpToRegistry={handleJumpToRegistry} onSearchInWorkspace={() => {}} />
-            </Panel>
+            {selectedEntryId != null && (
+              <>
+                <Separator className="w-px bg-border hover:bg-accent transition-colors" />
+                <Panel defaultSize={40} minSize={20}>
+                  <AutorunsDetail item={selectedItem} onDelete={handleDelete} onJumpToRegistry={handleJumpToRegistry} onSearchInWorkspace={() => {}} onClose={() => setSelectedEntryId(null)} />
+                </Panel>
+              </>
+            )}
           </Group>
         )}
       </div>
 
-      <AutorunsStatsBar data={data} scanning={scanning} scanProgress={scanProgress} verifyingSignatures={verifyingSignatures} signatureProgress={signatureProgress} />
+      <AutorunsStatsBar data={data} filteredCount={filteredData.length} scanning={scanning} scanProgress={scanProgress} verifyingSignatures={verifyingSignatures} signatureProgress={signatureProgress} calculatingHash={calculatingHash} hashProgress={hashProgress} />
 
       <DeleteEntryDialog item={deleteTarget} open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={handleConfirmDelete} />
+
+      <AlertDialog open={batchHashDialogOpen} onOpenChange={setBatchHashDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("autoruns.batch-hash.title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("autoruns.batch-hash.message")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchCalculateHash}>{t("common.confirm")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {contextRow && contextPos && (
         <DropdownMenu open={true} onOpenChange={() => setContextRow(null)}>

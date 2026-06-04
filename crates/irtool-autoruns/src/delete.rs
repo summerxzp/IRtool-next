@@ -27,8 +27,34 @@ mod win_impls {
     use windows::core::HSTRING;
 
     pub fn delete_entry_inner(item: &AutorunItem) -> Result<DeleteResult, IrError> {
-        let (hive, subkey, value_name) = match super::parse_location(&item.location) {
-            Some(parsed) => parsed,
+        let category = item.category.to_lowercase();
+
+        // 1. Windows Services — no registry parsing needed
+        if category == "services" {
+            return delete_service(item);
+        }
+
+        // 2. Scheduled Tasks — no registry parsing needed
+        if category == "scheduled tasks" || category == "task scheduler" || category == "tasks" {
+            return delete_scheduled_task(item);
+        }
+
+        // 11. Drivers — treat as service, no registry parsing needed
+        if category == "drivers" {
+            return delete_service(item);
+        }
+
+        // 9. WMI — not supported via registry, would need WMI API
+        if category == "wmi" {
+            return Ok(DeleteResult {
+                success: false,
+                message: "WMI 持久化项暂不支持删除，请手动处理".into(),
+            });
+        }
+
+        // All remaining categories need registry path parsing
+        let hive = match super::parse_hive(&item.location) {
+            Some(h) => h,
             None => {
                 return Ok(DeleteResult {
                     success: false,
@@ -37,17 +63,17 @@ mod win_impls {
             }
         };
 
-        let category = item.category.to_lowercase();
-
-        // 1. Windows Services
-        if category == "services" {
-            return delete_service(item);
-        }
-
-        // 2. Scheduled Tasks
-        if category == "scheduled tasks" || category == "task scheduler" {
-            return delete_scheduled_task(item);
-        }
+        // autorunsc puts the registry key path in `location` and the value name in `entry`
+        let subkey = match super::parse_subkey(&item.location) {
+            Some(s) => s,
+            None => {
+                return Ok(DeleteResult {
+                    success: false,
+                    message: format!("无法解析注册表子键: {}", item.location),
+                });
+            }
+        };
+        let value_name = &item.entry;
 
         // 3. Boot Execute — LSA_MULTI_SZ at HKLM\System\CurrentControlSet\Control\Session Manager
         if category == "boot execute" {
@@ -60,8 +86,8 @@ mod win_impls {
         }
 
         // 5. Image File Execution Options (IFEO)
-        if category == "image hijacks" {
-            return delete_ifeo(item);
+        if category == "image hijacks" || category == "hijacks" {
+            return delete_ifeo(item, hive, &subkey);
         }
 
         // 6. LSA Security Packages — LSA_MULTI_SZ
@@ -76,25 +102,20 @@ mod win_impls {
 
         // 8. Winlogon — LSA_MULTI_SZ (Userinit, Shell, Taskman, System)
         if category == "winlogon" {
+            // Protect critical Winlogon values that would prevent login if deleted
+            let val_lower = value_name.to_lowercase();
+            if val_lower == "shell" || val_lower == "userinit" {
+                return Ok(DeleteResult {
+                    success: false,
+                    message: "Shell/Userinit 是系统关键值，删除后将无法登录，请手动处理".into(),
+                });
+            }
             return delete_lsa_multi_sz(item, hive, &subkey, &value_name);
-        }
-
-        // 9. WMI — not supported via registry, would need WMI API
-        if category == "wmi" {
-            return Ok(DeleteResult {
-                success: false,
-                message: "WMI 持久化项暂不支持删除，请手动处理".into(),
-            });
         }
 
         // 10. Office addins / COM — CLSID-based
         if category == "office" || category == "com object" {
             return delete_com_or_office(item, hive, &subkey);
-        }
-
-        // 11. Drivers — treat as service
-        if category == "drivers" {
-            return delete_service(item);
         }
 
         // 12. Generic registry value delete (Logon, Explorer, Codecs, etc.)
@@ -191,18 +212,16 @@ mod win_impls {
         )
     }
 
-    fn delete_ifeo(item: &AutorunItem) -> Result<DeleteResult, IrError> {
-        let (hive, subkey, _value_name) = match super::parse_location(&item.location) {
-            Some(parsed) => parsed,
-            None => {
-                return Ok(DeleteResult {
-                    success: false,
-                    message: format!("无法解析 IFEO 路径: {}", item.location),
-                });
-            }
-        };
-
-        delete_registry_key(hive, &subkey)
+    fn delete_ifeo(
+        item: &AutorunItem,
+        hive: HKEY,
+        parent_subkey: &str,
+    ) -> Result<DeleteResult, IrError> {
+        // IFEO: entry is a subkey name under the location path
+        // e.g. location = HKLM\...\Image File Execution Options, entry = irtool_test_dummy.exe
+        // We need to delete the key: ...\Image File Execution Options\irtool_test_dummy.exe
+        let full_subkey = format!(r"{}\{}", parent_subkey, item.entry);
+        delete_registry_key(hive, &full_subkey)
     }
 
     fn delete_lsa_multi_sz(
@@ -223,6 +242,7 @@ mod win_impls {
             let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
             return delete_registry_key(hive, &clsid_path);
         }
+        // Use entry as the value name to delete
         if item.entry.is_empty() {
             return Ok(DeleteResult {
                 success: false,
@@ -251,6 +271,13 @@ mod win_impls {
             );
 
             if result.is_err() {
+                // ERROR_FILE_NOT_FOUND (2): key already gone — treat as success
+                if result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: true,
+                        message: format!("注册表值 '{}' 已删除", value_name),
+                    });
+                }
                 return Ok(DeleteResult {
                     success: false,
                     message: format!("无法打开注册表项 '{}'", subkey),
@@ -258,7 +285,8 @@ mod win_impls {
             }
 
             let result = RegDeleteValueW(h_key, &value_name_wide);
-            if result.is_err() {
+            // ERROR_FILE_NOT_FOUND (2): value already gone — treat as success
+            if result.is_err() && result.0 != 2 {
                 Ok(DeleteResult {
                     success: false,
                     message: format!("删除注册表值 '{}' 失败", value_name),
@@ -386,47 +414,47 @@ mod stub_impls {
 // ---------------------------------------------------------------------------
 
 #[cfg(windows)]
-fn parse_location(location: &str) -> Option<(windows::Win32::System::Registry::HKEY, String, String)> {
-    let location = location.trim();
-
-    let (hive_prefix, rest) = if let Some(r) = location.strip_prefix("HKLM\\") {
-        ("HKLM", r)
-    } else if let Some(r) = location.strip_prefix("HKEY_LOCAL_MACHINE\\") {
-        ("HKLM", r)
-    } else if let Some(r) = location.strip_prefix("HKCU\\") {
-        ("HKCU", r)
-    } else if let Some(r) = location.strip_prefix("HKEY_CURRENT_USER\\") {
-        ("HKCU", r)
-    } else if let Some(r) = location.strip_prefix("HKU\\") {
-        ("HKU", r)
-    } else if let Some(r) = location.strip_prefix("HKEY_USERS\\") {
-        ("HKU", r)
-    } else {
-        return None;
-    };
-
+fn parse_hive(location: &str) -> Option<windows::Win32::System::Registry::HKEY> {
     use windows::Win32::System::Registry::*;
 
-    let hive = match hive_prefix {
-        "HKLM" => HKEY_LOCAL_MACHINE,
-        "HKCU" => HKEY_CURRENT_USER,
-        "HKU" => HKEY_USERS,
-        _ => return None,
-    };
-
-    if let Some(pos) = rest.rfind('\\') {
-        let subkey = &rest[..pos];
-        let value_name = &rest[pos + 1..];
-        Some((hive, subkey.to_owned(), value_name.to_owned()))
+    let location = location.trim();
+    if location.starts_with("HKLM\\") || location.starts_with("HKEY_LOCAL_MACHINE\\") {
+        Some(HKEY_LOCAL_MACHINE)
+    } else if location.starts_with("HKCU\\") || location.starts_with("HKEY_CURRENT_USER\\") {
+        Some(HKEY_CURRENT_USER)
+    } else if location.starts_with("HKU\\") || location.starts_with("HKEY_USERS\\") {
+        Some(HKEY_USERS)
     } else {
-        Some((hive, rest.to_owned(), String::new()))
+        None
     }
 }
 
-#[cfg(not(windows))]
-fn parse_location(_location: &str) -> Option<((), String, String)> {
-    None
+#[cfg(windows)]
+fn parse_subkey(location: &str) -> Option<String> {
+    let location = location.trim();
+    let rest = if let Some(r) = location.strip_prefix("HKLM\\") {
+        r
+    } else if let Some(r) = location.strip_prefix("HKEY_LOCAL_MACHINE\\") {
+        r
+    } else if let Some(r) = location.strip_prefix("HKCU\\") {
+        r
+    } else if let Some(r) = location.strip_prefix("HKEY_CURRENT_USER\\") {
+        r
+    } else if let Some(r) = location.strip_prefix("HKU\\") {
+        r
+    } else if let Some(r) = location.strip_prefix("HKEY_USERS\\") {
+        r
+    } else {
+        return None;
+    };
+    Some(rest.to_owned())
 }
+
+#[cfg(not(windows))]
+fn parse_hive(_location: &str) -> Option<()> { None }
+
+#[cfg(not(windows))]
+fn parse_subkey(_location: &str) -> Option<String> { None }
 
 #[cfg(windows)]
 fn read_multi_sz(
@@ -522,10 +550,14 @@ fn delete_registry_key_fallback(
         if result.is_ok() {
             return Ok(());
         }
+        // ERROR_FILE_NOT_FOUND (2): key already gone — treat as success
+        if result.0 == 2 {
+            return Ok(());
+        }
 
         // Fallback: try simple RegDeleteKeyW
         let result = RegDeleteKeyW(hive, &subkey_wide);
-        if result.is_err() {
+        if result.is_err() && result.0 != 2 {
             return Err(irtool_core::IrError::Io(format!(
                 "删除注册表项失败: 0x{:08X}",
                 result.0
@@ -582,27 +614,33 @@ mod tests {
     }
 
     #[test]
-    fn parse_location_hklm() {
-        let result = parse_location(r"HKLM\SOFTWARE\Microsoft\Windows\Run\MyApp");
+    fn parse_hive_hklm() {
+        let result = parse_hive(r"HKLM\SOFTWARE\Microsoft\Windows\Run");
         assert!(result.is_some());
-        let (_, subkey, value) = result.unwrap();
-        assert_eq!(subkey, r"SOFTWARE\Microsoft\Windows\Run");
-        assert_eq!(value, "MyApp");
     }
 
     #[test]
-    fn parse_location_hkcu() {
-        let result = parse_location(r"HKCU\SOFTWARE\Run\SomeValue");
+    fn parse_hive_hkcu() {
+        let result = parse_hive(r"HKCU\SOFTWARE\Run");
         assert!(result.is_some());
-        let (_, subkey, value) = result.unwrap();
-        assert_eq!(subkey, r"SOFTWARE\Run");
-        assert_eq!(value, "SomeValue");
     }
 
     #[test]
-    fn parse_location_invalid() {
-        let result = parse_location("NotARegistryPath");
+    fn parse_hive_invalid() {
+        let result = parse_hive("NotARegistryPath");
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn parse_subkey_hklm() {
+        let result = parse_subkey(r"HKLM\SOFTWARE\Microsoft\Windows\Run");
+        assert_eq!(result, Some(r"SOFTWARE\Microsoft\Windows\Run".into()));
+    }
+
+    #[test]
+    fn parse_subkey_hkcu() {
+        let result = parse_subkey(r"HKCU\SOFTWARE\Run\SomeValue");
+        assert_eq!(result, Some(r"SOFTWARE\Run\SomeValue".into()));
     }
 
     #[test]

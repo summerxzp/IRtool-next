@@ -61,9 +61,15 @@ pub async fn cmd_network_snapshot(
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_network_kill_process(pid: u32) -> Result<(), IrError> {
-    tokio::task::spawn_blocking(move || kill_process(pid))
+    info!("kill process requested: pid={}", pid);
+    let result = tokio::task::spawn_blocking(move || kill_process(pid))
         .await
-        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
+    match &result {
+        Ok(()) => info!("kill process result: success, pid={}", pid),
+        Err(e) => error!("kill process result: failed, pid={}, error={}", pid, e),
+    }
+    result
 }
 
 #[tauri::command]
@@ -85,6 +91,11 @@ pub async fn cmd_network_set_polling(
     }
     let new_interval = polling.interval_ms;
     let paused = polling.paused;
+
+    info!(
+        "network polling config changed: interval_ms={}, paused={}, retention={:?}",
+        new_interval, paused, polling.retention
+    );
 
     if let Some(token) = polling.cancel.take() {
         token.cancel();
@@ -109,6 +120,7 @@ pub async fn cmd_network_set_polling(
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_network_clear_history(state: State<'_, AppState>) -> Result<(), IrError> {
+    info!("network history cleared");
     state.net_history.clear_history();
     Ok(())
 }
