@@ -1,5 +1,5 @@
-use irtool_core::TaskRegistry;
 use irtool_autoruns::{AutorunsScanner, AutorunsStore};
+use irtool_core::TaskRegistry;
 use irtool_net_monitor::{HistoryStore, RetentionPolicy, WindowsNetCollector};
 use parking_lot::Mutex;
 use std::sync::Arc;

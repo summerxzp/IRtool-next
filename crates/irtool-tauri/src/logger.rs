@@ -24,8 +24,8 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     let (non_blocking, file_guard) = tracing_appender::non_blocking(file_appender);
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,irtool=debug,tauri=info"));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,irtool=debug,tauri=info"));
 
     let file_layer = fmt::layer()
         .with_writer(non_blocking)
@@ -36,20 +36,16 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .with_line_number(false)
         .with_filter(env_filter);
 
-    let console_layer = if cfg!(debug_assertions) {
-        Some(
-            fmt::layer()
-                .with_target(true)
-                .with_ansi(true)
-                .compact()
-                .with_filter(
-                    EnvFilter::try_from_default_env()
-                        .unwrap_or_else(|_| EnvFilter::new("debug,tauri=info")),
+    let console_layer =
+        if cfg!(debug_assertions) {
+            Some(
+                fmt::layer().with_target(true).with_ansi(true).compact().with_filter(
+                    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info")),
                 ),
-        )
-    } else {
-        None
-    };
+            )
+        } else {
+            None
+        };
 
     tracing_subscriber::registry()
         .with(file_layer)

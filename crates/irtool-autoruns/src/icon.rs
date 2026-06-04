@@ -39,9 +39,7 @@ pub fn batch_extract_icons(paths: &[String]) -> Vec<(String, Option<String>)> {
 
     let results: Vec<(String, Option<String>)> = unique
         .par_iter()
-        .filter_map(|&path| {
-            extract_icon_base64(path).ok().map(|icon| (path.to_owned(), icon))
-        })
+        .filter_map(|&path| extract_icon_base64(path).ok().map(|icon| (path.to_owned(), icon)))
         .collect();
 
     results
@@ -49,9 +47,9 @@ pub fn batch_extract_icons(paths: &[String]) -> Vec<(String, Option<String>)> {
 
 #[cfg(windows)]
 fn extract_icon_win32(image_path: &str) -> Result<Option<String>, IrError> {
+    use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
     use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_SMALLICON};
     use windows::Win32::UI::WindowsAndMessaging::DestroyIcon;
-    use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 
     let wide_path: Vec<u16> = image_path.encode_utf16().chain(std::iter::once(0)).collect();
 
@@ -72,7 +70,9 @@ fn extract_icon_win32(image_path: &str) -> Result<Option<String>, IrError> {
 
     let icon = shfi.hIcon;
     let png_data = unsafe { icon_to_png(icon) };
-    unsafe { let _ = DestroyIcon(icon); }
+    unsafe {
+        let _ = DestroyIcon(icon);
+    }
 
     match png_data {
         Some(data) => {
@@ -85,11 +85,11 @@ fn extract_icon_win32(image_path: &str) -> Result<Option<String>, IrError> {
 
 #[cfg(windows)]
 unsafe fn icon_to_png(icon: windows::Win32::UI::WindowsAndMessaging::HICON) -> Option<Vec<u8>> {
-    use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
     use windows::Win32::Graphics::Gdi::{
-        GetDIBits, CreateCompatibleDC, DeleteDC, DeleteObject, GetObjectA,
-        BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, BITMAP,
+        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectA, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
+        BI_RGB, DIB_RGB_COLORS,
     };
+    use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 
     let mut icon_info = ICONINFO::default();
     GetIconInfo(icon, &mut icon_info).ok()?;
@@ -101,7 +101,11 @@ unsafe fn icon_to_png(icon: windows::Win32::UI::WindowsAndMessaging::HICON) -> O
         return None;
     }
 
-    let hbm_source = if has_color { icon_info.hbmColor } else { icon_info.hbmMask };
+    let hbm_source = if has_color {
+        icon_info.hbmColor
+    } else {
+        icon_info.hbmMask
+    };
 
     let mut bm = BITMAP::default();
     let ret = GetObjectA(
@@ -110,8 +114,12 @@ unsafe fn icon_to_png(icon: windows::Win32::UI::WindowsAndMessaging::HICON) -> O
         Some(&mut bm as *mut _ as *mut _),
     );
     if ret == 0 {
-        if has_mask { let _ = DeleteObject(icon_info.hbmMask.into()); }
-        if has_color { let _ = DeleteObject(icon_info.hbmColor.into()); }
+        if has_mask {
+            let _ = DeleteObject(icon_info.hbmMask.into());
+        }
+        if has_color {
+            let _ = DeleteObject(icon_info.hbmColor.into());
+        }
         return None;
     }
 
@@ -124,8 +132,12 @@ unsafe fn icon_to_png(icon: windows::Win32::UI::WindowsAndMessaging::HICON) -> O
 
     let hdc = CreateCompatibleDC(None);
     if hdc.is_invalid() {
-        if has_mask { let _ = DeleteObject(icon_info.hbmMask.into()); }
-        if has_color { let _ = DeleteObject(icon_info.hbmColor.into()); }
+        if has_mask {
+            let _ = DeleteObject(icon_info.hbmMask.into());
+        }
+        if has_color {
+            let _ = DeleteObject(icon_info.hbmColor.into());
+        }
         return None;
     }
 
@@ -155,8 +167,12 @@ unsafe fn icon_to_png(icon: windows::Win32::UI::WindowsAndMessaging::HICON) -> O
     );
 
     let _ = DeleteDC(hdc);
-    if has_mask { let _ = DeleteObject(icon_info.hbmMask.into()); }
-    if has_color { let _ = DeleteObject(icon_info.hbmColor.into()); }
+    if has_mask {
+        let _ = DeleteObject(icon_info.hbmMask.into());
+    }
+    if has_color {
+        let _ = DeleteObject(icon_info.hbmColor.into());
+    }
 
     if scan_lines == 0 {
         return None;

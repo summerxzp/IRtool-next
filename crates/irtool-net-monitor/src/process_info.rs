@@ -9,8 +9,7 @@ use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 #[cfg(windows)]
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
 #[derive(Debug, Clone)]
@@ -98,18 +97,12 @@ fn lookup_process(pid: u32) -> ProcessInfo {
 
         let mut buf = [0u16; 1024];
         let mut size = buf.len() as u32;
-        let path_str = if QueryFullProcessImageNameW(
-            handle,
-            PROCESS_NAME_FORMAT(0),
-            PWSTR(buf.as_mut_ptr()),
-            &mut size,
-        )
-        .is_ok()
-        {
-            String::from_utf16_lossy(&buf[..size as usize])
-        } else {
-            String::new()
-        };
+        let path_str =
+            if QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut size).is_ok() {
+                String::from_utf16_lossy(&buf[..size as usize])
+            } else {
+                String::new()
+            };
 
         let _ = CloseHandle(handle);
 

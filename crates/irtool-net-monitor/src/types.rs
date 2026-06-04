@@ -177,8 +177,14 @@ mod tests {
         let mut conn = NetConn {
             proto: Proto::Tcp,
             family: Family::V4,
-            local: NetEndpoint { addr: "127.0.0.1".into(), port: 80 },
-            remote: NetEndpoint { addr: "1.1.1.1".into(), port: 443 },
+            local: NetEndpoint {
+                addr: "127.0.0.1".into(),
+                port: 80,
+            },
+            remote: NetEndpoint {
+                addr: "1.1.1.1".into(),
+                port: 443,
+            },
             state: ConnState::Established,
             pid: 100,
             process_name: None,

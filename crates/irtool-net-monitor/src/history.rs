@@ -1,4 +1,4 @@
-use crate::types::{NetConn, NetConnKey, now_epoch_secs};
+use crate::types::{now_epoch_secs, NetConn, NetConnKey};
 use dashmap::DashMap;
 use std::sync::Arc;
 
@@ -25,11 +25,7 @@ impl HistoryStore {
         Self::default()
     }
 
-    pub fn merge(
-        &self,
-        current_snapshot: Vec<NetConn>,
-        retention: RetentionPolicy,
-    ) -> Vec<NetConn> {
+    pub fn merge(&self, current_snapshot: Vec<NetConn>, retention: RetentionPolicy) -> Vec<NetConn> {
         let now = now_epoch_secs();
 
         let mut current_keys = Vec::with_capacity(current_snapshot.len());

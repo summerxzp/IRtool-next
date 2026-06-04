@@ -1,17 +1,14 @@
 use irtool_core::IrError;
 
 #[cfg(windows)]
-use windows::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
+use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED};
 #[cfg(windows)]
 use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 
 #[cfg(windows)]
 pub fn kill_process(pid: u32) -> Result<(), IrError> {
     if pid == 0 || pid == 4 {
-        return Err(IrError::Internal(format!(
-            "refuse to kill system pid {}",
-            pid
-        )));
+        return Err(IrError::Internal(format!("refuse to kill system pid {}", pid)));
     }
     unsafe {
         match OpenProcess(PROCESS_TERMINATE, false, pid) {
@@ -19,10 +16,7 @@ pub fn kill_process(pid: u32) -> Result<(), IrError> {
                 let result = TerminateProcess(handle, 1);
                 let _ = CloseHandle(handle);
                 if result.is_err() {
-                    return Err(IrError::Internal(format!(
-                        "TerminateProcess failed for pid {}",
-                        pid
-                    )));
+                    return Err(IrError::Internal(format!("TerminateProcess failed for pid {}", pid)));
                 }
                 Ok(())
             }
@@ -31,10 +25,7 @@ pub fn kill_process(pid: u32) -> Result<(), IrError> {
                 if e.code().0 as u32 == 0x80070005 || last == ERROR_ACCESS_DENIED.0 {
                     Err(IrError::PermissionDenied)
                 } else {
-                    Err(IrError::Internal(format!(
-                        "OpenProcess failed for pid {}: {}",
-                        pid, e
-                    )))
+                    Err(IrError::Internal(format!("OpenProcess failed for pid {}: {}", pid, e)))
                 }
             }
         }

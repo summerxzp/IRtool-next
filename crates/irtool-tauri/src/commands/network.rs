@@ -42,9 +42,7 @@ pub struct NetworkPollingControl {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_network_snapshot(
-    state: State<'_, AppState>,
-) -> Result<NetworkSnapshotPayload, IrError> {
+pub async fn cmd_network_snapshot(state: State<'_, AppState>) -> Result<NetworkSnapshotPayload, IrError> {
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
     let retention = state.net_polling.lock().retention;
@@ -110,8 +108,7 @@ pub async fn cmd_network_set_polling(
         let retention_now = state.net_polling.lock().retention;
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
-            run_polling_loop(collector, history, retention_now, app_clone, new_interval, token)
-                .await;
+            run_polling_loop(collector, history, retention_now, app_clone, new_interval, token).await;
         });
     }
     Ok(())

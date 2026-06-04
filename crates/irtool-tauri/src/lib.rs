@@ -6,8 +6,8 @@ mod state;
 #[allow(dead_code)]
 mod types;
 
-use crate::commands::network::*;
 use crate::commands::autoruns::*;
+use crate::commands::network::*;
 use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
@@ -86,29 +86,28 @@ pub fn run() {
     info!("Admin: {}", is_running_as_admin());
     info!("============================================");
 
-    let builder = Builder::<tauri::Wry>::new()
-        .commands(collect_commands![
-            cmd_app_info,
-            cmd_log_frontend,
-            cmd_network_snapshot,
-            cmd_network_kill_process,
-            cmd_network_set_polling,
-            cmd_network_clear_history,
-            // --- P2 新增 ---
-            cmd_autoruns_scan,
-            cmd_autoruns_get_result,
-            cmd_autoruns_verify_signatures,
-            cmd_autoruns_delete_entry,
-            cmd_autoruns_cancel_scan,
-            cmd_autoruns_calculate_hash,
-            cmd_autoruns_batch_calculate_hash,
-            cmd_autoruns_sigcheck,
-            cmd_autoruns_open_explorer,
-            cmd_autoruns_open_regedit,
-            cmd_autoruns_open_services,
-            cmd_autoruns_extract_icon,
-            cmd_autoruns_batch_extract_icons,
-        ]);
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        cmd_app_info,
+        cmd_log_frontend,
+        cmd_network_snapshot,
+        cmd_network_kill_process,
+        cmd_network_set_polling,
+        cmd_network_clear_history,
+        // --- P2 新增 ---
+        cmd_autoruns_scan,
+        cmd_autoruns_get_result,
+        cmd_autoruns_verify_signatures,
+        cmd_autoruns_delete_entry,
+        cmd_autoruns_cancel_scan,
+        cmd_autoruns_calculate_hash,
+        cmd_autoruns_batch_calculate_hash,
+        cmd_autoruns_sigcheck,
+        cmd_autoruns_open_explorer,
+        cmd_autoruns_open_regedit,
+        cmd_autoruns_open_services,
+        cmd_autoruns_extract_icon,
+        cmd_autoruns_batch_extract_icons,
+    ]);
 
     #[cfg(debug_assertions)]
     {

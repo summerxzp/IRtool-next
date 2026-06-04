@@ -1,11 +1,11 @@
-use crate::types::{ConnState, Family, NetConn, NetEndpoint, Proto, now_epoch_secs};
+use crate::types::{now_epoch_secs, ConnState, Family, NetConn, NetEndpoint, Proto};
 use irtool_core::IrError;
 use std::mem::size_of;
 
 #[cfg(windows)]
 use windows::Win32::NetworkManagement::IpHelper::{
-    GetExtendedUdpTable, MIB_UDP6ROW_OWNER_PID, MIB_UDP6TABLE_OWNER_PID,
-    MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
+    GetExtendedUdpTable, MIB_UDP6ROW_OWNER_PID, MIB_UDP6TABLE_OWNER_PID, MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID,
+    UDP_TABLE_OWNER_PID,
 };
 #[cfg(windows)]
 use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
@@ -14,14 +14,7 @@ use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
 pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
     unsafe {
         let mut buf_len: u32 = 0;
-        let _ = GetExtendedUdpTable(
-            None,
-            &mut buf_len,
-            false,
-            AF_INET.0 as u32,
-            UDP_TABLE_OWNER_PID,
-            0,
-        );
+        let _ = GetExtendedUdpTable(None, &mut buf_len, false, AF_INET.0 as u32, UDP_TABLE_OWNER_PID, 0);
 
         if buf_len == 0 {
             return Ok(Vec::new());
@@ -37,10 +30,7 @@ pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
             0,
         );
         if rc != 0 {
-            return Err(IrError::Internal(format!(
-                "GetExtendedUdpTable v4 failed: {}",
-                rc
-            )));
+            return Err(IrError::Internal(format!("GetExtendedUdpTable v4 failed: {}", rc)));
         }
 
         let table = &*(buf.as_ptr() as *const MIB_UDPTABLE_OWNER_PID);
@@ -51,8 +41,7 @@ pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
             return Err(IrError::Internal("udp v4 table size insufficient".into()));
         }
 
-        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size)
-            as *const MIB_UDPROW_OWNER_PID;
+        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size) as *const MIB_UDPROW_OWNER_PID;
 
         let now = now_epoch_secs();
         let mut conns = Vec::with_capacity(count);
@@ -86,14 +75,7 @@ pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
 pub fn enumerate_udp_v6() -> Result<Vec<NetConn>, IrError> {
     unsafe {
         let mut buf_len: u32 = 0;
-        let _ = GetExtendedUdpTable(
-            None,
-            &mut buf_len,
-            false,
-            AF_INET6.0 as u32,
-            UDP_TABLE_OWNER_PID,
-            0,
-        );
+        let _ = GetExtendedUdpTable(None, &mut buf_len, false, AF_INET6.0 as u32, UDP_TABLE_OWNER_PID, 0);
 
         if buf_len == 0 {
             return Ok(Vec::new());
@@ -109,10 +91,7 @@ pub fn enumerate_udp_v6() -> Result<Vec<NetConn>, IrError> {
             0,
         );
         if rc != 0 {
-            return Err(IrError::Internal(format!(
-                "GetExtendedUdpTable v6 failed: {}",
-                rc
-            )));
+            return Err(IrError::Internal(format!("GetExtendedUdpTable v6 failed: {}", rc)));
         }
 
         let table = &*(buf.as_ptr() as *const MIB_UDP6TABLE_OWNER_PID);
@@ -123,15 +102,13 @@ pub fn enumerate_udp_v6() -> Result<Vec<NetConn>, IrError> {
             return Err(IrError::Internal("udp v6 table size insufficient".into()));
         }
 
-        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size)
-            as *const MIB_UDP6ROW_OWNER_PID;
+        let rows_ptr = (buf.as_ptr() as *const u8).add(header_size) as *const MIB_UDP6ROW_OWNER_PID;
 
         let now = now_epoch_secs();
         let mut conns = Vec::with_capacity(count);
         for i in 0..count {
             let row = &*rows_ptr.add(i);
-            let local =
-                NetEndpoint::from_v6(row.ucLocalAddr, row.dwLocalPort as u16);
+            let local = NetEndpoint::from_v6(row.ucLocalAddr, row.dwLocalPort as u16);
             let remote = NetEndpoint {
                 addr: String::new(),
                 port: 0,

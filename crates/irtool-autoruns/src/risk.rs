@@ -17,13 +17,7 @@ const HIGH_RISK_PATHS: &[&str] = &[
     r"\documents\",
 ];
 
-const TRUSTED_PUBLISHERS: &[&str] = &[
-    "microsoft",
-    "windows",
-    "intel",
-    "nvidia",
-    "amd",
-];
+const TRUSTED_PUBLISHERS: &[&str] = &["microsoft", "windows", "intel", "nvidia", "amd"];
 
 pub struct FileInfo {
     pub exists: bool,
@@ -192,9 +186,7 @@ mod tests {
     #[test]
     fn parse_signer_verified() {
         let status = parse_signer_status("Microsoft Corporation (Verified)");
-        assert!(
-            matches!(status, SignatureStatus::Valid { signer } if signer == "Microsoft Corporation")
-        );
+        assert!(matches!(status, SignatureStatus::Valid { signer } if signer == "Microsoft Corporation"));
     }
 
     #[test]

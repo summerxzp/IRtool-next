@@ -22,9 +22,9 @@ pub fn delete_entry(item: &AutorunItem) -> Result<DeleteResult, IrError> {
 mod win_impls {
     use crate::types::{AutorunItem, DeleteResult};
     use irtool_core::IrError;
+    use windows::core::HSTRING;
     use windows::Win32::System::Registry::*;
     use windows::Win32::System::Services::*;
-    use windows::core::HSTRING;
 
     pub fn delete_entry_inner(item: &AutorunItem) -> Result<DeleteResult, IrError> {
         let category = item.category.to_lowercase();
@@ -142,11 +142,7 @@ mod win_impls {
             };
 
             // SERVICE_DELETE = 0x00010000, SERVICE_STOP = 0x00000020
-            let service = match OpenServiceW(
-                scm,
-                &service_name_wide,
-                0x00010000 | 0x00000020,
-            ) {
+            let service = match OpenServiceW(scm, &service_name_wide, 0x00010000 | 0x00000020) {
                 Ok(s) => s,
                 Err(e) => {
                     return Ok(DeleteResult {
@@ -212,11 +208,7 @@ mod win_impls {
         )
     }
 
-    fn delete_ifeo(
-        item: &AutorunItem,
-        hive: HKEY,
-        parent_subkey: &str,
-    ) -> Result<DeleteResult, IrError> {
+    fn delete_ifeo(item: &AutorunItem, hive: HKEY, parent_subkey: &str) -> Result<DeleteResult, IrError> {
         // IFEO: entry is a subkey name under the location path
         // e.g. location = HKLM\...\Image File Execution Options, entry = irtool_test_dummy.exe
         // We need to delete the key: ...\Image File Execution Options\irtool_test_dummy.exe
@@ -233,11 +225,7 @@ mod win_impls {
         delete_lsa_multi_sz_at(hive, subkey, value_name, &item.entry)
     }
 
-    fn delete_com_or_office(
-        item: &AutorunItem,
-        hive: HKEY,
-        subkey: &str,
-    ) -> Result<DeleteResult, IrError> {
+    fn delete_com_or_office(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
         if let Some(clsid) = super::extract_clsid(&item.location) {
             let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
             return delete_registry_key(hive, &clsid_path);
@@ -252,23 +240,13 @@ mod win_impls {
         delete_registry_value(hive, subkey, &item.entry)
     }
 
-    fn delete_registry_value(
-        hive: HKEY,
-        subkey: &str,
-        value_name: &str,
-    ) -> Result<DeleteResult, IrError> {
+    fn delete_registry_value(hive: HKEY, subkey: &str, value_name: &str) -> Result<DeleteResult, IrError> {
         let subkey_wide = HSTRING::from(subkey);
         let value_name_wide = HSTRING::from(value_name);
 
         unsafe {
             let mut h_key = Default::default();
-            let result = RegOpenKeyExW(
-                hive,
-                &subkey_wide,
-                None,
-                KEY_SET_VALUE,
-                &mut h_key,
-            );
+            let result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_SET_VALUE, &mut h_key);
 
             if result.is_err() {
                 // ERROR_FILE_NOT_FOUND (2): key already gone — treat as success
@@ -325,13 +303,7 @@ mod win_impls {
 
         unsafe {
             let mut h_key = Default::default();
-            let result = RegOpenKeyExW(
-                hive,
-                &subkey_wide,
-                None,
-                KEY_QUERY_VALUE | KEY_SET_VALUE,
-                &mut h_key,
-            );
+            let result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_QUERY_VALUE | KEY_SET_VALUE, &mut h_key);
 
             if result.is_err() {
                 return Ok(DeleteResult {
@@ -353,10 +325,7 @@ mod win_impls {
 
             // Remove the entry
             let entry_lower = entry_to_remove.to_lowercase();
-            let new_strings: Vec<&String> = existing
-                .iter()
-                .filter(|s| s.to_lowercase() != entry_lower)
-                .collect();
+            let new_strings: Vec<&String> = existing.iter().filter(|s| s.to_lowercase() != entry_lower).collect();
 
             if new_strings.len() == existing.len() {
                 return Ok(DeleteResult {
@@ -451,18 +420,22 @@ fn parse_subkey(location: &str) -> Option<String> {
 }
 
 #[cfg(not(windows))]
-fn parse_hive(_location: &str) -> Option<()> { None }
+fn parse_hive(_location: &str) -> Option<()> {
+    None
+}
 
 #[cfg(not(windows))]
-fn parse_subkey(_location: &str) -> Option<String> { None }
+fn parse_subkey(_location: &str) -> Option<String> {
+    None
+}
 
 #[cfg(windows)]
 fn read_multi_sz(
     h_key: windows::Win32::System::Registry::HKEY,
     value_name: &windows::core::HSTRING,
 ) -> Option<Vec<String>> {
-    use windows::Win32::System::Registry::*;
     use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::*;
 
     unsafe {
         let mut buf_len: u32 = 0;
@@ -529,7 +502,8 @@ fn build_multi_sz(strings: &[&String]) -> Vec<u16> {
 }
 
 fn extract_clsid(text: &str) -> Option<String> {
-    let re = regex::Regex::new(r"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}").ok()?;
+    let re =
+        regex::Regex::new(r"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}").ok()?;
     let caps = re.find(text)?;
     Some(caps.as_str().to_owned())
 }
@@ -539,8 +513,8 @@ fn delete_registry_key_fallback(
     hive: windows::Win32::System::Registry::HKEY,
     subkey: &str,
 ) -> Result<(), irtool_core::IrError> {
-    use windows::Win32::System::Registry::*;
     use windows::core::HSTRING;
+    use windows::Win32::System::Registry::*;
 
     let subkey_wide = HSTRING::from(subkey);
 
@@ -645,13 +619,8 @@ mod tests {
 
     #[test]
     fn extract_clsid_from_path() {
-        let clsid = extract_clsid(
-            r"HKLM\SOFTWARE\Classes\CLSID\{12345678-1234-1234-1234-123456789ABC}",
-        );
-        assert_eq!(
-            clsid,
-            Some("{12345678-1234-1234-1234-123456789ABC}".into())
-        );
+        let clsid = extract_clsid(r"HKLM\SOFTWARE\Classes\CLSID\{12345678-1234-1234-1234-123456789ABC}");
+        assert_eq!(clsid, Some("{12345678-1234-1234-1234-123456789ABC}".into()));
     }
 
     #[test]

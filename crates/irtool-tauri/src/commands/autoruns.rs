@@ -1,8 +1,9 @@
-use crate::events::{EVT_AUTORUNS_HASH_PROGRESS, EVT_AUTORUNS_PROGRESS, EVT_AUTORUNS_SIGNATURE_PROGRESS, EVT_TASK_CANCELLED, EVT_TASK_FAILED};
-use crate::state::AppState;
-use irtool_autoruns::{
-    AutorunItem, DeleteResult, ScanOptions, ScanPhase, ScanProgress, SignatureProgress,
+use crate::events::{
+    EVT_AUTORUNS_HASH_PROGRESS, EVT_AUTORUNS_PROGRESS, EVT_AUTORUNS_SIGNATURE_PROGRESS, EVT_TASK_CANCELLED,
+    EVT_TASK_FAILED,
 };
+use crate::state::AppState;
+use irtool_autoruns::{AutorunItem, DeleteResult, ScanOptions, ScanPhase, ScanProgress, SignatureProgress};
 use irtool_core::{IrError, TaskId};
 use std::path::PathBuf;
 use tauri::{Emitter, State};
@@ -62,10 +63,7 @@ pub async fn cmd_autoruns_scan(
             }
             Err(e) => {
                 tracing::error!("autoruns scan failed, task_id={}: {}", id, e);
-                let _ = app_for_result.emit(
-                    EVT_TASK_FAILED,
-                    serde_json::json!({"task_id": id, "error": e}),
-                );
+                let _ = app_for_result.emit(EVT_TASK_FAILED, serde_json::json!({"task_id": id, "error": e}));
             }
         }
         tasks.finish(id);
@@ -76,9 +74,7 @@ pub async fn cmd_autoruns_scan(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_get_result(
-    state: State<'_, AppState>,
-) -> Result<Vec<AutorunItem>, IrError> {
+pub async fn cmd_autoruns_get_result(state: State<'_, AppState>) -> Result<Vec<AutorunItem>, IrError> {
     Ok(state.autoruns_store.get_all())
 }
 
@@ -128,29 +124,34 @@ pub async fn cmd_autoruns_verify_signatures(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_delete_entry(
-    state: State<'_, AppState>,
-    entry_id: u64,
-) -> Result<DeleteResult, IrError> {
+pub async fn cmd_autoruns_delete_entry(state: State<'_, AppState>, entry_id: u64) -> Result<DeleteResult, IrError> {
     tracing::info!("delete entry requested: entry_id={}", entry_id);
 
     let scanner = state.autoruns_scanner.clone();
-    let scanner_ref = scanner.as_ref().as_ref()
+    let scanner_ref = scanner
+        .as_ref()
+        .as_ref()
         .ok_or_else(|| IrError::FeatureDisabled("autoruns scanner not available".into()))?;
 
-    let item = state
-        .autoruns_store
-        .get(entry_id)
-        .ok_or_else(|| {
-            tracing::error!("delete entry: entry not found, entry_id={}", entry_id);
-            IrError::Internal("entry not found".into())
-        })?;
+    let item = state.autoruns_store.get(entry_id).ok_or_else(|| {
+        tracing::error!("delete entry: entry not found, entry_id={}", entry_id);
+        IrError::Internal("entry not found".into())
+    })?;
 
-    tracing::info!("delete entry: category={}, entry={}, location={}", item.category, item.entry, item.location);
+    tracing::info!(
+        "delete entry: category={}, entry={}, location={}",
+        item.category,
+        item.entry,
+        item.location
+    );
 
     let result = scanner_ref.delete_entry(&item)?;
 
-    tracing::info!("delete entry result: success={}, message={}", result.success, result.message);
+    tracing::info!(
+        "delete entry result: success={}, message={}",
+        result.success,
+        result.message
+    );
 
     if result.success {
         state.autoruns_store.remove(entry_id);
@@ -161,28 +162,28 @@ pub async fn cmd_autoruns_delete_entry(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_cancel_scan(
-    state: State<'_, AppState>,
-    task_id: TaskId,
-) -> Result<(), IrError> {
+pub async fn cmd_autoruns_cancel_scan(state: State<'_, AppState>, task_id: TaskId) -> Result<(), IrError> {
     state.tasks.cancel(task_id);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_calculate_hash(
-    state: State<'_, AppState>,
-    entry_id: u64,
-) -> Result<AutorunItem, IrError> {
-    let item = state.autoruns_store.get(entry_id)
+pub async fn cmd_autoruns_calculate_hash(state: State<'_, AppState>, entry_id: u64) -> Result<AutorunItem, IrError> {
+    let item = state
+        .autoruns_store
+        .get(entry_id)
         .ok_or_else(|| IrError::Internal("entry not found".into()))?;
-    let path_str = item.image_path.as_deref()
+    let path_str = item
+        .image_path
+        .as_deref()
         .ok_or_else(|| IrError::Io("no image path".into()))?;
     let path = PathBuf::from(path_str);
     let (md5, sha256) = irtool_autoruns::AutorunsScanner::calculate_hash(&path)?;
     state.autoruns_store.update_hash(entry_id, md5, sha256);
-    state.autoruns_store.get(entry_id)
+    state
+        .autoruns_store
+        .get(entry_id)
         .ok_or_else(|| IrError::Internal("entry not found after update".into()))
 }
 
@@ -214,7 +215,11 @@ pub async fn cmd_autoruns_batch_calculate_hash(
                         let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
                         let _ = app_clone.emit(
                             EVT_AUTORUNS_HASH_PROGRESS,
-                            &SignatureProgress { task_id, current, total },
+                            &SignatureProgress {
+                                task_id,
+                                current,
+                                total,
+                            },
                         );
                         return (entry_id, Err(IrError::Internal("entry not found".into())));
                     }
@@ -225,7 +230,11 @@ pub async fn cmd_autoruns_batch_calculate_hash(
                         let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
                         let _ = app_clone.emit(
                             EVT_AUTORUNS_HASH_PROGRESS,
-                            &SignatureProgress { task_id, current, total },
+                            &SignatureProgress {
+                                task_id,
+                                current,
+                                total,
+                            },
                         );
                         return (entry_id, Err(IrError::Io("no image path".into())));
                     }
@@ -235,7 +244,11 @@ pub async fn cmd_autoruns_batch_calculate_hash(
                 let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
                 let _ = app_clone.emit(
                     EVT_AUTORUNS_HASH_PROGRESS,
-                    &SignatureProgress { task_id, current, total },
+                    &SignatureProgress {
+                        task_id,
+                        current,
+                        total,
+                    },
                 );
                 (entry_id, result)
             })
@@ -255,9 +268,7 @@ pub async fn cmd_autoruns_batch_calculate_hash(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_sigcheck(
-    image_path: String,
-) -> Result<String, IrError> {
+pub async fn cmd_autoruns_sigcheck(image_path: String) -> Result<String, IrError> {
     let sigcheck_path = irtool_autoruns::find_sigcheck()?;
     let file_path = PathBuf::from(&image_path);
     irtool_autoruns::AutorunsScanner::sigcheck_file(&sigcheck_path, &file_path)
@@ -265,17 +276,13 @@ pub async fn cmd_autoruns_sigcheck(
 
 #[tauri::command]
 #[specta::specta]
-pub fn cmd_autoruns_open_explorer(
-    path: String,
-) -> Result<(), IrError> {
+pub fn cmd_autoruns_open_explorer(path: String) -> Result<(), IrError> {
     irtool_autoruns::open_in_explorer(&path)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn cmd_autoruns_open_regedit(
-    registry_path: String,
-) -> Result<(), IrError> {
+pub fn cmd_autoruns_open_regedit(registry_path: String) -> Result<(), IrError> {
     irtool_autoruns::open_regedit(&registry_path)
 }
 
@@ -287,16 +294,12 @@ pub fn cmd_autoruns_open_services() -> Result<(), IrError> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn cmd_autoruns_extract_icon(
-    image_path: String,
-) -> Result<Option<String>, IrError> {
+pub fn cmd_autoruns_extract_icon(image_path: String) -> Result<Option<String>, IrError> {
     irtool_autoruns::extract_icon_base64(&image_path)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn cmd_autoruns_batch_extract_icons(
-    paths: Vec<String>,
-) -> Result<Vec<(String, Option<String>)>, IrError> {
+pub fn cmd_autoruns_batch_extract_icons(paths: Vec<String>) -> Result<Vec<(String, Option<String>)>, IrError> {
     Ok(irtool_autoruns::batch_extract_icons(&paths))
 }

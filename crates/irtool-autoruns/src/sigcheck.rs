@@ -7,18 +7,15 @@ use std::path::PathBuf;
 pub fn verify(path: &Path) -> Result<SignatureStatus, IrError> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    use windows::Win32::Security::WinTrust::*;
-    use windows::Win32::Foundation::HWND;
     use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Security::WinTrust::*;
 
     if !path.exists() {
         return Ok(SignatureStatus::Unsigned);
     }
 
-    let wide: Vec<u16> = OsStr::new(path)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
+    let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(std::iter::once(0)).collect();
 
     unsafe {
         let mut file_info = WINTRUST_FILE_INFO::default();

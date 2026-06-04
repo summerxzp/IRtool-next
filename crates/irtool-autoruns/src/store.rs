@@ -106,9 +106,12 @@ mod tests {
     fn update_signature_by_path() {
         let store = AutorunsStore::new();
         store.clear_and_put(vec![make_item(1, "a.exe")]);
-        store.update_signature("a.exe", SignatureStatus::Valid {
-            signer: "Microsoft".into(),
-        });
+        store.update_signature(
+            "a.exe",
+            SignatureStatus::Valid {
+                signer: "Microsoft".into(),
+            },
+        );
         let item = store.get(1).unwrap();
         assert!(matches!(item.signature, SignatureStatus::Valid { .. }));
     }

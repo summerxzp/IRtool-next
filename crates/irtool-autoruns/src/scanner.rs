@@ -112,9 +112,7 @@ impl AutorunsScanner {
                     location: raw.location,
                     description: raw.description,
                     publisher: raw.publisher,
-                    image_path: if raw.image_path.is_empty()
-                        || raw.image_path.eq_ignore_ascii_case("file not found")
-                    {
+                    image_path: if raw.image_path.is_empty() || raw.image_path.eq_ignore_ascii_case("file not found") {
                         None
                     } else {
                         Some(raw.image_path)
@@ -138,11 +136,7 @@ impl AutorunsScanner {
                     },
                     service_name,
                     md5: if raw.md5.is_empty() { None } else { Some(raw.md5) },
-                    sha256: if raw.sha256.is_empty() {
-                        None
-                    } else {
-                        Some(raw.sha256)
-                    },
+                    sha256: if raw.sha256.is_empty() { None } else { Some(raw.sha256) },
                     risk,
                     risk_reasons,
                     signature,
@@ -152,10 +146,7 @@ impl AutorunsScanner {
 
         // 5. Category filter
         let items = if let Some(ref filter) = options.category_filter {
-            items
-                .into_iter()
-                .filter(|i| filter.contains(&i.category))
-                .collect()
+            items.into_iter().filter(|i| filter.contains(&i.category)).collect()
         } else {
             items
         };
@@ -174,11 +165,7 @@ impl AutorunsScanner {
         Ok(items)
     }
 
-    async fn run_autorunsc(
-        &self,
-        options: &ScanOptions,
-        cancel: &CancellationToken,
-    ) -> Result<Vec<u8>, IrError> {
+    async fn run_autorunsc(&self, options: &ScanOptions, cancel: &CancellationToken) -> Result<Vec<u8>, IrError> {
         let exe = self.exe_path.clone();
         let include_hash = options.include_hash;
         let cancel_clone = cancel.clone();
@@ -200,12 +187,10 @@ impl AutorunsScanner {
             cmd.stdout(std::process::Stdio::piped());
             cmd.stderr(std::process::Stdio::piped());
 
-            let mut child = cmd
-                .spawn()
-                .map_err(|e| {
-                    tracing::error!("autorunsc spawn failed: {}", e);
-                    IrError::Io(format!("autorunsc 启动失败: {}", e))
-                })?;
+            let mut child = cmd.spawn().map_err(|e| {
+                tracing::error!("autorunsc spawn failed: {}", e);
+                IrError::Io(format!("autorunsc 启动失败: {}", e))
+            })?;
 
             tracing::info!("autorunsc process started (pid: {:?})", child.id());
 
@@ -236,9 +221,7 @@ impl AutorunsScanner {
                 }
             }
 
-            let status = child
-                .wait()
-                .map_err(|e| IrError::Io(e.to_string()))?;
+            let status = child.wait().map_err(|e| IrError::Io(e.to_string()))?;
             if !status.success() {
                 tracing::error!("autorunsc exited with code: {:?}", status.code());
                 return Err(IrError::ExternalTool {
@@ -273,14 +256,17 @@ impl AutorunsScanner {
         if !path.exists() {
             return Err(IrError::Io(format!("文件不存在: {}", path.display())));
         }
-        let mut file = std::fs::File::open(path)
-            .map_err(|e| IrError::Io(format!("无法打开文件: {}", e)))?;
+        let mut file = std::fs::File::open(path).map_err(|e| IrError::Io(format!("无法打开文件: {}", e)))?;
         let mut md5 = md5::Context::new();
         let mut sha256 = sha2::Sha256::new();
         let mut buf = [0u8; 64 * 1024];
         loop {
-            let n = file.read(&mut buf).map_err(|e| IrError::Io(format!("读取失败: {}", e)))?;
-            if n == 0 { break; }
+            let n = file
+                .read(&mut buf)
+                .map_err(|e| IrError::Io(format!("读取失败: {}", e)))?;
+            if n == 0 {
+                break;
+            }
             md5.consume(&buf[..n]);
             sha256.update(&buf[..n]);
         }
@@ -310,27 +296,39 @@ pub fn find_sigcheck() -> Result<PathBuf, IrError> {
     if let Ok(exe_dir) = std::env::current_exe() {
         if let Some(parent) = exe_dir.parent() {
             let path = parent.join("tools").join(exe_name);
-            if path.exists() { return Ok(path); }
+            if path.exists() {
+                return Ok(path);
+            }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
         let path = cwd.join("tools").join(exe_name);
-        if path.exists() { return Ok(path); }
+        if path.exists() {
+            return Ok(path);
+        }
     }
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let mut dir = PathBuf::from(&manifest_dir);
         loop {
             let path = dir.join("tools").join(exe_name);
-            if path.exists() { return Ok(path); }
-            if !dir.pop() { break; }
+            if path.exists() {
+                return Ok(path);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
         let mut dir = cwd;
         loop {
             let path = dir.join("tools").join(exe_name);
-            if path.exists() { return Ok(path); }
-            if !dir.pop() { break; }
+            if path.exists() {
+                return Ok(path);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
     Err(IrError::Io("sigcheck64.exe not found in tools/ directory".into()))
@@ -365,8 +363,7 @@ pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
     );
     let tmp_dir = std::env::temp_dir();
     let tmp_path = tmp_dir.join("irtool_regedit_nav.reg");
-    std::fs::write(&tmp_path, &reg_content)
-        .map_err(|e| IrError::Io(format!("写入临时文件失败: {}", e)))?;
+    std::fs::write(&tmp_path, &reg_content).map_err(|e| IrError::Io(format!("写入临时文件失败: {}", e)))?;
     std::process::Command::new("regedit")
         .args(["/s", tmp_path.to_str().unwrap_or("")])
         .spawn()
@@ -435,9 +432,7 @@ fn find_autorunsc() -> Result<PathBuf, IrError> {
         }
     }
 
-    Err(IrError::Io(
-        "autorunsc64.exe not found in tools/ directory".into(),
-    ))
+    Err(IrError::Io("autorunsc64.exe not found in tools/ directory".into()))
 }
 
 fn check_files_batch(entries: &[RawEntry]) -> std::collections::HashMap<String, FileInfo> {

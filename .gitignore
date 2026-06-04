@@ -39,3 +39,12 @@ ui/dist-node/
 
 # Trae IDE / local skills
 .trae/
+
+# External tools (binaries, not tracked)
+tools/
+
+# Temp files
+tmp_*.csv
+
+# Docs (local planning)
+docs/
