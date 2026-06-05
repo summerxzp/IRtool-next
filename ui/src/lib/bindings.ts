@@ -148,6 +148,22 @@ async cmdAutorunsBatchExtractIcons(paths: string[]) : Promise<Result<([string, s
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdProcessSnapshot() : Promise<Result<ProcessSnapshot, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_process_snapshot") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdProcessChain(pid: number) : Promise<Result<ProcessChain, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_process_chain", { pid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -171,6 +187,50 @@ export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
 export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
+/**
+ * A chain from a target process up to the root (PID 0 or 4).
+ */
+export type ProcessChain = { 
+/**
+ * Ordered [target, parent, grandparent, ..., root].
+ */
+nodes: ProcessNode[] }
+/**
+ * A lightweight process entry from a system-wide snapshot.
+ */
+export type ProcessEntry = { pid: number; ppid: number; name: string; exe: string | null }
+/**
+ * A single process in a chain, with optional suspicion metadata.
+ */
+export type ProcessNode = { pid: number; name: string; 
+/**
+ * Full executable path, if available.
+ */
+exe: string | null; 
+/**
+ * Command line, if available.
+ */
+cmdline: string | null; 
+/**
+ * Process creation time as formatted string "HH:MM:SS", if available.
+ */
+create_time: string | null; 
+/**
+ * Whether this is the target process the chain was requested for.
+ */
+is_target: boolean; 
+/**
+ * Whether this process was flagged as suspicious.
+ */
+is_suspicious: boolean; 
+/**
+ * Why the process is suspicious, if flagged.
+ */
+suspicious_reason: string | null }
+/**
+ * Full process snapshot result.
+ */
+export type ProcessSnapshot = { processes: ProcessEntry[]; timestamp: number }
 export type Proto = "tcp" | "udp"
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"

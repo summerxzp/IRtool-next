@@ -92,7 +92,7 @@ pub async fn cmd_autoruns_verify_signatures(
 
     let store = state.autoruns_store.clone();
     let tasks = state.tasks.clone();
-    let (id, _token) = tasks.register();
+    let (id, token) = tasks.register();
     let app_clone = app.clone();
 
     tokio::task::spawn_blocking(move || {
@@ -101,6 +101,9 @@ pub async fn cmd_autoruns_verify_signatures(
 
         if let Some(s) = scanner.as_ref() {
             let results = s.verify_signatures_batch(&path_bufs, |current, total| {
+                if token.is_cancelled() {
+                    return;
+                }
                 let _ = app_clone.emit(
                     EVT_AUTORUNS_SIGNATURE_PROGRESS,
                     &SignatureProgress {
@@ -111,8 +114,10 @@ pub async fn cmd_autoruns_verify_signatures(
                 );
             });
 
-            for (path, status) in results {
-                store.update_signature(&path.to_string_lossy(), status);
+            if !token.is_cancelled() {
+                for (path, status) in results {
+                    store.update_signature(&path.to_string_lossy(), status);
+                }
             }
         }
 
@@ -127,12 +132,7 @@ pub async fn cmd_autoruns_verify_signatures(
 pub async fn cmd_autoruns_delete_entry(state: State<'_, AppState>, entry_id: u64) -> Result<DeleteResult, IrError> {
     tracing::info!("delete entry requested: entry_id={}", entry_id);
 
-    let scanner = state.autoruns_scanner.clone();
-    let scanner_ref = scanner
-        .as_ref()
-        .as_ref()
-        .ok_or_else(|| IrError::FeatureDisabled("autoruns scanner not available".into()))?;
-
+    let scanner_clone = state.autoruns_scanner.clone();
     let item = state.autoruns_store.get(entry_id).ok_or_else(|| {
         tracing::error!("delete entry: entry not found, entry_id={}", entry_id);
         IrError::Internal("entry not found".into())
@@ -145,7 +145,14 @@ pub async fn cmd_autoruns_delete_entry(state: State<'_, AppState>, entry_id: u64
         item.location
     );
 
-    let result = scanner_ref.delete_entry(&item)?;
+    let result = tokio::task::spawn_blocking(move || {
+        match scanner_clone.as_ref() {
+            Some(s) => s.delete_entry(&item),
+            None => Err(IrError::FeatureDisabled("autoruns scanner not available".into())),
+        }
+    })
+    .await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
 
     tracing::info!(
         "delete entry result: success={}, message={}",
@@ -179,7 +186,11 @@ pub async fn cmd_autoruns_calculate_hash(state: State<'_, AppState>, entry_id: u
         .as_deref()
         .ok_or_else(|| IrError::Io("no image path".into()))?;
     let path = PathBuf::from(path_str);
-    let (md5, sha256) = irtool_autoruns::AutorunsScanner::calculate_hash(&path)?;
+    let (md5, sha256) = tokio::task::spawn_blocking(move || {
+        irtool_autoruns::AutorunsScanner::calculate_hash(&path)
+    })
+    .await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
     state.autoruns_store.update_hash(entry_id, md5, sha256);
     state
         .autoruns_store
@@ -196,7 +207,7 @@ pub async fn cmd_autoruns_batch_calculate_hash(
 ) -> Result<TaskId, IrError> {
     let store = state.autoruns_store.clone();
     let tasks = state.tasks.clone();
-    let (id, _token) = tasks.register();
+    let (id, token) = tasks.register();
     let app_clone = app.clone();
 
     tokio::task::spawn_blocking(move || {
@@ -210,6 +221,9 @@ pub async fn cmd_autoruns_batch_calculate_hash(
         let results: Vec<(u64, Result<HashResult, IrError>)> = entry_ids
             .par_iter()
             .map(|&entry_id| {
+                if token.is_cancelled() {
+                    return (entry_id, Err(IrError::Cancelled));
+                }
                 let item = match store.get(entry_id) {
                     Some(item) => item,
                     None => {
@@ -254,6 +268,11 @@ pub async fn cmd_autoruns_batch_calculate_hash(
                 (entry_id, result)
             })
             .collect();
+
+        if token.is_cancelled() {
+            tasks.finish(id);
+            return;
+        }
 
         for (entry_id, result) in results {
             if let Ok((md5, sha256)) = result {

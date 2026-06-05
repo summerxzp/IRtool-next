@@ -362,7 +362,7 @@ pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
         escaped
     );
     let tmp_dir = std::env::temp_dir();
-    let tmp_path = tmp_dir.join("irtool_regedit_nav.reg");
+    let tmp_path = tmp_dir.join(format!("irtool_regedit_nav_{}.reg", std::process::id()));
     std::fs::write(&tmp_path, &reg_content).map_err(|e| IrError::Io(format!("写入临时文件失败: {}", e)))?;
     std::process::Command::new("regedit")
         .args(["/s", tmp_path.to_str().unwrap_or("")])
@@ -474,9 +474,10 @@ fn extract_service_name(raw: &RawEntry) -> String {
             return name;
         }
     }
-    if let Some(caps) = regex::Regex::new(r"(?i)Services\\([^\\]+)")
-        .ok()
-        .and_then(|re| re.captures(&raw.location))
+    static SERVICE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    if let Some(caps) = SERVICE_RE
+        .get_or_init(|| regex::Regex::new(r"(?i)Services\\([^\\]+)").unwrap())
+        .captures(&raw.location)
     {
         if let Some(m) = caps.get(1) {
             return m.as_str().to_owned();
@@ -486,7 +487,8 @@ fn extract_service_name(raw: &RawEntry) -> String {
 }
 
 fn extract_service_name_from_path(path: &str) -> Option<String> {
-    let re = regex::Regex::new(r"\\([^\\]+)\s*$").ok()?;
+    static PATH_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = PATH_RE.get_or_init(|| regex::Regex::new(r"\\([^\\]+)\s*$").unwrap());
     let m = re.captures(path)?.get(1)?;
     let mut name = m.as_str().to_owned();
     for ext in &[".sys", ".dll", ".exe"] {

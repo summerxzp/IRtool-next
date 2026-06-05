@@ -4,7 +4,20 @@ import { SignatureBadge } from "./components/SignatureBadge";
 import type { AutorunItem } from "./types";
 
 // Shared in-memory icon cache: path -> data URL ("" means no icon)
+const MAX_ICON_CACHE = 500;
 const iconCache = new Map<string, string>();
+
+function trimIconCache() {
+  if (iconCache.size > MAX_ICON_CACHE) {
+    const excess = iconCache.size - MAX_ICON_CACHE;
+    let count = 0;
+    for (const key of iconCache.keys()) {
+      if (count >= excess) break;
+      iconCache.delete(key);
+      count++;
+    }
+  }
+}
 
 export function clearIconCache() {
   iconCache.clear();
@@ -30,6 +43,7 @@ export async function preloadIcons(items: AutorunItem[]) {
     for (const [path, icon] of results) {
       iconCache.set(path, icon ?? "");
     }
+    trimIconCache();
   } catch {
     // Silently fail - individual icons will be missing
   }

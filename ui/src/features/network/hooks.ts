@@ -29,13 +29,16 @@ export function useNetwork() {
   }, [qc]);
 
   useEffect(() => {
-    api
-      .setPolling({
-        interval_ms: intervalMs,
-        paused,
-        retention,
-      })
-      .catch(console.error);
+    const id = setTimeout(() => {
+      api
+        .setPolling({
+          interval_ms: intervalMs,
+          paused,
+          retention,
+        })
+        .catch(console.error);
+    }, 300);
+    return () => clearTimeout(id);
   }, [paused, intervalMs, retention]);
 
   return query;

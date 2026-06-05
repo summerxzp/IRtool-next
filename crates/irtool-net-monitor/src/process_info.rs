@@ -36,14 +36,24 @@ impl ProcessInfoCache {
     }
 
     pub fn get(&self, pid: u32) -> ProcessInfo {
-        if let Some(entry) = self.inner.get(&pid) {
-            if entry.cached_at.elapsed() < CACHE_TTL {
-                return entry.clone();
+        use dashmap::mapref::entry::Entry;
+
+        match self.inner.entry(pid) {
+            Entry::Occupied(mut e) => {
+                if e.get().cached_at.elapsed() < CACHE_TTL {
+                    return e.get().clone();
+                }
+                // TTL expired - update in place
+                let info = lookup_process(pid);
+                e.insert(info.clone());
+                info
+            }
+            Entry::Vacant(e) => {
+                let info = lookup_process(pid);
+                e.insert(info.clone());
+                info
             }
         }
-        let info = lookup_process(pid);
-        self.inner.insert(pid, info.clone());
-        info
     }
 
     pub fn invalidate(&self, pid: u32) {

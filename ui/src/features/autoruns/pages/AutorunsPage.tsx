@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -48,6 +48,10 @@ export function AutorunsPage() {
   const categories = useMemo(() => { const set = new Set(data.map((d) => d.category)); return Array.from(set).sort(); }, [data]);
 
   // Filtering logic (moved from AutorunsTable)
+  const searchIndexRef = useRef(new Map<number, string>());
+  // Clear index when data changes
+  useMemo(() => { searchIndexRef.current.clear(); }, [data]);
+
   const filteredData = useMemo(() => {
     let result = data;
     if (filters.status === "enabled") {
@@ -64,7 +68,11 @@ export function AutorunsPage() {
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
       result = result.filter((r) => {
-        const blob = `${r.entry} ${r.image_path ?? ""} ${r.launch_string ?? ""} ${r.publisher} ${r.location} ${r.category}`.toLowerCase();
+        let blob = searchIndexRef.current.get(r.id);
+        if (blob === undefined) {
+          blob = `${r.entry} ${r.image_path ?? ""} ${r.launch_string ?? ""} ${r.publisher} ${r.location} ${r.category}`.toLowerCase();
+          searchIndexRef.current.set(r.id, blob);
+        }
         return blob.includes(q);
       });
     }

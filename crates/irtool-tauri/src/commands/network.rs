@@ -2,8 +2,10 @@ use crate::events::{EVT_NETWORK_ERROR, EVT_NETWORK_SNAPSHOT};
 use crate::state::AppState;
 use irtool_core::IrError;
 use irtool_net_monitor::{kill_process, NetCollector, NetConn, RetentionPolicy};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{Emitter, State};
 use tokio_util::sync::CancellationToken;
@@ -101,14 +103,14 @@ pub async fn cmd_network_set_polling(
     if !paused {
         let token = CancellationToken::new();
         polling.cancel = Some(token.clone());
+        let shared_retention = Arc::new(Mutex::new(polling.retention));
         drop(polling);
 
         let collector = state.net_collector.clone();
         let history = state.net_history.clone();
-        let retention_now = state.net_polling.lock().retention;
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
-            run_polling_loop(collector, history, retention_now, app_clone, new_interval, token).await;
+            run_polling_loop(collector, history, shared_retention, app_clone, new_interval, token).await;
         });
     }
     Ok(())
@@ -125,7 +127,7 @@ pub async fn cmd_network_clear_history(state: State<'_, AppState>) -> Result<(),
 async fn run_polling_loop(
     collector: std::sync::Arc<irtool_net_monitor::WindowsNetCollector>,
     history: std::sync::Arc<irtool_net_monitor::HistoryStore>,
-    retention: RetentionPolicy,
+    retention: Arc<Mutex<RetentionPolicy>>,
     app: tauri::AppHandle,
     interval_ms: u64,
     cancel: CancellationToken,
@@ -143,7 +145,8 @@ async fn run_polling_loop(
                 let snap = tokio::task::spawn_blocking(move || collector_clone.snapshot()).await;
                 match snap {
                     Ok(Ok(items)) => {
-                        let merged = history.merge(items, retention);
+                        let ret = *retention.lock();
+                        let merged = history.merge(items, ret);
                         let payload = NetworkSnapshotPayload {
                             items: merged,
                             timestamp: irtool_net_monitor::types::now_epoch_secs(),
@@ -166,13 +169,16 @@ async fn run_polling_loop(
 
 pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     let token = CancellationToken::new();
-    state.net_polling.lock().cancel = Some(token.clone());
+    let (retention, interval) = {
+        let mut polling = state.net_polling.lock();
+        polling.cancel = Some(token.clone());
+        (polling.retention, polling.interval_ms)
+    };
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
-    let retention = state.net_polling.lock().retention;
-    let interval = state.net_polling.lock().interval_ms;
+    let shared_retention = Arc::new(Mutex::new(retention));
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
-        run_polling_loop(collector, history, retention, app_clone, interval, token).await;
+        run_polling_loop(collector, history, shared_retention, app_clone, interval, token).await;
     });
 }
