@@ -15,6 +15,9 @@ pub struct AppState {
     // --- P2 新增 ---
     pub autoruns_scanner: Arc<Option<AutorunsScanner>>,
     pub autoruns_store: Arc<AutorunsStore>,
+    // --- P4 新增 ---
+    pub sysmon_reader: Arc<irtool_sysmon::SysmonReader>,
+    pub sysmon_config: Arc<irtool_sysmon::SysmonConfigManager>,
 }
 
 pub struct NetworkPollingState {
@@ -52,6 +55,9 @@ impl AppState {
             net_polling: Arc::new(Mutex::new(NetworkPollingState::default())),
             autoruns_scanner: Arc::new(autoruns_scanner),
             autoruns_store: Arc::new(AutorunsStore::new()),
+            // --- P4 新增 ---
+            sysmon_reader: Arc::new(irtool_sysmon::SysmonReader::new()),
+            sysmon_config: Arc::new(irtool_sysmon::SysmonConfigManager::new(None, None, &std::path::PathBuf::from("."))),
         }
     }
 }

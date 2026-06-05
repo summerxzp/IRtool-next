@@ -9,6 +9,7 @@ mod types;
 use crate::commands::autoruns::*;
 use crate::commands::network::*;
 use crate::commands::process::*;
+use crate::commands::sysmon::*;
 use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
@@ -111,6 +112,15 @@ pub fn run() {
         // --- P3 新增 ---
         cmd_process_snapshot,
         cmd_process_chain,
+        // --- P4 新增 ---
+        cmd_sysmon_status,
+        cmd_sysmon_is_channel_available,
+        cmd_sysmon_install,
+        cmd_sysmon_uninstall,
+        cmd_sysmon_update_config,
+        cmd_sysmon_get_existing_events,
+        cmd_sysmon_default_event_configs,
+        cmd_sysmon_generate_config,
     ]);
 
     #[cfg(debug_assertions)]

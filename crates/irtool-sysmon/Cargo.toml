@@ -8,5 +8,19 @@ license.workspace = true
 [dependencies]
 irtool-core = { path = "../irtool-core" }
 serde = { workspace = true }
-tokio = { workspace = true }
+serde_json = { workspace = true }
 specta = { workspace = true, features = ["derive", "serde"] }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+quick-xml = { workspace = true }
+chrono = { workspace = true }
+dashmap = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_EventLog",
+    "Win32_System_Services",
+    "Win32_Security",
+] }

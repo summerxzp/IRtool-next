@@ -1,6 +1,11 @@
-//! P4 阶段实装：Sysmon 安装/订阅
-#![allow(dead_code)]
+//! Sysmon event log reading, parsing, and configuration management.
 
-pub fn placeholder() -> &'static str {
-    "irtool-sysmon: pending P4"
-}
+pub mod config;
+pub mod models;
+pub mod parser;
+pub mod reader;
+
+pub use config::SysmonConfigManager;
+pub use models::*;
+pub use parser::{parse_event, parse_event_with_record_id};
+pub use reader::SysmonReader;
