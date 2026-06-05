@@ -1,6 +1,10 @@
-//! P4 阶段实装：进程树枚举
-#![allow(dead_code)]
+//! Process enumeration, chain tracing, and suspicious process detection.
 
-pub fn placeholder() -> &'static str {
-    "irtool-process: pending P4"
-}
+pub mod chain;
+pub mod snapshot;
+pub mod suspicious;
+pub mod types;
+
+pub use chain::get_process_chain;
+pub use snapshot::take_snapshot;
+pub use types::{ProcessChain, ProcessEntry, ProcessNode, ProcessSnapshot, SuspiciousFlag};

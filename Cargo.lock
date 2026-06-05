@@ -1884,9 +1884,14 @@ dependencies = [
 name = "irtool-process"
 version = "2.0.0-alpha.1"
 dependencies = [
+ "dashmap",
  "irtool-core",
  "serde",
+ "serde_json",
  "specta",
+ "thiserror 1.0.69",
+ "tracing",
+ "windows 0.59.0",
 ]
 
 [[package]]

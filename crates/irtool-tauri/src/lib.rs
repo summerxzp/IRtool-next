@@ -8,6 +8,7 @@ mod types;
 
 use crate::commands::autoruns::*;
 use crate::commands::network::*;
+use crate::commands::process::*;
 use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
@@ -107,6 +108,9 @@ pub fn run() {
         cmd_autoruns_open_services,
         cmd_autoruns_extract_icon,
         cmd_autoruns_batch_extract_icons,
+        // --- P3 新增 ---
+        cmd_process_snapshot,
+        cmd_process_chain,
     ]);
 
     #[cfg(debug_assertions)]
