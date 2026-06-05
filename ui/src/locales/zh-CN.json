@@ -154,5 +154,96 @@
       "title": "批量计算 Hash",
       "message": "将为所有未计算 Hash 的条目计算 MD5 和 SHA-256，数据量较大时可能耗时较长，是否继续？"
     }
+  },
+  "log-collector": {
+    "banner": {
+      "not-installed": "Sysmon 未安装",
+      "not-installed-desc": "需要安装 Sysmon 驱动才能采集事件日志",
+      "not-running": "Sysmon 已安装但未运行",
+      "not-running-desc": "Sysmon 服务已停止，事件采集暂停",
+      "running": "Sysmon 运行中",
+      "install": "安装 Sysmon",
+      "managed-by-irtool": "由 IRtool 管理"
+    },
+    "install": {
+      "title": "安装 Sysmon",
+      "description": "选择要启用的事件类型，安装后将注册 Sysmon 驱动服务",
+      "event-config": "事件类型配置",
+      "accept-and-install": "接受协议并安装",
+      "installing": "安装中...",
+      "warning-admin": "安装需要管理员权限",
+      "warning-driver": "安装后将在系统中注册 Sysmon 驱动服务",
+      "event-desc": {
+        "dns": "记录DNS查询请求，用于检测恶意域名通信",
+        "network": "记录TCP/UDP网络连接，用于检测异常外连",
+        "process_create": "记录进程创建事件，用于追踪进程执行",
+        "file_create_time": "记录文件创建时间修改事件",
+        "process_terminate": "记录进程终止事件",
+        "driver_load": "记录驱动加载事件",
+        "image_load": "记录DLL加载事件",
+        "remote_thread": "记录远程线程创建事件，用于检测进程注入",
+        "raw_access_read": "记录原始磁盘访问事件",
+        "process_access": "记录进程访问事件",
+        "file_create": "记录文件创建事件",
+        "registry_event": "记录注册表操作事件",
+        "file_create_stream_hash": "记录文件流哈希事件",
+        "pipe_event": "记录命名管道事件",
+        "wmi_event": "记录WMI事件",
+        "file_delete": "记录文件删除事件",
+        "clipboard_change": "记录剪贴板变化事件",
+        "process_tampering": "记录进程篡改事件",
+        "file_delete_detected": "记录文件删除检测事件"
+      }
+    },
+    "toolbar": {
+      "start": "启动采集",
+      "stop": "停止",
+      "load-history": "加载历史",
+      "all-events": "全部事件",
+      "external-only": "仅外连",
+      "search-placeholder": "搜索域名/IP/进程...",
+      "export": "导出",
+      "clear": "清空"
+    },
+    "table": {
+      "time": "时间",
+      "type": "类型",
+      "process": "进程",
+      "detail": "详情",
+      "external": "外连",
+      "no-events": "暂无事件"
+    },
+    "detail": {
+      "select-event": "选择事件查看详情",
+      "time": "时间",
+      "process": "进程",
+      "path": "路径",
+      "user": "用户",
+      "domain": "域名",
+      "results": "解析结果",
+      "status": "状态",
+      "source": "源地址",
+      "destination": "目标地址",
+      "protocol": "协议",
+      "initiated": "发起",
+      "external": "外连",
+      "source-process": "源进程",
+      "source-path": "源路径",
+      "target-process": "目标进程",
+      "target-path": "目标路径",
+      "start-address": "起始地址",
+      "start-module": "起始模块",
+      "filename": "文件名",
+      "creation-time": "创建时间",
+      "process-chain": "进程链"
+    },
+    "stats": {
+      "collecting": "采集中",
+      "stopped": "已停止",
+      "events": "事件",
+      "duration": "时长",
+      "running": "运行中",
+      "not-running": "未运行"
+    }
   }
 }

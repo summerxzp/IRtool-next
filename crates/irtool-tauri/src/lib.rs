@@ -121,6 +121,9 @@ pub fn run() {
         cmd_sysmon_get_existing_events,
         cmd_sysmon_default_event_configs,
         cmd_sysmon_generate_config,
+        cmd_sysmon_start_subscription,
+        cmd_sysmon_stop_subscription,
+        cmd_sysmon_is_subscribing,
     ]);
 
     #[cfg(debug_assertions)]

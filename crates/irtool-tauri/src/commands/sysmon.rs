@@ -1,7 +1,8 @@
+use crate::events::EVT_SYSMON_EVENT;
 use crate::state::AppState;
 use irtool_core::IrError;
 use irtool_sysmon::{EventConfigEntry, SysmonEvent, SysmonStatus};
-use tauri::State;
+use tauri::{Emitter, State};
 
 /// Get Sysmon installation/service status.
 #[tauri::command]
@@ -73,4 +74,58 @@ pub async fn cmd_sysmon_default_event_configs() -> Result<Vec<EventConfigEntry>,
 #[specta::specta]
 pub async fn cmd_sysmon_generate_config(enabled_events: Vec<String>) -> Result<String, IrError> {
     Ok(irtool_sysmon::SysmonConfigManager::generate_config(&enabled_events))
+}
+
+/// Start real-time Sysmon event subscription.
+/// Events are pushed to the frontend via `evt_sysmon_event` Tauri event.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_start_subscription(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    enabled_event_ids: Vec<u32>,
+    poll_interval_ms: Option<u64>,
+) -> Result<(), IrError> {
+    let reader = state.sysmon_reader.clone();
+    if reader.is_polling() {
+        return Ok(()); // Already polling
+    }
+
+    // Init last_record_id to skip existing events
+    let init_reader = reader.clone();
+    let init_event_ids = enabled_event_ids.clone();
+    tokio::task::spawn_blocking(move || {
+        init_reader.init_last_record_id(&init_event_ids)
+    })
+    .await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<SysmonEvent>();
+
+    let interval = poll_interval_ms.unwrap_or(500);
+    reader.start_polling(enabled_event_ids, interval, tx);
+
+    // Forward events to frontend via Tauri emit
+    tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            let _ = app.emit(EVT_SYSMON_EVENT, &event);
+        }
+    });
+
+    Ok(())
+}
+
+/// Stop real-time Sysmon event subscription.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_stop_subscription(state: State<'_, AppState>) -> Result<(), IrError> {
+    state.sysmon_reader.stop_polling();
+    Ok(())
+}
+
+/// Check if Sysmon subscription is currently active.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_is_subscribing(state: State<'_, AppState>) -> Result<bool, IrError> {
+    Ok(state.sysmon_reader.is_polling())
 }
