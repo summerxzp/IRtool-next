@@ -1,3 +1,4 @@
+use crate::dns_client::parse_dns_client_event;
 use crate::models::*;
 use crate::parser;
 use irtool_core::IrError;
@@ -7,10 +8,12 @@ use tracing::{info, warn};
 use tokio::sync::mpsc;
 
 const SYSMON_CHANNEL: &str = "Microsoft-Windows-Sysmon/Operational";
+const DNS_CLIENT_CHANNEL: &str = "Microsoft-Windows-DNS-Client/Operational";
 const BATCH_SIZE: usize = 64;
 
 pub struct SysmonReader {
     last_record_id: Arc<AtomicU64>,
+    last_dns_record_id: Arc<AtomicU64>,
     running: Arc<AtomicBool>,
 }
 
@@ -24,6 +27,7 @@ impl SysmonReader {
     pub fn new() -> Self {
         Self {
             last_record_id: Arc::new(AtomicU64::new(0)),
+            last_dns_record_id: Arc::new(AtomicU64::new(0)),
             running: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -31,14 +35,7 @@ impl SysmonReader {
     /// Check if the Sysmon event channel is available.
     #[cfg(windows)]
     pub fn is_channel_available(&self) -> bool {
-        use windows::core::HSTRING;
-        use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath};
-
-        let channel = HSTRING::from(SYSMON_CHANNEL);
-        let query = HSTRING::from("*");
-        unsafe {
-            EvtQuery(None, &channel, &query, EvtQueryChannelPath.0).is_ok()
-        }
+        is_event_channel_available(SYSMON_CHANNEL)
     }
 
     #[cfg(not(windows))]
@@ -53,28 +50,42 @@ impl SysmonReader {
         limit: u32,
         enabled_event_ids: &[u32],
     ) -> Result<Vec<SysmonEvent>, IrError> {
-        use windows::core::HSTRING;
-        use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryReverseDirection};
-
-        let xpath = build_xpath_query(enabled_event_ids, None);
-        let channel = HSTRING::from(SYSMON_CHANNEL);
-        let query_str = HSTRING::from(&xpath);
-
-        let result_set = unsafe {
-            EvtQuery(
-                None,
-                &channel,
-                &query_str,
-                EvtQueryChannelPath.0 | EvtQueryReverseDirection.0,
-            )
-            .map_err(|e| IrError::Internal(format!("EvtQuery failed: {}", e)))?
-        };
-
-        let events = read_events_from_result_set(&result_set, limit as usize)?;
-        // Reverse to chronological order since we queried in reverse direction
-        let mut events = events;
-        events.reverse();
-        Ok(events)
+        let mut all_events = Vec::new();
+        
+        // Get Sysmon events
+        let sysmon_events = get_events_from_channel(
+            SYSMON_CHANNEL, 
+            enabled_event_ids, 
+            None, 
+            limit as usize, 
+            true
+        )?;
+        all_events.extend(sysmon_events);
+        
+        // If DNS Client is enabled, also get DNS Client events
+        if enabled_event_ids.contains(&3008) {
+            let dns_events = get_events_from_channel(
+                DNS_CLIENT_CHANNEL, 
+                &[3008], // DNS Client event ID
+                None, 
+                limit as usize, 
+                true
+            )?;
+            // Convert DNS Client events to Sysmon format
+            let converted_dns_events: Vec<SysmonEvent> = dns_events
+                .into_iter()
+                .filter_map(|event| parse_dns_client_event(&event.raw_data))
+                .collect();
+            all_events.extend(converted_dns_events);
+        }
+        
+        // Sort by timestamp
+        all_events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        
+        // Take up to limit
+        all_events.truncate(limit as usize);
+        
+        Ok(all_events)
     }
 
     #[cfg(not(windows))]
@@ -89,33 +100,28 @@ impl SysmonReader {
     /// Initialize the last record ID to skip existing events.
     #[cfg(windows)]
     pub fn init_last_record_id(&self, enabled_event_ids: &[u32]) -> Result<(), IrError> {
-        use windows::core::HSTRING;
-        use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryReverseDirection};
-
-        let xpath = build_xpath_query(enabled_event_ids, None);
-        let channel = HSTRING::from(SYSMON_CHANNEL);
-        let query_str = HSTRING::from(&xpath);
-
-        let result_set = unsafe {
-            EvtQuery(
-                None,
-                &channel,
-                &query_str,
-                EvtQueryChannelPath.0 | EvtQueryReverseDirection.0,
-            )
-            .map_err(|e| IrError::Internal(format!("EvtQuery failed: {}", e)))?
-        };
-
-        // Read just the first (most recent) event to get its RecordID
-        let events = read_events_from_result_set(&result_set, 1)?;
-        if let Some(event) = events.first() {
-            if let Some(rid) = event.record_id {
-                self.last_record_id.store(rid, Ordering::SeqCst);
-                info!("Initialized last_record_id to {}", rid);
+        // Initialize Sysmon record ID
+        if let Ok(events) = get_events_from_channel(SYSMON_CHANNEL, enabled_event_ids, None, 1, true) {
+            if let Some(event) = events.first() {
+                if let Some(rid) = event.record_id {
+                    self.last_record_id.store(rid, Ordering::SeqCst);
+                    info!("Initialized last_record_id to {}", rid);
+                }
             }
-        } else {
-            info!("No existing Sysmon events found, last_record_id stays at 0");
         }
+        
+        // Initialize DNS Client record ID if DNS Client is enabled
+        if enabled_event_ids.contains(&3008) {
+            if let Ok(events) = get_events_from_channel(DNS_CLIENT_CHANNEL, &[3008], None, 1, true) {
+                if let Some(event) = events.first() {
+                    if let Some(rid) = event.record_id {
+                        self.last_dns_record_id.store(rid, Ordering::SeqCst);
+                        info!("Initialized last_dns_record_id to {}", rid);
+                    }
+                }
+            }
+        }
+        
         Ok(())
     }
 
@@ -130,32 +136,56 @@ impl SysmonReader {
         &self,
         enabled_event_ids: &[u32],
     ) -> Result<Vec<SysmonEvent>, IrError> {
-        use windows::core::HSTRING;
-        use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection};
-
+        let mut all_events = Vec::new();
+        
+        // Poll Sysmon events
         let last_id = self.last_record_id.load(Ordering::SeqCst);
-        let xpath = build_xpath_query(enabled_event_ids, if last_id > 0 { Some(last_id) } else { None });
-        let channel = HSTRING::from(SYSMON_CHANNEL);
-        let query_str = HSTRING::from(&xpath);
-
-        let result_set = unsafe {
-            EvtQuery(
-                None,
-                &channel,
-                &query_str,
-                EvtQueryChannelPath.0 | EvtQueryForwardDirection.0,
-            )
-            .map_err(|e| IrError::Internal(format!("EvtQuery failed: {}", e)))?
-        };
-
-        let events = read_events_from_result_set(&result_set, usize::MAX)?;
-
-        // Update last_record_id to the highest record ID we've seen
-        if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
-            self.last_record_id.store(max_id, Ordering::SeqCst);
+        match get_events_from_channel(
+            SYSMON_CHANNEL, 
+            enabled_event_ids, 
+            if last_id > 0 { Some(last_id) } else { None }, 
+            usize::MAX, 
+            false
+        ) {
+            Ok(mut events) => {
+                if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
+                    self.last_record_id.store(max_id, Ordering::SeqCst);
+                }
+                all_events.append(&mut events);
+            }
+            Err(e) => {
+                warn!("Poll Sysmon events error: {}", e);
+            }
         }
-
-        Ok(events)
+        
+        // Poll DNS Client events if DNS Client is enabled
+        if enabled_event_ids.contains(&3008) {
+            let last_dns_id = self.last_dns_record_id.load(Ordering::SeqCst);
+            match get_events_from_channel(
+                DNS_CLIENT_CHANNEL, 
+                &[3008], 
+                if last_dns_id > 0 { Some(last_dns_id) } else { None }, 
+                usize::MAX, 
+                false
+            ) {
+                Ok(events) => {
+                    if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
+                        self.last_dns_record_id.store(max_id, Ordering::SeqCst);
+                    }
+                    // Convert DNS Client events to Sysmon format
+                    let converted_dns_events: Vec<SysmonEvent> = events
+                        .into_iter()
+                        .filter_map(|event| parse_dns_client_event(&event.raw_data))
+                        .collect();
+                    all_events.extend(converted_dns_events);
+                }
+                Err(e) => {
+                    warn!("Poll DNS Client events error: {}", e);
+                }
+            }
+        }
+        
+        Ok(all_events)
     }
 
     #[cfg(not(windows))]
@@ -176,12 +206,14 @@ impl SysmonReader {
         self.running.store(true, Ordering::SeqCst);
         let running = self.running.clone();
         let last_record_id = self.last_record_id.clone();
+        let last_dns_record_id = self.last_dns_record_id.clone();
         std::thread::spawn(move || {
+            let reader = SysmonReader {
+                last_record_id: last_record_id.clone(),
+                last_dns_record_id: last_dns_record_id.clone(),
+                running: running.clone(),
+            };
             while running.load(Ordering::SeqCst) {
-                let reader = SysmonReader {
-                    last_record_id: last_record_id.clone(),
-                    running: running.clone(),
-                };
                 match reader.poll_new_events(&enabled_event_ids) {
                     Ok(events) => {
                         for event in events {
@@ -204,6 +236,58 @@ impl SysmonReader {
     pub fn is_polling(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
+}
+
+#[cfg(windows)]
+fn is_event_channel_available(channel_name: &str) -> bool {
+    use windows::core::HSTRING;
+    use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath};
+
+    let channel = HSTRING::from(channel_name);
+    let query = HSTRING::from("*");
+    unsafe {
+        EvtQuery(None, &channel, &query, EvtQueryChannelPath.0).is_ok()
+    }
+}
+
+#[cfg(windows)]
+fn get_events_from_channel(
+    channel_name: &str,
+    event_ids: &[u32],
+    after_record_id: Option<u64>,
+    max_events: usize,
+    reverse: bool,
+) -> Result<Vec<SysmonEvent>, IrError> {
+    use windows::core::HSTRING;
+    use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection, EvtQueryReverseDirection};
+
+    let xpath = build_xpath_query(event_ids, after_record_id);
+    let channel = HSTRING::from(channel_name);
+    let query_str = HSTRING::from(&xpath);
+
+    let flags = if reverse {
+        EvtQueryChannelPath.0 | EvtQueryReverseDirection.0
+    } else {
+        EvtQueryChannelPath.0 | EvtQueryForwardDirection.0
+    };
+
+    let result_set = unsafe {
+        EvtQuery(
+            None,
+            &channel,
+            &query_str,
+            flags,
+        )
+        .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
+    };
+
+    let mut events = read_events_from_result_set(&result_set, max_events)?;
+    
+    if reverse {
+        events.reverse();
+    }
+    
+    Ok(events)
 }
 
 /// Read events from an EvtQuery result set handle, up to `max_events`.
@@ -366,5 +450,6 @@ mod tests {
         let reader = SysmonReader::new();
         assert!(!reader.is_polling());
         assert_eq!(reader.last_record_id.load(Ordering::SeqCst), 0);
+        assert_eq!(reader.last_dns_record_id.load(Ordering::SeqCst), 0);
     }
 }

@@ -6,21 +6,80 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SysmonEventType {
-    Dns,
+    ProcessCreate,
+    FileCreateTime,
     NetworkConnect,
+    ProcessTerminate,
+    DriverLoad,
+    ImageLoad,
     CreateRemoteThread,
+    RawAccessRead,
+    ProcessAccess,
     FileCreate,
+    RegistryEvent,
+    FileCreateStreamHash,
+    PipeEvent,
+    WmiEvent,
+    Dns,
+    DnsClient,
+    FileDelete,
+    ClipboardChange,
+    ProcessTampering,
+    FileDeleteDetected,
     Unknown,
 }
 
 impl SysmonEventType {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Dns => "DNS查询",
+            Self::ProcessCreate => "进程创建",
+            Self::FileCreateTime => "文件创建时间修改",
             Self::NetworkConnect => "网络连接",
+            Self::ProcessTerminate => "进程终止",
+            Self::DriverLoad => "驱动加载",
+            Self::ImageLoad => "DLL加载",
             Self::CreateRemoteThread => "远程线程创建",
+            Self::RawAccessRead => "原始磁盘访问",
+            Self::ProcessAccess => "进程访问",
             Self::FileCreate => "文件创建",
+            Self::RegistryEvent => "注册表事件",
+            Self::FileCreateStreamHash => "文件流哈希",
+            Self::PipeEvent => "管道事件",
+            Self::WmiEvent => "WMI事件",
+            Self::Dns => "DNS查询",
+            Self::DnsClient => "DNS-Client",
+            Self::FileDelete => "文件删除",
+            Self::ClipboardChange => "剪贴板变化",
+            Self::ProcessTampering => "进程篡改",
+            Self::FileDeleteDetected => "文件删除检测",
             Self::Unknown => "未知",
+        }
+    }
+
+    /// Map from Sysmon EventID to event type.
+    pub fn from_event_id(event_id: u32) -> Self {
+        match event_id {
+            1 => Self::ProcessCreate,
+            2 => Self::FileCreateTime,
+            3 => Self::NetworkConnect,
+            5 => Self::ProcessTerminate,
+            6 => Self::DriverLoad,
+            7 => Self::ImageLoad,
+            8 => Self::CreateRemoteThread,
+            9 => Self::RawAccessRead,
+            10 => Self::ProcessAccess,
+            11 => Self::FileCreate,
+            12 => Self::RegistryEvent,
+            15 => Self::FileCreateStreamHash,
+            17 => Self::PipeEvent,
+            19 => Self::WmiEvent,
+            22 => Self::Dns,
+            3008 => Self::DnsClient,
+            23 => Self::FileDelete,
+            24 => Self::ClipboardChange,
+            25 => Self::ProcessTampering,
+            26 => Self::FileDeleteDetected,
+            _ => Self::Unknown,
         }
     }
 }
@@ -157,11 +216,12 @@ pub fn is_suspicious_remote_thread(source_name: &str, target_name: &str) -> bool
     SUSPICIOUS_SOURCES.contains(&src_lower.as_str()) || SUSPICIOUS_TARGETS.contains(&tgt_lower.as_str())
 }
 
-/// Default event configurations. Only DNS + Network are enabled by default.
+/// Default event configurations. DNS Client + DNS + Network are enabled by default.
 pub fn default_event_configs() -> Vec<EventConfigEntry> {
     vec![
+        EventConfigEntry { key: "dns_client".into(), name: "DNS-Client".into(), event_id: 3008, xml_tag: "DnsClient".into(), default_enabled: true },
         EventConfigEntry { key: "dns".into(), name: "DNS查询".into(), event_id: 22, xml_tag: "DnsQuery".into(), default_enabled: true },
-        EventConfigEntry { key: "network".into(), name: "网络连接".into(), event_id: 3, xml_tag: "NetworkConnect".into(), default_enabled: true },
+        EventConfigEntry { key: "network_connect".into(), name: "网络连接".into(), event_id: 3, xml_tag: "NetworkConnect".into(), default_enabled: true },
         EventConfigEntry { key: "process_create".into(), name: "进程创建".into(), event_id: 1, xml_tag: "ProcessCreate".into(), default_enabled: false },
         EventConfigEntry { key: "file_create_time".into(), name: "文件创建时间修改".into(), event_id: 2, xml_tag: "FileCreateTime".into(), default_enabled: false },
         EventConfigEntry { key: "process_terminate".into(), name: "进程终止".into(), event_id: 5, xml_tag: "ProcessTerminate".into(), default_enabled: false },
@@ -220,10 +280,11 @@ mod tests {
     #[test]
     fn test_default_event_configs() {
         let configs = default_event_configs();
-        assert!(configs.len() >= 19);
+        assert!(configs.len() >= 20);
         let enabled: Vec<_> = configs.iter().filter(|c| c.default_enabled).collect();
-        assert_eq!(enabled.len(), 2); // Only DNS + Network
+        assert_eq!(enabled.len(), 3); // DNS Client + DNS + Network
+        assert!(enabled.iter().any(|c| c.key == "dns_client"));
         assert!(enabled.iter().any(|c| c.key == "dns"));
-        assert!(enabled.iter().any(|c| c.key == "network"));
+        assert!(enabled.iter().any(|c| c.key == "network_connect"));
     }
 }

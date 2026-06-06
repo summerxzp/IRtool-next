@@ -23,9 +23,9 @@ export function useDefaultEventConfigs() {
   });
 }
 
-export function useLoadHistory() {
+export function useLoadHistory(enabledEventIds: number[] = DEFAULT_ENABLED_EVENT_IDS) {
   return useMutation({
-    mutationFn: (limit: number) => api.getExistingEvents(limit, DEFAULT_ENABLED_EVENT_IDS),
+    mutationFn: (limit: number) => api.getExistingEvents(limit, enabledEventIds),
   });
 }
 
@@ -50,28 +50,53 @@ export function useUpdateSysmonConfig() {
 export function useSysmonEventListener() {
   const addEvents = useLogCollectorStore((s) => s.addEvents);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const batchRef = useRef<SysmonEvent[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    const MAX_BATCH_SIZE = 100;
+
+    const flush = () => {
+      if (batchRef.current.length > 0) {
+        addEvents(batchRef.current);
+        batchRef.current = [];
+      }
+      timerRef.current = null;
+    };
+
     const setup = async () => {
       unlistenRef.current = await listen<SysmonEvent>(EVT_SYSMON_EVENT, (event) => {
-        addEvents([event.payload]);
+        batchRef.current.push(event.payload);
+        if (batchRef.current.length >= MAX_BATCH_SIZE) {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }
+          flush();
+        } else if (!timerRef.current) {
+          timerRef.current = setTimeout(flush, 100);
+        }
       });
     };
     setup();
     return () => {
       unlistenRef.current?.();
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        flush();
+      }
     };
   }, [addEvents]);
 }
 
-export function useStartCollection() {
+export function useStartCollection(enabledEventIds: number[] = DEFAULT_ENABLED_EVENT_IDS) {
   const setCollecting = useLogCollectorStore((s) => s.setCollecting);
   const setStartTime = useLogCollectorStore((s) => s.setStartTime);
   const setAutoScroll = useLogCollectorStore((s) => s.setAutoScroll);
 
   return useMutation({
     mutationFn: async () => {
-      await api.startSubscription(DEFAULT_ENABLED_EVENT_IDS, 500);
+      await api.startSubscription(enabledEventIds, 500);
     },
     onSuccess: () => {
       setCollecting(true);
@@ -94,4 +119,34 @@ export function useStopCollection() {
       setStartTime(null);
     },
   });
+}
+
+export function useLogMaxSize() {
+  return useQuery({
+    queryKey: ["sysmon", "log-max-size"],
+    queryFn: api.getLogMaxSize,
+    refetchInterval: 30000,
+  });
+}
+
+export function useSetLogMaxSize() {
+  return useMutation({
+    mutationFn: (sizeMb: number) => api.setLogMaxSize(sizeMb),
+  });
+}
+
+/** Sync frontend collecting state with backend on mount. */
+export function useSyncCollectingState() {
+  const setCollecting = useLogCollectorStore((s) => s.setCollecting);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const subscribing = await api.isSubscribing();
+        setCollecting(subscribing);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [setCollecting]);
 }

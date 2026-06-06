@@ -16,6 +16,7 @@ use windows::Win32::System::Threading::{
 pub struct ProcessInfo {
     pub name: String,
     pub path: Option<PathBuf>,
+    pub cmdline: Option<String>,
     pub cached_at: Instant,
 }
 
@@ -77,6 +78,7 @@ fn lookup_process(pid: u32) -> ProcessInfo {
         return ProcessInfo {
             name: "System Idle".into(),
             path: None,
+            cmdline: None,
             cached_at: Instant::now(),
         };
     }
@@ -84,6 +86,7 @@ fn lookup_process(pid: u32) -> ProcessInfo {
         return ProcessInfo {
             name: "System".into(),
             path: None,
+            cmdline: None,
             cached_at: Instant::now(),
         };
     }
@@ -100,6 +103,7 @@ fn lookup_process(pid: u32) -> ProcessInfo {
                 return ProcessInfo {
                     name,
                     path: None,
+                    cmdline: None,
                     cached_at: Instant::now(),
                 };
             }
@@ -132,6 +136,7 @@ fn lookup_process(pid: u32) -> ProcessInfo {
         ProcessInfo {
             name,
             path,
+            cmdline: None,
             cached_at: Instant::now(),
         }
     }
@@ -142,6 +147,7 @@ fn lookup_process(_pid: u32) -> ProcessInfo {
     ProcessInfo {
         name: "[unsupported]".into(),
         path: None,
+        cmdline: None,
         cached_at: Instant::now(),
     }
 }

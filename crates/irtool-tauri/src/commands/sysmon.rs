@@ -69,11 +69,15 @@ pub async fn cmd_sysmon_default_event_configs() -> Result<Vec<EventConfigEntry>,
     Ok(irtool_sysmon::default_event_configs())
 }
 
-/// Generate Sysmon XML config from enabled events list.
+/// Generate Sysmon XML config from enabled events list and write to disk.
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_sysmon_generate_config(enabled_events: Vec<String>) -> Result<String, IrError> {
-    Ok(irtool_sysmon::SysmonConfigManager::generate_config(&enabled_events))
+pub async fn cmd_sysmon_generate_config(state: State<'_, AppState>, enabled_events: Vec<String>) -> Result<String, IrError> {
+    tracing::info!("Generating sysmon config with events: {:?}", enabled_events);
+    let config = state.sysmon_config.clone();
+    tokio::task::spawn_blocking(move || config.generate_config(&enabled_events))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
 }
 
 /// Start real-time Sysmon event subscription.
@@ -89,6 +93,16 @@ pub async fn cmd_sysmon_start_subscription(
     let reader = state.sysmon_reader.clone();
     if reader.is_polling() {
         return Ok(()); // Already polling
+    }
+
+    // Enable DNS Client event log if DNS Client is enabled
+    if enabled_event_ids.contains(&3008) {
+        let dns_manager = state.dns_client_manager.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut m = dns_manager.lock();
+            let _ = m.enable();
+        }).await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
     }
 
     // Init last_record_id to skip existing events
@@ -120,7 +134,36 @@ pub async fn cmd_sysmon_start_subscription(
 #[specta::specta]
 pub async fn cmd_sysmon_stop_subscription(state: State<'_, AppState>) -> Result<(), IrError> {
     state.sysmon_reader.stop_polling();
+    
+    // Restore DNS Client event log state
+    let dns_manager = state.dns_client_manager.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut m = dns_manager.lock();
+        let _ = m.restore();
+    }).await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
+    
     Ok(())
+}
+
+/// Get the Sysmon event log maximum size in MB.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_get_log_max_size(state: State<'_, AppState>) -> Result<u64, IrError> {
+    let config = state.sysmon_config.clone();
+    tokio::task::spawn_blocking(move || config.get_log_max_size_mb())
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+}
+
+/// Set the Sysmon event log maximum size in MB.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_set_log_max_size(state: State<'_, AppState>, size_mb: u64) -> Result<(), IrError> {
+    let config = state.sysmon_config.clone();
+    tokio::task::spawn_blocking(move || config.set_log_max_size_mb(size_mb))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
 }
 
 /// Check if Sysmon subscription is currently active.

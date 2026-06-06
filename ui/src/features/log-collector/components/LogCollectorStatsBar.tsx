@@ -8,6 +8,7 @@ import type { SysmonEventType } from "../types";
 
 interface Props {
   sysmonRunning: boolean;
+  logMaxSizeMb: number;
 }
 
 function formatDuration(ms: number): string {
@@ -18,7 +19,7 @@ function formatDuration(ms: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-export function LogCollectorStatsBar({ sysmonRunning }: Props) {
+export function LogCollectorStatsBar({ sysmonRunning, logMaxSizeMb }: Props) {
   const { t } = useTranslation();
   const { events, collecting, startTime } = useLogCollectorStore();
   const [elapsed, setElapsed] = useState("");
@@ -71,6 +72,14 @@ export function LogCollectorStatsBar({ sysmonRunning }: Props) {
       <span className="text-fg-tertiary">
         Sysmon: {sysmonRunning ? t("log-collector.stats.running") : t("log-collector.stats.not-running")}
       </span>
+      {logMaxSizeMb > 0 && (
+        <>
+          <Separator orientation="vertical" className="h-3" />
+          <span className="text-fg-tertiary">
+            日志上限: {logMaxSizeMb} MB
+          </span>
+        </>
+      )}
     </div>
   );
 }

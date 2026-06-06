@@ -54,3 +54,11 @@ export async function stopSubscription(): Promise<void> {
 export async function isSubscribing(): Promise<boolean> {
   return await invoke("cmd_sysmon_is_subscribing");
 }
+
+export async function getLogMaxSize(): Promise<number> {
+  return await invoke<number>("cmd_sysmon_get_log_max_size");
+}
+
+export async function setLogMaxSize(sizeMb: number): Promise<void> {
+  await invoke("cmd_sysmon_set_log_max_size", { sizeMb });
+}

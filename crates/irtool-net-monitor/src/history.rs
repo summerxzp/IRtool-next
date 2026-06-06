@@ -2,6 +2,8 @@ use crate::types::{now_epoch_secs, NetConn, NetConnKey};
 use dashmap::DashMap;
 use std::sync::Arc;
 
+const MAX_HISTORY_RECORDS: usize = 100_000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RetentionPolicy {
     None,
@@ -63,6 +65,15 @@ impl HistoryStore {
                     .retain(|_, v| v.is_current || now.saturating_sub(v.last_seen) <= secs);
             }
             RetentionPolicy::Forever => {}
+        }
+
+        // Trim oldest entries if exceeding max capacity
+        if self.inner.len() > MAX_HISTORY_RECORDS {
+            let excess = self.inner.len() - MAX_HISTORY_RECORDS;
+            let keys_to_remove: Vec<_> = self.inner.iter().take(excess).map(|e| e.key().clone()).collect();
+            for key in keys_to_remove {
+                self.inner.remove(&key);
+            }
         }
 
         self.inner.iter().map(|e| e.value().clone()).collect()

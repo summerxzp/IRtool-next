@@ -44,7 +44,7 @@ function ProcessChain({ pid }: { pid: number }) {
     <div className="mt-2">
       <p className="text-xs font-medium text-fg-secondary mb-1">{t("log-collector.detail.process-chain")}</p>
       <div className="space-y-0.5 pl-2">
-        {chain.nodes.map((node, i) => (
+        {[...chain.nodes].reverse().map((node, i) => (
           <div key={node.pid} className="flex items-center gap-1 text-xs" style={{ paddingLeft: `${i * 12}px` }}>
             <span className="text-fg-tertiary">└─</span>
             <span className={node.is_target ? "text-fg-primary font-medium" : "text-fg-secondary"}>
@@ -84,7 +84,7 @@ export function EventDetail({ event }: Props) {
       <FieldRow label={t("log-collector.detail.path")} value={event.process_path} copyable />
       <FieldRow label={t("log-collector.detail.user")} value={event.user} />
 
-      {event.event_type === "dns" && (
+      {(event.event_type === "dns" || event.event_type === "dns_client") && (
         <>
           <Separator />
           <FieldRow label={t("log-collector.detail.domain")} value={event.query_name} copyable />

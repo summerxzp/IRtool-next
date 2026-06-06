@@ -20,15 +20,27 @@ pub fn enumerate_udp_v4() -> Result<Vec<NetConn>, IrError> {
             return Ok(Vec::new());
         }
 
-        let mut buf = vec![0u8; buf_len as usize];
-        let rc = GetExtendedUdpTable(
-            Some(buf.as_mut_ptr() as *mut _),
-            &mut buf_len,
-            false,
-            AF_INET.0 as u32,
-            UDP_TABLE_OWNER_PID,
-            0,
-        );
+        const MAX_ATTEMPTS: usize = 3;
+        let mut attempts = 0;
+        #[allow(unused_assignments)]
+        let mut buf: Vec<u8> = Vec::new();
+        let rc = loop {
+            attempts += 1;
+            buf = vec![0u8; buf_len as usize];
+            let rc = GetExtendedUdpTable(
+                Some(buf.as_mut_ptr() as *mut _),
+                &mut buf_len,
+                false,
+                AF_INET.0 as u32,
+                UDP_TABLE_OWNER_PID,
+                0,
+            );
+            if rc == 0 || attempts >= MAX_ATTEMPTS {
+                break rc;
+            }
+            // Table grew between calls; increase buffer and retry
+            buf_len = ((buf_len as f64) * 1.5) as u32;
+        };
         if rc != 0 {
             return Err(IrError::Internal(format!("GetExtendedUdpTable v4 failed: {}", rc)));
         }
@@ -81,15 +93,27 @@ pub fn enumerate_udp_v6() -> Result<Vec<NetConn>, IrError> {
             return Ok(Vec::new());
         }
 
-        let mut buf = vec![0u8; buf_len as usize];
-        let rc = GetExtendedUdpTable(
-            Some(buf.as_mut_ptr() as *mut _),
-            &mut buf_len,
-            false,
-            AF_INET6.0 as u32,
-            UDP_TABLE_OWNER_PID,
-            0,
-        );
+        const MAX_ATTEMPTS: usize = 3;
+        let mut attempts = 0;
+        #[allow(unused_assignments)]
+        let mut buf: Vec<u8> = Vec::new();
+        let rc = loop {
+            attempts += 1;
+            buf = vec![0u8; buf_len as usize];
+            let rc = GetExtendedUdpTable(
+                Some(buf.as_mut_ptr() as *mut _),
+                &mut buf_len,
+                false,
+                AF_INET6.0 as u32,
+                UDP_TABLE_OWNER_PID,
+                0,
+            );
+            if rc == 0 || attempts >= MAX_ATTEMPTS {
+                break rc;
+            }
+            // Table grew between calls; increase buffer and retry
+            buf_len = ((buf_len as f64) * 1.5) as u32;
+        };
         if rc != 0 {
             return Err(IrError::Internal(format!("GetExtendedUdpTable v6 failed: {}", rc)));
         }

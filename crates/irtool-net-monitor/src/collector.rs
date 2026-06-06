@@ -29,6 +29,7 @@ impl WindowsNetCollector {
             let info = self.process_cache.get(c.pid);
             c.process_name = Some(info.name);
             c.process_path = info.path.map(|p| p.to_string_lossy().into_owned());
+            c.process_cmdline = info.cmdline;
         }
         self.process_cache.cleanup_expired();
         conns

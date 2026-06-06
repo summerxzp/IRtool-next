@@ -154,5 +154,123 @@
       "title": "Batch Calculate Hash",
       "message": "This will calculate MD5 and SHA-256 for all entries without hash. This may take a long time for large datasets. Continue?"
     }
+  },
+  "log-collector": {
+    "banner": {
+      "not-installed": "Sysmon not installed",
+      "not-installed-desc": "Sysmon driver is required to collect event logs",
+      "not-running": "Sysmon installed but not running",
+      "not-running-desc": "Sysmon service is stopped, event collection paused",
+      "running": "Sysmon running",
+      "install": "Install Sysmon",
+      "managed-by-irtool": "Managed by IRtool"
+    },
+    "install": {
+      "title": "Install Sysmon",
+      "description": "Select event types to enable. Sysmon driver service will be registered after installation.",
+      "event-config": "Event Type Configuration",
+      "accept-and-install": "Accept EULA & Install",
+      "installing": "Installing...",
+      "warning-admin": "Installation requires administrator privileges",
+      "warning-driver": "A Sysmon driver service will be registered on the system after installation",
+      "log-size": "Log Size Limit",
+      "log-size-unit": "MB",
+      "log-size-hint": "Maximum size for Sysmon event log",
+      "event-desc": {
+        "dns_client": "Enable Windows DNS Client event log to supplement DNS queries from nslookup and other tools",
+        "dns": "Record DNS query requests to detect malicious domain communication",
+        "network_connect": "Record TCP/UDP network connections to detect abnormal outbound connections",
+        "process_create": "Record process creation events to track process execution",
+        "file_create_time": "Record file creation time modification events",
+        "process_terminate": "Record process termination events",
+        "driver_load": "Record driver load events",
+        "image_load": "Record DLL load events",
+        "remote_thread": "Record remote thread creation events to detect process injection",
+        "raw_access_read": "Record raw disk access events",
+        "process_access": "Record process access events",
+        "file_create": "Record file creation events",
+        "registry_event": "Record registry operation events",
+        "file_create_stream_hash": "Record file stream hash events",
+        "pipe_event": "Record named pipe events",
+        "wmi_event": "Record WMI events",
+        "file_delete": "Record file deletion events",
+        "clipboard_change": "Record clipboard change events",
+        "process_tampering": "Record process tampering events",
+        "file_delete_detected": "Record file deletion detection events"
+      }
+    },
+    "toolbar": {
+      "start": "Start Collection",
+      "stop": "Stop",
+      "load-history": "Load History",
+      "all-events": "All Events",
+      "external-only": "External Only",
+      "search-placeholder": "Search domain/IP/process...",
+      "export": "Export",
+      "clear": "Clear",
+      "config": "Config",
+      "uninstall": "Uninstall",
+      "open-config": "Open Sysmon Config"
+    },
+    "table": {
+      "time": "Time",
+      "type": "Type",
+      "process": "Process",
+      "detail": "Detail",
+      "external": "External",
+      "no-events": "No events"
+    },
+    "detail": {
+      "select-event": "Select an event to view details",
+      "time": "Time",
+      "process": "Process",
+      "path": "Path",
+      "user": "User",
+      "domain": "Domain",
+      "results": "Results",
+      "status": "Status",
+      "source": "Source",
+      "destination": "Destination",
+      "protocol": "Protocol",
+      "initiated": "Initiated",
+      "external": "External",
+      "source-process": "Source Process",
+      "source-path": "Source Path",
+      "target-process": "Target Process",
+      "target-path": "Target Path",
+      "start-address": "Start Address",
+      "start-module": "Start Module",
+      "filename": "Filename",
+      "creation-time": "Creation Time",
+      "process-chain": "Process Chain"
+    },
+    "stats": {
+      "collecting": "Collecting",
+      "stopped": "Stopped",
+      "events": "Events",
+      "duration": "Duration",
+      "running": "Running",
+      "not-running": "Not Running"
+    },
+    "config-dialog": {
+      "title": "Sysmon Configuration",
+      "description": "Select event types to enable and configure log size",
+      "apply": "Apply Configuration",
+      "applying": "Applying...",
+      "log-size": "Log Size Limit",
+      "log-size-unit": "MB",
+      "select-all": "Select All",
+      "deselect-all": "Deselect All"
+    },
+    "uninstall-confirm": {
+      "title": "Confirm Uninstall",
+      "message": "Are you sure you want to uninstall Sysmon? All event collection will stop after uninstallation.",
+      "confirm": "Uninstall"
+    },
+    "clear-confirm": {
+      "title": "Confirm Clear",
+      "message": "Are you sure you want to clear all event records? This action cannot be undone.",
+      "confirm": "Clear"
+    }
   }
 }

@@ -1,5 +1,6 @@
 use crate::models::SysmonStatus;
 use irtool_core::IrError;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
@@ -43,6 +44,21 @@ impl SysmonConfigManager {
     #[cfg(not(windows))]
     pub fn get_service_name(&self) -> Option<String> { None }
 
+    /// Ensure the config directory exists and generate a default config if missing.
+    pub fn ensure_config_dir_and_default(&self) -> Result<(), IrError> {
+        if let Some(parent) = self.config_path.parent() {
+            info!("Ensuring config directory exists: {:?}", parent);
+            fs::create_dir_all(parent).map_err(|e| IrError::Io(e.to_string()))?;
+        }
+        if !self.config_path.exists() {
+            self.generate_config(&[
+                "dns".to_string(),
+                "network_connect".to_string(),
+            ])?;
+        }
+        Ok(())
+    }
+
     /// Install Sysmon. If already installed, falls back to update_config.
     pub fn install(&self, accept_eula: bool) -> Result<(bool, String), IrError> {
         if self.is_installed() {
@@ -52,6 +68,7 @@ impl SysmonConfigManager {
         if !self.sysmon_exe_path.exists() {
             return Ok((false, format!("找不到 Sysmon: {}", self.sysmon_exe_path.display())));
         }
+        self.ensure_config_dir_and_default()?;
         if !self.config_path.exists() {
             return Ok((false, format!("找不到配置文件: {}", self.config_path.display())));
         }
@@ -71,6 +88,7 @@ impl SysmonConfigManager {
             Ok(output) => {
                 if output.status.success() {
                     self.mark_started_by_irtool();
+                    info!("Sysmon install succeeded");
                     Ok((true, "Sysmon 安装成功".to_string()))
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -87,6 +105,7 @@ impl SysmonConfigManager {
                         return self.run_install_cmd(accept_eula);
                     }
                     let msg = if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() };
+                    warn!("Sysmon install failed: {}", msg.trim());
                     Ok((false, format!("安装失败: {}", msg.trim())))
                 }
             }
@@ -128,6 +147,7 @@ impl SysmonConfigManager {
         if !self.is_installed() {
             return Ok((true, "Sysmon 未安装".to_string()));
         }
+        info!("Uninstalling Sysmon");
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
         {
@@ -140,9 +160,11 @@ impl SysmonConfigManager {
             Ok(output) => {
                 if output.status.success() {
                     self.clear_started_marker();
+                    info!("Sysmon uninstalled successfully");
                     Ok((true, "Sysmon 卸载成功".to_string()))
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("Sysmon uninstall failed: {}", stderr.trim());
                     Ok((false, format!("卸载失败: {}", stderr.trim())))
                 }
             }
@@ -152,12 +174,15 @@ impl SysmonConfigManager {
 
     /// Update Sysmon configuration.
     pub fn update_config(&self) -> Result<(bool, String), IrError> {
+        self.ensure_config_dir_and_default()?;
         if !self.config_path.exists() {
             return Ok((false, format!("配置文件不存在: {}", self.config_path.display())));
         }
         if !self.is_installed() {
             return Ok((false, "Sysmon 未安装，请先安装".to_string()));
         }
+
+        info!("Updating Sysmon config, path: {}", self.config_path.display());
 
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
@@ -170,14 +195,77 @@ impl SysmonConfigManager {
         match cmd.output() {
             Ok(output) => {
                 if output.status.success() {
+                    info!("Sysmon config updated successfully");
                     Ok((true, "配置更新成功".to_string()))
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("Sysmon config update failed: {}", stderr.trim());
                     Ok((false, format!("配置更新失败: {}", stderr.trim())))
                 }
             }
             Err(e) => Ok((false, format!("配置更新异常: {}", e))),
         }
+    }
+
+    /// Get the current Sysmon event log maximum size in MB.
+    /// Uses wevtutil to query the channel configuration.
+    #[cfg(windows)]
+    pub fn get_log_max_size_mb(&self) -> Result<u64, IrError> {
+        use std::os::windows::process::CommandExt;
+        let channel = "Microsoft-Windows-Sysmon/Operational";
+        let output = std::process::Command::new("wevtutil")
+            .args(["gl", channel])
+            .creation_flags(0x08000000)
+            .output()
+            .map_err(|e| IrError::Internal(format!("wevtutil failed: {}", e)))?;
+
+        if !output.status.success() {
+            return Ok(0); // Default if can't query
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Parse "maxSize: XXXXXXXX" from output
+        for line in stdout.lines() {
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix("maxSize:") {
+                let size_bytes: u64 = rest.trim().parse().unwrap_or(0);
+                return Ok(size_bytes / (1024 * 1024)); // Convert bytes to MB
+            }
+        }
+        Ok(0)
+    }
+
+    #[cfg(not(windows))]
+    pub fn get_log_max_size_mb(&self) -> Result<u64, IrError> {
+        Ok(0)
+    }
+
+    /// Set the Sysmon event log maximum size in MB.
+    #[cfg(windows)]
+    pub fn set_log_max_size_mb(&self, size_mb: u64) -> Result<(), IrError> {
+        use std::os::windows::process::CommandExt;
+        let channel = "Microsoft-Windows-Sysmon/Operational";
+        let size_bytes = size_mb * 1024 * 1024;
+        info!("Setting Sysmon log max size to {} MB ({} bytes)", size_mb, size_bytes);
+
+        let output = std::process::Command::new("wevtutil")
+            .args(["sl", channel, &format!("/ms:{}", size_bytes)])
+            .creation_flags(0x08000000)
+            .output()
+            .map_err(|e| IrError::Internal(format!("wevtutil failed: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(IrError::Internal(format!("设置日志大小失败: {}", stderr.trim())));
+        }
+
+        info!("Sysmon log max size set to {} MB successfully", size_mb);
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    pub fn set_log_max_size_mb(&self, _size_mb: u64) -> Result<(), IrError> {
+        Err(IrError::FeatureDisabled("sysmon requires Windows".into()))
     }
 
     /// Get full status info.
@@ -197,8 +285,8 @@ impl SysmonConfigManager {
         }
     }
 
-    /// Generate Sysmon XML config from enabled events list.
-    pub fn generate_config(enabled_events: &[String]) -> String {
+    /// Generate Sysmon XML config from enabled events list and write to disk.
+    pub fn generate_config(&self, enabled_events: &[String]) -> Result<String, IrError> {
         let all_tags = [
             ("ProcessCreate", "进程创建"), ("FileCreateTime", "文件创建时间修改"),
             ("NetworkConnect", "网络连接"), ("ProcessTerminate", "进程终止"),
@@ -213,7 +301,7 @@ impl SysmonConfigManager {
         ];
 
         let key_to_xml: &[(&str, &str)] = &[
-            ("network", "NetworkConnect"), ("dns", "DnsQuery"),
+            ("network_connect", "NetworkConnect"), ("dns", "DnsQuery"),
             ("remote_thread", "CreateRemoteThread"), ("process_create", "ProcessCreate"),
             ("process_terminate", "ProcessTerminate"), ("file_create", "FileCreate"),
             ("file_create_dll", "FileCreate"), ("registry_event", "RegistryEvent"),
@@ -255,7 +343,16 @@ impl SysmonConfigManager {
 
         lines.push("  </EventFiltering>".to_string());
         lines.push("</Sysmon>".to_string());
-        lines.join("\n")
+        let xml = lines.join("\n");
+
+        // Write config to disk
+        if let Some(parent) = self.config_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::write(&self.config_path, &xml).map_err(|e| IrError::Io(e.to_string()))?;
+        info!("Generated sysmon config at {}", self.config_path.display());
+
+        Ok(xml)
     }
 
     fn mark_started_by_irtool(&self) { let _ = std::fs::write(&self.marker_file, std::process::id().to_string()); }
@@ -301,9 +398,17 @@ fn is_service_installed(name: &str) -> bool {
     use windows::core::*;
     unsafe {
         let manager = match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) { Ok(m) => m, Err(_) => return false };
-        let result = OpenServiceW(manager, &HSTRING::from(name), SERVICE_QUERY_STATUS);
+        let service = match OpenServiceW(manager, &HSTRING::from(name), SERVICE_QUERY_STATUS) {
+            Ok(s) => s,
+            Err(_) => { let _ = CloseServiceHandle(manager); return false }
+        };
+        let mut status = SERVICE_STATUS::default();
+        let query_ok = QueryServiceStatus(service, &mut status).is_ok();
+        let _ = CloseServiceHandle(service);
         let _ = CloseServiceHandle(manager);
-        result.is_ok()
+        if !query_ok { return false; }
+        // Service marked for deletion (state 0x100 = SERVICE_DELETE_PENDING) is not considered "installed"
+        status.dwCurrentState.0 != 0x100
     }
 }
 

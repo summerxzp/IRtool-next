@@ -18,6 +18,7 @@ pub struct AppState {
     // --- P4 新增 ---
     pub sysmon_reader: Arc<irtool_sysmon::SysmonReader>,
     pub sysmon_config: Arc<irtool_sysmon::SysmonConfigManager>,
+    pub dns_client_manager: Arc<Mutex<irtool_sysmon::DnsClientLogManager>>,
 }
 
 pub struct NetworkPollingState {
@@ -57,7 +58,13 @@ impl AppState {
             autoruns_store: Arc::new(AutorunsStore::new()),
             // --- P4 新增 ---
             sysmon_reader: Arc::new(irtool_sysmon::SysmonReader::new()),
-            sysmon_config: Arc::new(irtool_sysmon::SysmonConfigManager::new(None, None, &std::path::PathBuf::from("."))),
+            sysmon_config: Arc::new(irtool_sysmon::SysmonConfigManager::new(None, None, &{
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")))
+            })),
+            dns_client_manager: Arc::new(Mutex::new(irtool_sysmon::DnsClientLogManager::new())),
         }
     }
 }

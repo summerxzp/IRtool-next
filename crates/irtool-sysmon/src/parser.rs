@@ -215,6 +215,175 @@ fn build_typed_event(
              String::new(), String::new(), String::new(), susp,
              tf, get("CreationUtcTime"))
         }
+        1 => {
+            // ProcessCreate
+            let pp = get("Image");
+            (SysmonEventType::ProcessCreate,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        2 => {
+            // FileCreateTime
+            let pp = get("Image");
+            (SysmonEventType::FileCreateTime,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        5 => {
+            // ProcessTerminate
+            let pp = get("Image");
+            (SysmonEventType::ProcessTerminate,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        6 => {
+            // DriverLoad
+            (SysmonEventType::DriverLoad,
+             0, String::new(), String::new(), String::new(), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        7 => {
+            // ImageLoad (DLL)
+            let pp = get("Image");
+            (SysmonEventType::ImageLoad,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        9 => {
+            // RawAccessRead
+            let pp = get("Image");
+            (SysmonEventType::RawAccessRead,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        10 => {
+            // ProcessAccess
+            let sp = get("SourceImage");
+            let tp = get("TargetImage");
+            (SysmonEventType::ProcessAccess,
+             0, String::new(), String::new(), get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             get_u32("SourceProcessId"), extract_process_name(&sp), sp,
+             get_u32("TargetProcessId"), extract_process_name(&tp), tp,
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        12 => {
+            // RegistryEvent
+            let pp = get("Image");
+            (SysmonEventType::RegistryEvent,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        15 => {
+            // FileCreateStreamHash
+            let pp = get("Image");
+            let tf = get("TargetFilename");
+            (SysmonEventType::FileCreateStreamHash,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             tf, String::new())
+        }
+        17 => {
+            // PipeEvent
+            let pp = get("Image");
+            (SysmonEventType::PipeEvent,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        19 => {
+            // WmiEvent
+            let pp = get("Image");
+            (SysmonEventType::WmiEvent,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        23 => {
+            // FileDelete
+            let pp = get("Image");
+            let tf = get("TargetFilename");
+            (SysmonEventType::FileDelete,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             tf, String::new())
+        }
+        24 => {
+            // ClipboardChange
+            let pp = get("Image");
+            (SysmonEventType::ClipboardChange,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        25 => {
+            // ProcessTampering
+            let pp = get("Image");
+            (SysmonEventType::ProcessTampering,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             String::new(), String::new())
+        }
+        26 => {
+            // FileDeleteDetected
+            let pp = get("Image");
+            let tf = get("TargetFilename");
+            (SysmonEventType::FileDeleteDetected,
+             get_u32("ProcessId"), extract_process_name(&pp), pp, get("User"), get("RuleName"),
+             String::new(), String::new(), 0,
+             String::new(), 0, String::new(), 0, String::new(), false, false,
+             0, String::new(), String::new(), 0, String::new(), String::new(),
+             String::new(), String::new(), String::new(), false,
+             tf, String::new())
+        }
         _ => {
             // Unknown event type — just store raw_data
             (SysmonEventType::Unknown,
@@ -344,7 +513,7 @@ mod tests {
     fn test_parse_unknown_event() {
         let xml = r#"<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
             <System>
-                <EventID>1</EventID>
+                <EventID>999</EventID>
                 <TimeCreated SystemTime="2024-01-15T10:30:00.000Z"/>
             </System>
             <EventData>
@@ -353,7 +522,7 @@ mod tests {
         </Event>"#;
 
         let event = parse_event(xml).unwrap();
-        assert_eq!(event.event_id, 1);
+        assert_eq!(event.event_id, 999);
         assert_eq!(event.event_type, SysmonEventType::Unknown);
     }
 }

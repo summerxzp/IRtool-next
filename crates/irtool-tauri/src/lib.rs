@@ -75,10 +75,12 @@ fn is_running_as_admin() -> bool {
 
 pub fn run() {
     let log_dir = {
-        let local = std::env::var_os("LOCALAPPDATA")
-            .map(std::path::PathBuf::from)
+        // Portable mode: logs next to the executable
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .unwrap_or_else(|| std::path::PathBuf::from("."));
-        local.join("IRtool").join("logs")
+        exe_dir.join("logs")
     };
 
     let _logger_guard = logger::init_logger(log_dir.clone());
@@ -124,6 +126,8 @@ pub fn run() {
         cmd_sysmon_start_subscription,
         cmd_sysmon_stop_subscription,
         cmd_sysmon_is_subscribing,
+        cmd_sysmon_get_log_max_size,
+        cmd_sysmon_set_log_max_size,
     ]);
 
     #[cfg(debug_assertions)]

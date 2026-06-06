@@ -164,6 +164,150 @@ async cmdProcessChain(pid: number) : Promise<Result<ProcessChain, IrError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Get Sysmon installation/service status.
+ */
+async cmdSysmonStatus() : Promise<Result<SysmonStatus, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Check if the Sysmon event channel is available.
+ */
+async cmdSysmonIsChannelAvailable() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_is_channel_available") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Install Sysmon with the given config.
+ */
+async cmdSysmonInstall(acceptEula: boolean) : Promise<Result<[boolean, string], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_install", { acceptEula }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Uninstall Sysmon.
+ */
+async cmdSysmonUninstall() : Promise<Result<[boolean, string], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_uninstall") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Update Sysmon configuration.
+ */
+async cmdSysmonUpdateConfig() : Promise<Result<[boolean, string], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_update_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get existing (historical) events from the Sysmon channel.
+ */
+async cmdSysmonGetExistingEvents(limit: number, enabledEventIds: number[]) : Promise<Result<SysmonEvent[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_existing_events", { limit, enabledEventIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get the default event configurations.
+ */
+async cmdSysmonDefaultEventConfigs() : Promise<Result<EventConfigEntry[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_default_event_configs") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Generate Sysmon XML config from enabled events list and write to disk.
+ */
+async cmdSysmonGenerateConfig(enabledEvents: string[]) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_generate_config", { enabledEvents }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Start real-time Sysmon event subscription.
+ * Events are pushed to the frontend via `evt_sysmon_event` Tauri event.
+ */
+async cmdSysmonStartSubscription(enabledEventIds: number[], pollIntervalMs: number | null) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_start_subscription", { enabledEventIds, pollIntervalMs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Stop real-time Sysmon event subscription.
+ */
+async cmdSysmonStopSubscription() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_stop_subscription") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Check if Sysmon subscription is currently active.
+ */
+async cmdSysmonIsSubscribing() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_is_subscribing") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get the Sysmon event log maximum size in MB.
+ */
+async cmdSysmonGetLogMaxSize() : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_log_max_size") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Set the Sysmon event log maximum size in MB.
+ */
+async cmdSysmonSetLogMaxSize(sizeMb: number) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_set_log_max_size", { sizeMb }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -181,6 +325,10 @@ export type AppInfo = { name: string; version: string; build: string; is_admin: 
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
 export type DeleteResult = { success: boolean; message: string }
+/**
+ * Event configuration entry.
+ */
+export type EventConfigEntry = { key: string; name: string; event_id: number; xml_tag: string; default_enabled: boolean }
 export type Family = "v4" | "v6"
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; first_seen: number; last_seen: number; is_current: boolean }
@@ -236,6 +384,18 @@ export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"
 export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
 export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { message: string } } | { kind: "unsigned" } | { kind: "not_verified" }
+/**
+ * Unified Sysmon event struct. Fields not applicable to a given event type are None/empty.
+ */
+export type SysmonEvent = { event_id: number; event_type: SysmonEventType; timestamp: string; timestamp_epoch: number; timestamp_valid: boolean; record_id: number | null; raw_data: { [key in string]: string }; process_id: number; process_name: string; process_path: string; user: string; rule_name: string; query_name: string; query_results: string; query_status: number; source_ip: string; source_port: number; destination_ip: string; destination_port: number; protocol: string; initiated: boolean; is_external: boolean; source_process_id: number; source_process_name: string; source_process_path: string; target_process_id: number; target_process_name: string; target_process_path: string; start_address: string; start_module: string; start_function: string; is_suspicious: boolean; target_filename: string; creation_utc_time: string }
+/**
+ * Event type discriminator.
+ */
+export type SysmonEventType = "process_create" | "file_create_time" | "network_connect" | "process_terminate" | "driver_load" | "image_load" | "create_remote_thread" | "raw_access_read" | "process_access" | "file_create" | "registry_event" | "file_create_stream_hash" | "pipe_event" | "wmi_event" | "dns" | "dns_client" | "file_delete" | "clipboard_change" | "process_tampering" | "file_delete_detected" | "unknown"
+/**
+ * Sysmon service status info.
+ */
+export type SysmonStatus = { installed: boolean; running: boolean; service_name: string | null; sysmon_exe_exists: boolean; config_exists: boolean; sysmon_exe_path: string; config_path: string; started_by_irtool: boolean; config_managed_by_irtool: boolean }
 
 /** tauri-specta globals **/
 

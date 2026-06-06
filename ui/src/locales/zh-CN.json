@@ -173,9 +173,13 @@
       "installing": "安装中...",
       "warning-admin": "安装需要管理员权限",
       "warning-driver": "安装后将在系统中注册 Sysmon 驱动服务",
+      "log-size": "日志上限",
+      "log-size-unit": "MB",
+      "log-size-hint": "Sysmon 事件日志最大大小",
       "event-desc": {
+        "dns_client": "启用Windows DNS Client事件日志，补充捕获nslookup等工具的DNS查询",
         "dns": "记录DNS查询请求，用于检测恶意域名通信",
-        "network": "记录TCP/UDP网络连接，用于检测异常外连",
+        "network_connect": "记录TCP/UDP网络连接，用于检测异常外连",
         "process_create": "记录进程创建事件，用于追踪进程执行",
         "file_create_time": "记录文件创建时间修改事件",
         "process_terminate": "记录进程终止事件",
@@ -203,7 +207,10 @@
       "external-only": "仅外连",
       "search-placeholder": "搜索域名/IP/进程...",
       "export": "导出",
-      "clear": "清空"
+      "clear": "清空",
+      "config": "配置",
+      "uninstall": "卸载",
+      "open-config": "打开 Sysmon 配置"
     },
     "table": {
       "time": "时间",
@@ -244,6 +251,26 @@
       "duration": "时长",
       "running": "运行中",
       "not-running": "未运行"
+    },
+    "config-dialog": {
+      "title": "Sysmon 配置",
+      "description": "选择要启用的事件类型和日志大小配置",
+      "apply": "应用配置",
+      "applying": "应用中...",
+      "log-size": "日志上限",
+      "log-size-unit": "MB",
+      "select-all": "全选",
+      "deselect-all": "取消全选"
+    },
+    "uninstall-confirm": {
+      "title": "确认卸载",
+      "message": "确定要卸载 Sysmon 吗？卸载后将停止所有事件采集。",
+      "confirm": "卸载"
+    },
+    "clear-confirm": {
+      "title": "确认清空",
+      "message": "确定要清空所有事件记录吗？此操作不可撤销。",
+      "confirm": "清空"
     }
   }
 }
