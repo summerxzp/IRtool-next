@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, ScrollText, Repeat, Briefcase, Settings } from "lucide-react";
+import { Activity, ScrollText, Repeat, Briefcase, Settings, Eye } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
@@ -8,6 +8,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface NavItem {
   to: string;
@@ -25,6 +27,28 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const [isBackground, setIsBackground] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const bg = await invoke<boolean>("cmd_monitor_is_background");
+        setIsBackground(bg);
+      } catch {}
+    })();
+  }, []);
+
+  const toggleBackground = useCallback(async () => {
+    try {
+      if (isBackground) {
+        await invoke("cmd_monitor_exit_background");
+        setIsBackground(false);
+      } else {
+        await invoke("cmd_monitor_enter_background");
+        setIsBackground(true);
+      }
+    } catch {}
+  }, [isBackground]);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -62,13 +86,35 @@ export function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
+                onClick={toggleBackground}
                 className={cn(
                   "h-10 w-10 rounded-md flex items-center justify-center transition-colors",
-                  "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2",
+                  isBackground
+                    ? "text-accent bg-accent/10"
+                    : "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2",
                 )}
               >
-                <Settings className="h-5 w-5" />
+                <Eye className="h-5 w-5" />
               </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{t("nav.background-detection")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to="/settings"
+                className={cn(
+                  "h-10 w-10 rounded-md flex items-center justify-center transition-colors relative",
+                  path.startsWith("/settings")
+                    ? "text-accent"
+                    : "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2",
+                )}
+              >
+                {path.startsWith("/settings") && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r" />
+                )}
+                <Settings className="h-5 w-5" />
+              </Link>
             </TooltipTrigger>
             <TooltipContent side="right">{t("nav.settings")}</TooltipContent>
           </Tooltip>
