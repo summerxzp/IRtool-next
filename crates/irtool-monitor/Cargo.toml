@@ -1,0 +1,26 @@
+[package]
+name = "irtool-monitor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }
+irtool-sysmon = { path = "../irtool-sysmon" }
+irtool-pcap = { path = "../irtool-pcap" }
+irtool-process = { path = "../irtool-process" }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+ipnetwork = "0.21"
+aho-corasick = { workspace = true }
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+specta = { workspace = true, features = ["derive", "serde"] }
+toml = "0.8"
+parking_lot = "0.12"
