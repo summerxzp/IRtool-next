@@ -1,4 +1,10 @@
 {
+  "alert": {
+    "title": "安全告警",
+    "no-alerts": "暂无告警",
+    "mark-all-read": "全部已读",
+    "confirm-clear": "确认清空？"
+  },
   "app": {
     "name": "IRtool",
     "tagline": "Windows 应急响应工具"
@@ -8,7 +14,8 @@
     "log-collector": "日志采集",
     "autoruns": "持久化检测",
     "workspace": "工作台",
-    "settings": "设置"
+    "settings": "设置",
+    "background-detection": "后台监测"
   },
   "status": {
     "admin": "管理员",
@@ -253,14 +260,26 @@
       "not-running": "未运行"
     },
     "config-dialog": {
-      "title": "Sysmon 配置",
-      "description": "选择要启用的事件类型和日志大小配置",
+      "title": "日志采集配置",
+      "description": "配置日志采集的事件类型和数据源",
       "apply": "应用配置",
       "applying": "应用中...",
       "log-size": "日志上限",
       "log-size-unit": "MB",
       "select-all": "全选",
-      "deselect-all": "取消全选"
+      "deselect-all": "取消全选",
+      "section-dns": "DNS 请求记录",
+      "section-process": "进程行为记录",
+      "section-network": "网络活动记录",
+      "section-file": "文件与注册表",
+      "section-driver": "驱动与模块",
+      "section-other": "其他",
+      "tls_sni": "TLS SNI 提取",
+      "tls_sni-desc": "从 TLS 握手 (TCP:443) 中提取域名，覆盖浏览器 DoH、恶意软件自带 DoH 等 Sysmon DNS 无法捕获的场景",
+      "tls_sni-source": "数据来源：网络层 Raw Socket (TCP:443 ClientHello)",
+      "dns_pcap": "网络层 DNS 抓包",
+      "dns_pcap-desc": "从网卡层捕获 UDP:53 DNS 查询报文，覆盖 Go程序/dig 等直接发 DNS 但不走系统 API 的工具，与 Sysmon DNS 互补",
+      "dns_pcap-source": "数据来源：网络层 Raw Socket (UDP:53)"
     },
     "uninstall-confirm": {
       "title": "确认卸载",
@@ -271,6 +290,67 @@
       "title": "确认清空",
       "message": "确定要清空所有事件记录吗？此操作不可撤销。",
       "confirm": "清空"
+    },
+    "monitor": {
+      "title": "后台监测模式",
+      "config": "通知配置",
+      "enter-background": "后台监测",
+      "exit-background": "退出监测",
+      "background-desc": "隐藏窗口，后台继续采集并按规则监测",
+      "rules": "监控规则",
+      "add-rule": "添加规则",
+      "rule-name": "规则名称",
+      "targets": "目标（域名/IP/CIDR）",
+      "target-placeholder": "如: evil.com, *.malware.net, 10.0.0.0/8",
+      "notify-actions": "通知方式",
+      "popup": "弹窗",
+      "feishu": "飞书",
+      "webhook-url": "Webhook URL",
+      "event-types": "匹配事件类型",
+      "all-types": "全部类型",
+      "persist-types": "持久化事件类型",
+      "retention-days": "保留天数",
+      "db-path": "数据存储路径",
+      "db-path-placeholder": "留空则使用默认路径（程序目录/data/monitor.db）",
+      "alerts": "告警",
+      "no-alerts": "暂无告警",
+      "enabled": "启用",
+      "disabled": "禁用",
+      "delete-rule": "删除规则",
+      "save": "保存",
+      "saving": "保存中...",
+      "enter-confirm-title": "进入后台监控",
+      "enter-confirm-message": "窗口将隐藏，应用继续在后台采集事件并按规则监控。可通过系统托盘恢复窗口。",
+      "exit-confirm-title": "退出后台监控",
+      "exit-confirm-message": "将退出后台监控模式，恢复窗口显示。",
+      "test-feishu": "测试飞书",
+      "test-feishu-success": "飞书通知测试发送成功",
+      "test-feishu-failed": "测试发送失败",
+      "webhook-url-required": "请先输入 Webhook URL"
     }
+  },
+  "settings": {
+    "title": "设置",
+    "tabs": {
+      "notification": "通知配置",
+      "data-source": "数据源"
+    },
+    "notification": {
+      "title": "告警通知规则"
+    },
+    "data-source": {
+      "title": "数据源配置",
+      "sni": "TLS SNI 提取",
+      "sni-desc": "从 TLS 握手 (TCP:443) 中提取 Server Name Indication，可捕获浏览器 DoH、自带 DoH 的恶意软件等场景的域名，覆盖 Sysmon DNS 无法抓到的 HTTPS 连接域名",
+      "sni-source": "数据来源：网络层 Raw Socket (TCP:443 ClientHello)",
+      "dns-pcap": "网络层 DNS 抓包",
+      "dns-pcap-desc": "从网卡层捕获 UDP:53 DNS 查询报文，可捕获 dig/doggo/Go程序等直接发 DNS 请求但不走系统 API 的工具，与 Sysmon DNS (EventID 22) 互补",
+      "dns-pcap-source": "数据来源：网络层 Raw Socket (UDP:53)",
+      "pcap-unavailable": "Raw Socket 不可用（需要管理员权限）",
+      "pcap-running": "抓包运行中",
+      "pcap-stopped": "抓包已停止"
+    },
+    "save-success": "保存成功",
+    "save-failed": "保存失败"
   }
 }

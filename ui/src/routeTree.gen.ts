@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as LogCollectorRouteImport } from './routes/log-collector'
 import { Route as AutorunsRouteImport } from './routes/autoruns'
@@ -18,6 +19,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetworkRoute = NetworkRouteImport.update({
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/autoruns': typeof AutorunsRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/autoruns': typeof AutorunsRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesById {
@@ -61,19 +69,33 @@ export interface FileRoutesById {
   '/autoruns': typeof AutorunsRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/autoruns' | '/log-collector' | '/network' | '/workspace'
+  fullPaths:
+    | '/'
+    | '/autoruns'
+    | '/log-collector'
+    | '/network'
+    | '/settings'
+    | '/workspace'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/autoruns' | '/log-collector' | '/network' | '/workspace'
+  to:
+    | '/'
+    | '/autoruns'
+    | '/log-collector'
+    | '/network'
+    | '/settings'
+    | '/workspace'
   id:
     | '__root__'
     | '/'
     | '/autoruns'
     | '/log-collector'
     | '/network'
+    | '/settings'
     | '/workspace'
   fileRoutesById: FileRoutesById
 }
@@ -82,6 +104,7 @@ export interface RootRouteChildren {
   AutorunsRoute: typeof AutorunsRoute
   LogCollectorRoute: typeof LogCollectorRoute
   NetworkRoute: typeof NetworkRoute
+  SettingsRoute: typeof SettingsRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
 
@@ -92,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/workspace'
       fullPath: '/workspace'
       preLoaderRoute: typeof WorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network': {
@@ -130,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   AutorunsRoute: AutorunsRoute,
   LogCollectorRoute: LogCollectorRoute,
   NetworkRoute: NetworkRoute,
+  SettingsRoute: SettingsRoute,
   WorkspaceRoute: WorkspaceRoute,
 }
 export const routeTree = rootRouteImport

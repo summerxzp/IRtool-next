@@ -1,4 +1,10 @@
 {
+  "alert": {
+    "title": "Security Alerts",
+    "no-alerts": "No alerts",
+    "mark-all-read": "Mark all read",
+    "confirm-clear": "Confirm clear?"
+  },
   "app": {
     "name": "IRtool",
     "tagline": "Windows Incident Response Tool"
@@ -8,7 +14,8 @@
     "log-collector": "Log Collector",
     "autoruns": "Autoruns",
     "workspace": "Workspace",
-    "settings": "Settings"
+    "settings": "Settings",
+    "background-detection": "Background Detection"
   },
   "status": {
     "admin": "Admin",
@@ -253,14 +260,26 @@
       "not-running": "Not Running"
     },
     "config-dialog": {
-      "title": "Sysmon Configuration",
-      "description": "Select event types to enable and configure log size",
+      "title": "Log Collection Config",
+      "description": "Configure event types and data sources for log collection",
       "apply": "Apply Configuration",
       "applying": "Applying...",
       "log-size": "Log Size Limit",
       "log-size-unit": "MB",
       "select-all": "Select All",
-      "deselect-all": "Deselect All"
+      "deselect-all": "Deselect All",
+      "section-dns": "DNS Request Records",
+      "section-process": "Process Behavior",
+      "section-network": "Network Activity",
+      "section-file": "File & Registry",
+      "section-driver": "Driver & Module",
+      "section-other": "Other",
+      "tls_sni": "TLS SNI Extraction",
+      "tls_sni-desc": "Extract domain names from TLS handshakes (TCP:443). Covers browsers with DoH, malware with built-in DoH, and other scenarios Sysmon DNS cannot capture",
+      "tls_sni-source": "Source: Network layer Raw Socket (TCP:443 ClientHello)",
+      "dns_pcap": "Network Layer DNS Capture",
+      "dns_pcap-desc": "Capture DNS query packets from UDP:53 at the network interface level. Covers Go programs/dig that send DNS directly without system APIs. Complements Sysmon DNS",
+      "dns_pcap-source": "Source: Network layer Raw Socket (UDP:53)"
     },
     "uninstall-confirm": {
       "title": "Confirm Uninstall",
@@ -271,6 +290,67 @@
       "title": "Confirm Clear",
       "message": "Are you sure you want to clear all event records? This action cannot be undone.",
       "confirm": "Clear"
+    },
+    "monitor": {
+      "title": "Background Detection",
+      "config": "Notification Config",
+      "enter-background": "Background Detection",
+      "exit-background": "Exit Detection",
+      "background-desc": "Hide window, continue collecting and monitoring by rules in background",
+      "rules": "Monitor Rules",
+      "add-rule": "Add Rule",
+      "rule-name": "Rule Name",
+      "targets": "Targets (Domain/IP/CIDR)",
+      "target-placeholder": "e.g.: evil.com, *.malware.net, 10.0.0.0/8",
+      "notify-actions": "Notify Actions",
+      "popup": "Popup",
+      "feishu": "Feishu",
+      "webhook-url": "Webhook URL",
+      "event-types": "Match Event Types",
+      "all-types": "All Types",
+      "persist-types": "Persist Event Types",
+      "retention-days": "Retention Days",
+      "db-path": "Data Storage Path",
+      "db-path-placeholder": "Leave empty for default (app dir/data/monitor.db)",
+      "alerts": "Alerts",
+      "no-alerts": "No Alerts",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "delete-rule": "Delete Rule",
+      "save": "Save",
+      "saving": "Saving...",
+      "enter-confirm-title": "Enter Background Monitor",
+      "enter-confirm-message": "The window will be hidden. The app will continue collecting events and monitoring in background. Use the system tray to restore the window.",
+      "exit-confirm-title": "Exit Background Monitor",
+      "exit-confirm-message": "Will exit background monitoring mode and restore the window.",
+      "test-feishu": "Test Feishu",
+      "test-feishu-success": "Feishu notification test sent successfully",
+      "test-feishu-failed": "Test send failed",
+      "webhook-url-required": "Please enter Webhook URL first"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "notification": "Notification",
+      "data-source": "Data Sources"
+    },
+    "notification": {
+      "title": "Alert Notification Rules"
+    },
+    "data-source": {
+      "title": "Data Source Configuration",
+      "sni": "TLS SNI Extraction",
+      "sni-desc": "Extract Server Name Indication from TLS handshakes (TCP:443). Captures domains from browsers with DoH, malware with built-in DoH, and other HTTPS connections that Sysmon DNS cannot see",
+      "sni-source": "Source: Network layer Raw Socket (TCP:443 ClientHello)",
+      "dns-pcap": "Network Layer DNS Capture",
+      "dns-pcap-desc": "Capture DNS query packets from UDP:53 at the network interface level. Catches dig/doggo/Go programs that send DNS directly without using system APIs. Complements Sysmon DNS (EventID 22)",
+      "dns-pcap-source": "Source: Network layer Raw Socket (UDP:53)",
+      "pcap-unavailable": "Raw Socket unavailable (requires admin privileges)",
+      "pcap-running": "Capture running",
+      "pcap-stopped": "Capture stopped"
+    },
+    "save-success": "Saved successfully",
+    "save-failed": "Save failed"
   }
 }
