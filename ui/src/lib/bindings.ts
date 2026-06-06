@@ -308,6 +308,94 @@ async cmdSysmonSetLogMaxSize(sizeMb: number) : Promise<Result<null, IrError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdMonitorGetConfig() : Promise<Result<MonitorConfig, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorUpdateConfig(config: MonitorConfig) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_update_config", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorEnterBackground() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_enter_background") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorExitBackground() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_exit_background") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorGetAlerts(limit: number) : Promise<Result<Alert[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_alerts", { limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorIsBackground() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_is_background") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_test_feishu", { webhookUrl }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapIsAvailable() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_available") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapStart(config: PcapConfig) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_start", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapStop() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_stop") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapIsRunning() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_running") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -321,6 +409,10 @@ async cmdSysmonSetLogMaxSize(sizeMb: number) : Promise<Result<null, IrError>> {
 
 /** user-defined types **/
 
+/**
+ * 告警记录
+ */
+export type Alert = { id: number; timestamp: number; rule_name: string; event_type: string; process_name: string; key_field: string; action_taken: string; raw_json: string }
 export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
@@ -331,10 +423,67 @@ export type DeleteResult = { success: boolean; message: string }
 export type EventConfigEntry = { key: string; name: string; event_id: number; xml_tag: string; default_enabled: boolean }
 export type Family = "v4" | "v6"
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
+/**
+ * 后台监控配置
+ */
+export type MonitorConfig = { 
+/**
+ * 是否启用后台监控模式
+ */
+background_mode: boolean; 
+/**
+ * 后台模式时持久化哪些事件类型，空=全部
+ */
+persist_event_types: string[]; 
+/**
+ * SQLite 中事件保留天数，0=永久
+ */
+retention_days: number; 
+/**
+ * 监控规则列表
+ */
+rules: MonitorRule[]; 
+/**
+ * 数据库存储路径，空=使用默认路径（可执行文件同目录/data/monitor.db）
+ */
+db_path: string; 
+/**
+ * 启用 TLS SNI 提取（网络层抓包 TCP:443）
+ */
+enable_sni: boolean; 
+/**
+ * 启用网络层 DNS 抓包（UDP:53）
+ */
+enable_dns_pcap: boolean }
+/**
+ * 监控规则
+ */
+export type MonitorRule = { name: string; 
+/**
+ * 匹配目标：域名（支持 *.suffix 通配）or IP or CIDR
+ */
+targets: string[]; 
+/**
+ * 只匹配哪些事件类型，空=全部
+ */
+event_types: string[]; 
+/**
+ * 通知方式
+ */
+actions: NotifyAction[]; 
+/**
+ * 是否启用
+ */
+enabled: boolean }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; first_seen: number; last_seen: number; is_current: boolean }
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
 export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
+export type NotifyAction = "popup" | { feishu: { webhook_url: string } }
+/**
+ * pcap 配置
+ */
+export type PcapConfig = { enable_sni: boolean; enable_dns_pcap: boolean }
 /**
  * A chain from a target process up to the root (PID 0 or 4).
  */

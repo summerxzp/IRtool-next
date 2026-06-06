@@ -3,16 +3,19 @@ import { useTranslation } from "react-i18next";
 
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "../types";
-import type { SysmonEvent } from "../types";
+import type { SysmonEvent, ExtendedSysmonEventType } from "../types";
 
 interface Props {
   events: SysmonEvent[];
 }
 
 function getEventSummary(event: SysmonEvent): string {
-  switch (event.event_type) {
+  const et = event.event_type as ExtendedSysmonEventType;
+  switch (et) {
     case "dns":
     case "dns_client":
+    case "tls_sni":
+    case "dns_pcap":
       return event.query_name || "-";
     case "network_connect":
       return `${event.destination_ip}:${event.destination_port}`;
@@ -26,9 +29,12 @@ function getEventSummary(event: SysmonEvent): string {
 }
 
 function getCopyValue(event: SysmonEvent): string {
-  switch (event.event_type) {
+  const et = event.event_type as ExtendedSysmonEventType;
+  switch (et) {
     case "dns":
     case "dns_client":
+    case "tls_sni":
+    case "dns_pcap":
       return event.query_name;
     case "network_connect":
       return `${event.destination_ip}:${event.destination_port}`;
@@ -145,8 +151,8 @@ export function EventTable({ events }: Props) {
               </div>
               <div className="w-24 px-2 shrink-0">
                 <div className="flex items-center gap-1">
-                  <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[event.event_type]}`}>
-                    {EVENT_TYPE_LABELS[event.event_type]}
+                  <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[event.event_type as ExtendedSysmonEventType]}`}>
+                    {EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType]}
                   </span>
                   {event.is_external && (
                     <span className="inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap bg-blue-500/15 text-blue-500 border border-blue-500/25">

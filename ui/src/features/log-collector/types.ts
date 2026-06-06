@@ -1,13 +1,16 @@
 import type { SysmonEventType } from "@/lib/bindings";
 export type { SysmonEvent, SysmonEventType, SysmonStatus, EventConfigEntry } from "@/lib/bindings";
 
+/** Extended event type including pcap-derived events not in the auto-generated SysmonEventType. */
+export type ExtendedSysmonEventType = SysmonEventType | "tls_sni" | "dns_pcap";
+
 export interface LogCollectorFilters {
-  eventType: SysmonEventType | "all";
+  eventType: ExtendedSysmonEventType | "all";
   externalOnly: boolean;
   search: string;
 }
 
-export const EVENT_TYPE_LABELS: Record<SysmonEventType, string> = {
+export const EVENT_TYPE_LABELS: Record<ExtendedSysmonEventType, string> = {
   process_create: "进程创建",
   file_create_time: "文件创建时间修改",
   network_connect: "网络连接",
@@ -29,9 +32,11 @@ export const EVENT_TYPE_LABELS: Record<SysmonEventType, string> = {
   process_tampering: "进程篡改",
   file_delete_detected: "文件删除检测",
   unknown: "未知",
+  tls_sni: "TLS SNI",
+  dns_pcap: "DNS抓包",
 };
 
-export const EVENT_TYPE_COLORS: Record<SysmonEventType, string> = {
+export const EVENT_TYPE_COLORS: Record<ExtendedSysmonEventType, string> = {
   process_create: "bg-purple-500/15 text-purple-500 border-purple-500/25",
   file_create_time: "bg-amber-500/15 text-amber-500 border-amber-500/25",
   network_connect: "bg-green-500/15 text-green-500 border-green-500/25",
@@ -51,8 +56,10 @@ export const EVENT_TYPE_COLORS: Record<SysmonEventType, string> = {
   file_delete: "bg-rose-500/15 text-rose-500 border-rose-500/25",
   clipboard_change: "bg-teal-500/15 text-teal-500 border-teal-500/25",
   process_tampering: "bg-red-500/15 text-red-500 border-red-500/25",
-  file_delete_detected: "bg-rose-500/15 text-rose-500 border-rose-500/25",
+  file_delete_detected: "bg-rose-500/15 text-rose-500/25",
   unknown: "bg-gray-500/15 text-gray-500 border-gray-500/25",
+  tls_sni: "bg-sky-500/15 text-sky-500 border-sky-500/25",
+  dns_pcap: "bg-lime-500/15 text-lime-500 border-lime-500/25",
 };
 
 export const DEFAULT_ENABLED_EVENT_IDS = [3008, 22, 3]; // DNS Client + DNS + Network

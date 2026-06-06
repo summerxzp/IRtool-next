@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { commands } from "@/lib/bindings";
 import { EVENT_TYPE_LABELS } from "../types";
-import type { SysmonEvent } from "../types";
+import type { SysmonEvent, ExtendedSysmonEventType } from "../types";
 
 interface Props {
   event: SysmonEvent | null;
@@ -74,7 +74,7 @@ export function EventDetail({ event }: Props) {
   return (
     <div className="p-3 space-y-2 overflow-auto h-full">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{EVENT_TYPE_LABELS[event.event_type]}</span>
+        <span className="text-sm font-medium">{EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType]}</span>
         <span className="text-[10px] text-fg-tertiary">EventID {event.event_id}</span>
       </div>
       <Separator />
@@ -84,12 +84,25 @@ export function EventDetail({ event }: Props) {
       <FieldRow label={t("log-collector.detail.path")} value={event.process_path} copyable />
       <FieldRow label={t("log-collector.detail.user")} value={event.user} />
 
-      {(event.event_type === "dns" || event.event_type === "dns_client") && (
+      {(event.event_type as ExtendedSysmonEventType) === "dns" || (event.event_type as ExtendedSysmonEventType) === "dns_client" ? (
         <>
           <Separator />
           <FieldRow label={t("log-collector.detail.domain")} value={event.query_name} copyable />
           <FieldRow label={t("log-collector.detail.results")} value={event.query_results} copyable />
           <FieldRow label={t("log-collector.detail.status")} value={event.query_status > 0 ? String(event.query_status) : "0 (Success)"} />
+        </>
+      ) : null}
+
+      {((event.event_type as ExtendedSysmonEventType) === "tls_sni" || (event.event_type as ExtendedSysmonEventType) === "dns_pcap") && (
+        <>
+          <Separator />
+          <FieldRow label={t("log-collector.detail.domain")} value={event.query_name} copyable />
+          {event.query_results && (
+            <FieldRow label={t("log-collector.detail.results")} value={event.query_results} copyable />
+          )}
+          <FieldRow label={t("log-collector.detail.source")} value={`${event.source_ip}:${event.source_port}`} />
+          <FieldRow label={t("log-collector.detail.destination")} value={`${event.destination_ip}:${event.destination_port}`} copyable />
+          <FieldRow label={t("log-collector.detail.protocol")} value={event.protocol} />
         </>
       )}
 

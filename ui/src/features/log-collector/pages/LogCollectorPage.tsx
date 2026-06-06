@@ -1,16 +1,17 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useSysmonStatus, useDefaultEventConfigs, useStartCollection, useStopCollection, useLoadHistory, useSysmonEventListener, useUninstallSysmon, useLogMaxSize, useSyncCollectingState } from "../hooks";
+import { invoke } from "@tauri-apps/api/core";
+import { useSysmonStatus, useDefaultEventConfigs, useStartCollection, useStopCollection, useLoadHistory, useUninstallSysmon, useLogMaxSize, useSyncCollectingState } from "../hooks";
 import { useLogCollectorStore } from "../store";
 import { SysmonInstallDialog } from "../components/SysmonInstallDialog";
 import { LogCollectorToolbar } from "../components/LogCollectorToolbar";
 import { EventTable } from "../components/EventTable";
 import { EventDetail } from "../components/EventDetail";
 import { LogCollectorStatsBar } from "../components/LogCollectorStatsBar";
-import { SysmonConfigDialog } from "../components/SysmonConfigDialog";
+import { LogCollectorConfigDialog } from "../components/LogCollectorConfigDialog";
 import { toast } from "sonner";
 import * as api from "../api";
 
@@ -34,9 +35,16 @@ export default function LogCollectorPage() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [uninstallConfirmOpen, setUninstallConfirmOpen] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [pcapAvailable, setPcapAvailable] = useState(false);
+  const [pcapConfig, setPcapConfig] = useState({ enable_sni: true, enable_dns_pcap: true });
 
-  // Listen for real-time events
-  useSysmonEventListener();
+  useEffect(() => {
+    invoke<boolean>("cmd_pcap_is_available").then(setPcapAvailable).catch(() => setPcapAvailable(false));
+    api.monitorGetConfig().then((c) => {
+      setPcapConfig({ enable_sni: c.enable_sni, enable_dns_pcap: c.enable_dns_pcap });
+    }).catch(() => {});
+  }, []);
+
   // Sync collecting state with backend on mount (e.g. after page refresh)
   useSyncCollectingState();
 
@@ -123,7 +131,7 @@ export default function LogCollectorPage() {
     setConfigDialogOpen(true);
   }, []);
 
-  const handleApplyConfig = useCallback(async (enabledEvents: string[], logSizeMb: number) => {
+  const handleApplyConfig = useCallback(async (enabledEvents: string[], logSizeMb: number, newPcapConfig: { enable_sni: boolean; enable_dns_pcap: boolean }) => {
     setInstallLoading(true);
     try {
       await api.generateConfig(enabledEvents);
@@ -133,6 +141,26 @@ export default function LogCollectorPage() {
       }
       await api.setLogMaxSize(logSizeMb);
       setEnabledEventKeys(enabledEvents);
+
+      // Update pcap config
+      try {
+        const config = await api.monitorGetConfig();
+        config.enable_sni = newPcapConfig.enable_sni;
+        config.enable_dns_pcap = newPcapConfig.enable_dns_pcap;
+        await api.monitorUpdateConfig(config);
+        setPcapConfig(newPcapConfig);
+
+        // Start/stop pcap based on config
+        if (newPcapConfig.enable_sni || newPcapConfig.enable_dns_pcap) {
+          try { await invoke("cmd_pcap_stop"); } catch {}
+          await invoke("cmd_pcap_start", { config: newPcapConfig });
+        } else {
+          try { await invoke("cmd_pcap_stop"); } catch {}
+        }
+      } catch (e) {
+        console.warn("pcap config update failed:", e);
+      }
+
       // If currently collecting, restart subscription with new event IDs
       if (collecting) {
         await api.stopSubscription();
@@ -186,7 +214,7 @@ export default function LogCollectorPage() {
         loading={installLoading}
       />
 
-      <SysmonConfigDialog
+      <LogCollectorConfigDialog
         open={configDialogOpen}
         onOpenChange={setConfigDialogOpen}
         eventConfigs={eventConfigs}
@@ -194,6 +222,8 @@ export default function LogCollectorPage() {
         loading={installLoading}
         currentLogSizeMb={logMaxSizeMb}
         currentEnabledKeys={enabledEventKeys}
+        currentPcapConfig={pcapConfig}
+        pcapAvailable={pcapAvailable}
       />
 
       <Dialog open={uninstallConfirmOpen} onOpenChange={setUninstallConfirmOpen}>

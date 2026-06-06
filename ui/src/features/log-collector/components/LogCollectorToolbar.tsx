@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS } from "../types";
-import type { SysmonEventType, SysmonEvent } from "../types";
+import type { ExtendedSysmonEventType, SysmonEvent } from "../types";
 
 interface Props {
   onStart: () => void;
@@ -31,7 +31,7 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
 
   // Dynamically build event type options from existing events
   const eventTypeOptions = useMemo(() => {
-    const types = new Set<SysmonEventType>();
+    const types = new Set<ExtendedSysmonEventType>();
     for (const e of events) {
       if (e.event_type !== "unknown") types.add(e.event_type);
     }
@@ -63,7 +63,7 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
         {t("log-collector.toolbar.load-history")}
       </Button>
 
-      <Select value={filters.eventType} onValueChange={(v) => setFilter("eventType", v as SysmonEventType | "all")}>
+      <Select value={filters.eventType} onValueChange={(v) => setFilter("eventType", v as ExtendedSysmonEventType | "all")}>
         <SelectTrigger className="h-7 w-28 text-xs">
           <SelectValue />
         </SelectTrigger>

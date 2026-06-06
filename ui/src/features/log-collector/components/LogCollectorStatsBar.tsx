@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS } from "../types";
-import type { SysmonEventType } from "../types";
+import type { ExtendedSysmonEventType } from "../types";
 
 interface Props {
   sysmonRunning: boolean;
@@ -56,7 +56,7 @@ export function LogCollectorStatsBar({ sysmonRunning, logMaxSizeMb }: Props) {
 
       {Object.entries(counts).map(([type, count]) => (
         <span key={type} className="text-fg-tertiary">
-          {EVENT_TYPE_LABELS[type as SysmonEventType] || type}: {count}
+          {EVENT_TYPE_LABELS[type as ExtendedSysmonEventType] || type}: {count}
         </span>
       ))}
 
