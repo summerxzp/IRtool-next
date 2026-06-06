@@ -3,6 +3,7 @@ use irtool_core::TaskRegistry;
 use irtool_net_monitor::{HistoryStore, RetentionPolicy, WindowsNetCollector};
 use parking_lot::Mutex;
 use std::sync::Arc;
+use tokio::sync;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
@@ -19,6 +20,10 @@ pub struct AppState {
     pub sysmon_reader: Arc<irtool_sysmon::SysmonReader>,
     pub sysmon_config: Arc<irtool_sysmon::SysmonConfigManager>,
     pub dns_client_manager: Arc<Mutex<irtool_sysmon::DnsClientLogManager>>,
+    // --- P5 新增 ---
+    pub monitor_engine: Arc<sync::Mutex<irtool_monitor::MonitorEngine>>,
+    // --- P6 新增 ---
+    pub pcap_collector: Arc<sync::Mutex<irtool_pcap::PcapCollector>>,
 }
 
 pub struct NetworkPollingState {
@@ -65,6 +70,15 @@ impl AppState {
                     .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")))
             })),
             dns_client_manager: Arc::new(Mutex::new(irtool_sysmon::DnsClientLogManager::new())),
+            // --- P5 新增 ---
+            monitor_engine: Arc::new(sync::Mutex::new(irtool_monitor::MonitorEngine::new(&{
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")))
+            }))),
+            // --- P6 新增 ---
+            pcap_collector: Arc::new(sync::Mutex::new(irtool_pcap::PcapCollector::new())),
         }
     }
 }

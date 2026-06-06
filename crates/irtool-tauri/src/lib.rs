@@ -3,14 +3,17 @@ mod events;
 mod logger;
 mod single_instance;
 mod state;
+mod tray;
 #[allow(dead_code)]
 mod types;
 
 use crate::commands::autoruns::*;
+use crate::commands::monitor::*;
 use crate::commands::network::*;
 use crate::commands::process::*;
 use crate::commands::sysmon::*;
 use crate::state::AppState;
+use tauri::Emitter;
 use serde::Serialize;
 use specta::Type;
 use specta_typescript::Typescript;
@@ -128,6 +131,19 @@ pub fn run() {
         cmd_sysmon_is_subscribing,
         cmd_sysmon_get_log_max_size,
         cmd_sysmon_set_log_max_size,
+        // --- P5 新增 ---
+        cmd_monitor_get_config,
+        cmd_monitor_update_config,
+        cmd_monitor_enter_background,
+        cmd_monitor_exit_background,
+        cmd_monitor_get_alerts,
+        cmd_monitor_is_background,
+        cmd_monitor_test_feishu,
+        // --- P6 新增 ---
+        cmd_pcap_is_available,
+        cmd_pcap_start,
+        cmd_pcap_stop,
+        cmd_pcap_is_running,
     ]);
 
     #[cfg(debug_assertions)]
@@ -157,6 +173,53 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             commands::network::start_default_polling(&app_state, app.handle());
+
+            // 创建系统托盘
+            crate::tray::create_tray(app.handle())?;
+
+            // 根据配置自动启动 pcap（如果 enable_sni 或 enable_dns_pcap 为 true）
+            {
+                let engine = app_state.monitor_engine.clone();
+                let collector = app_state.pcap_collector.clone();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let config = engine.lock().await.get_config();
+                    if config.enable_sni || config.enable_dns_pcap {
+                        let pcap_config = irtool_pcap::PcapConfig {
+                            enable_sni: config.enable_sni,
+                            enable_dns_pcap: config.enable_dns_pcap,
+                        };
+                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<irtool_pcap::PcapEvent>();
+                        if let Ok(()) = collector.lock().await.start(pcap_config, tx) {
+                            info!("Pcap auto-started based on saved config");
+                            while let Some(event) = rx.recv().await {
+                                let alerts = engine.lock().await.process_pcap_event(&event).await;
+                                for alert in &alerts {
+                                    let _ = app_handle.emit(crate::events::EVT_MONITOR_ALERT, alert);
+                                }
+                                let _ = app_handle.emit(crate::events::EVT_PCAP_EVENT, &event);
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 拦截窗口关闭：仅后台监测模式时隐藏到托盘，否则退出
+            if let Some(window) = app.get_webview_window("main") {
+                let win_clone = window.clone();
+                let engine = app_state.monitor_engine.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        let is_background = engine.try_lock().map(|e| e.is_background_mode()).unwrap_or(false);
+                        if is_background {
+                            api.prevent_close();
+                            let _ = win_clone.hide();
+                        }
+                        // else: let the window close normally, app exits
+                    }
+                });
+            }
+
             info!("main window setup; default polling started");
             #[cfg(debug_assertions)]
             {

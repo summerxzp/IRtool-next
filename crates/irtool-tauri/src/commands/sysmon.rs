@@ -119,9 +119,16 @@ pub async fn cmd_sysmon_start_subscription(
     let interval = poll_interval_ms.unwrap_or(500);
     reader.start_polling(enabled_event_ids, interval, tx);
 
-    // Forward events to frontend via Tauri emit
+    // Forward events: rule engine + frontend emit
+    let monitor_engine = state.monitor_engine.clone();
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
+            // 规则引擎处理
+            let alerts = monitor_engine.lock().await.process_sysmon_event(&event).await;
+            for alert in &alerts {
+                let _ = app.emit(crate::events::EVT_MONITOR_ALERT, alert);
+            }
+            // 始终 emit 到前端（前端自行决定是否展示）
             let _ = app.emit(EVT_SYSMON_EVENT, &event);
         }
     });

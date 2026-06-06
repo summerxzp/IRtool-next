@@ -10,3 +10,7 @@ pub const EVT_AUTORUNS_SIGNATURE_PROGRESS: &str = "evt_autoruns_signature_progre
 pub const EVT_AUTORUNS_HASH_PROGRESS: &str = "evt_autoruns_hash_progress";
 // --- P4 新增 ---
 pub const EVT_SYSMON_EVENT: &str = "evt_sysmon_event";
+// --- P5 新增 ---
+pub const EVT_MONITOR_ALERT: &str = "evt_monitor_alert";
+// --- P6 新增 ---
+pub const EVT_PCAP_EVENT: &str = "evt_pcap_event";

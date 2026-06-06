@@ -3,7 +3,7 @@ use crate::suspicious::check_suspicious;
 use crate::types::{ProcessChain, ProcessNode};
 use irtool_core::IrError;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::trace;
 
 /// Build a process chain from the given PID up to the root process.
 ///
@@ -28,7 +28,7 @@ pub fn get_process_chain(pid: u32) -> Result<ProcessChain, IrError> {
         let (ppid, name) = match by_pid.get(&current_pid) {
             Some(&(pp, ref n)) => (pp, n.clone()),
             None => {
-                debug!("process chain: PID {} not found in snapshot", current_pid);
+                trace!("process chain: PID {} not found in snapshot", current_pid);
                 break;
             }
         };

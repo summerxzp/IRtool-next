@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/irtool-core",
+    "crates/irtool-monitor",
+    "crates/irtool-pcap",
     "crates/irtool-net-monitor",
     "crates/irtool-autoruns",
     "crates/irtool-sysmon",
