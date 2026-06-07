@@ -141,4 +141,123 @@ impl EventStorage {
             .map_err(|e| IrError::Internal(format!("清除告警失败: {}", e)))?;
         Ok(deleted as u64)
     }
+
+    /// 查询最近事件
+    pub fn get_recent_events(&self, limit: u32) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, timestamp, source, event_type, process_name, key_field, raw_json FROM events ORDER BY timestamp DESC LIMIT ?1"
+        ).map_err(|e| IrError::Internal(format!("查询事件失败: {}", e)))?;
+        let rows = stmt.query_map(params![limit], |row| {
+            let source_str: String = row.get(2)?;
+            Ok(crate::types::MonitorEvent {
+                id: row.get(0)?,
+                timestamp: row.get(1)?,
+                source: serde_json::from_str(&source_str).unwrap_or(crate::types::EventSource::Sysmon),
+                event_type: row.get(3)?,
+                process_name: row.get(4)?,
+                key_field: row.get(5)?,
+                raw_json: row.get(6)?,
+            })
+        }).map_err(|e| IrError::Internal(format!("查询事件失败: {}", e)))?;
+        let mut events = Vec::new();
+        for row in rows {
+            events.push(row.map_err(|e| IrError::Internal(format!("读取事件行失败: {}", e)))?);
+        }
+        Ok(events)
+    }
+
+    /// 查询事件总数
+    pub fn get_event_count(&self) -> Result<u64, IrError> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+            .map_err(|e| IrError::Internal(format!("查询事件总数失败: {}", e)))?;
+        Ok(count as u64)
+    }
+
+    /// 搜索事件，支持多种过滤条件
+    pub fn search_events(
+        &self,
+        source: Option<&str>,
+        event_type: Option<&str>,
+        process_name: Option<&str>,
+        key_field: Option<&str>,
+        search_text: Option<&str>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
+        let conn = self.conn.lock().unwrap();
+        
+        // 构建 WHERE 子句
+        let mut conditions = Vec::new();
+        let mut params = Vec::new();
+        let mut param_index = 1;
+
+        if let Some(s) = source {
+            conditions.push(format!("source = ?{}", param_index));
+            params.push(s.to_string());
+            param_index += 1;
+        }
+        if let Some(et) = event_type {
+            conditions.push(format!("event_type = ?{}", param_index));
+            params.push(et.to_string());
+            param_index += 1;
+        }
+        if let Some(pn) = process_name {
+            conditions.push(format!("process_name LIKE ?{}", param_index));
+            params.push(format!("%{}%", pn));
+            param_index += 1;
+        }
+        if let Some(kf) = key_field {
+            conditions.push(format!("key_field LIKE ?{}", param_index));
+            params.push(format!("%{}%", kf));
+            param_index += 1;
+        }
+        if let Some(st) = search_text {
+            conditions.push(format!("(process_name LIKE ?{} OR key_field LIKE ?{} OR raw_json LIKE ?{})", param_index, param_index + 1, param_index + 2));
+            params.push(format!("%{}%", st));
+            params.push(format!("%{}%", st));
+            params.push(format!("%{}%", st));
+            param_index += 3;
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let sql = format!(
+            "SELECT id, timestamp, source, event_type, process_name, key_field, raw_json FROM events {} ORDER BY timestamp DESC LIMIT ?{} OFFSET ?{}",
+            where_clause, param_index, param_index + 1
+        );
+
+        params.push(limit.to_string());
+        params.push(offset.to_string());
+
+        let mut stmt = conn.prepare(&sql)
+            .map_err(|e| IrError::Internal(format!("准备搜索失败: {}", e)))?;
+        
+        // 创建params引用
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+
+        let rows = stmt.query_map(rusqlite::params_from_iter(param_refs), |row| {
+            let source_str: String = row.get(2)?;
+            Ok(crate::types::MonitorEvent {
+                id: row.get(0)?,
+                timestamp: row.get(1)?,
+                source: serde_json::from_str(&source_str).unwrap_or(crate::types::EventSource::Sysmon),
+                event_type: row.get(3)?,
+                process_name: row.get(4)?,
+                key_field: row.get(5)?,
+                raw_json: row.get(6)?,
+            })
+        }).map_err(|e| IrError::Internal(format!("搜索事件失败: {}", e)))?;
+
+        let mut events = Vec::new();
+        for row in rows {
+            events.push(row.map_err(|e| IrError::Internal(format!("读取搜索行失败: {}", e)))?);
+        }
+        Ok(events)
+    }
 }

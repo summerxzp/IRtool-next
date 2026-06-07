@@ -27,6 +27,7 @@ interface MonitorConfig {
   db_path: string;
   enable_sni: boolean;
   enable_dns_pcap: boolean;
+  load_limit: number;
 }
 
 const EVENT_TYPE_OPTIONS = [
@@ -59,6 +60,7 @@ export default function SettingsPage() {
     db_path: "",
     enable_sni: true,
     enable_dns_pcap: true,
+    load_limit: 1000,
   });
   const [loading, setLoading] = useState(false);
   const [targetsInput, setTargetsInput] = useState<Record<number, string>>({});
@@ -322,6 +324,21 @@ export default function SettingsPage() {
                 className="h-7 w-20 text-xs"
               />
               <span className="text-xs text-fg-tertiary">0 = {t("log-collector.monitor.all-types").toLowerCase()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs shrink-0 w-24">加载条数</Label>
+              <Input
+                type="number"
+                min={100}
+                max={100000}
+                value={config.load_limit}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v) && v >= 100 && v <= 100000) setConfig((prev) => ({ ...prev, load_limit: v }));
+                }}
+                className="h-7 w-20 text-xs"
+              />
+              <span className="text-xs text-fg-tertiary">每次从数据库加载的事件数量</span>
             </div>
             <div className="flex items-center gap-2">
               <Label className="text-xs shrink-0 w-24">{t("log-collector.monitor.db-path")}</Label>

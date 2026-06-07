@@ -11,6 +11,7 @@ interface MonitorConfig {
   db_path: string;
   enable_sni: boolean;
   enable_dns_pcap: boolean;
+  load_limit: number;
 }
 
 interface MonitorRule {
@@ -118,6 +119,44 @@ export async function monitorGetAlerts(limit: number): Promise<Alert[]> {
 
 export async function monitorIsBackground(): Promise<boolean> {
   return await invoke<boolean>("cmd_monitor_is_background");
+}
+
+export async function monitorGetEvents(limit: number): Promise<MonitorEvent[]> {
+  return await invoke<MonitorEvent[]>("cmd_monitor_get_events", { limit });
+}
+
+export async function monitorGetEventCount(): Promise<number> {
+  return await invoke<number>("cmd_monitor_get_event_count");
+}
+
+export async function monitorSearchEvents(
+  source?: string,
+  event_type?: string,
+  process_name?: string,
+  key_field?: string,
+  search_text?: string,
+  limit: number = 1000,
+  offset: number = 0,
+): Promise<MonitorEvent[]> {
+  return await invoke<MonitorEvent[]>("cmd_monitor_search_events", {
+    source: source ?? null,
+    eventType: event_type ?? null,
+    processName: process_name ?? null,
+    keyField: key_field ?? null,
+    searchText: search_text ?? null,
+    limit,
+    offset,
+  });
+}
+
+export interface MonitorEvent {
+  id: number;
+  timestamp: number;
+  source: string;
+  event_type: string;
+  process_name: string;
+  key_field: string;
+  raw_json: string;
 }
 
 export type { MonitorConfig, MonitorRule, NotifyAction, Alert };

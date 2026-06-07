@@ -138,7 +138,10 @@ pub fn run() {
         cmd_monitor_get_alerts,
         cmd_monitor_is_background,
         cmd_monitor_clear_alerts,
-        cmd_monitor_test_feishu,
+        cmd_monitor_get_events,
+            cmd_monitor_get_event_count,
+            cmd_monitor_search_events,
+            cmd_monitor_test_feishu,
         // --- P6 新增 ---
         cmd_pcap_is_available,
         cmd_pcap_start,

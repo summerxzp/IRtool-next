@@ -104,13 +104,14 @@ pub async fn cmd_network_set_polling(
         let token = CancellationToken::new();
         polling.cancel = Some(token.clone());
         let shared_retention = Arc::new(Mutex::new(polling.retention));
+        let monitor_engine = state.monitor_engine.clone();
         drop(polling);
 
         let collector = state.net_collector.clone();
         let history = state.net_history.clone();
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
-            run_polling_loop(collector, history, shared_retention, app_clone, new_interval, token).await;
+            run_polling_loop(collector, history, shared_retention, app_clone, new_interval, token, monitor_engine).await;
         });
     }
     Ok(())
@@ -131,6 +132,7 @@ async fn run_polling_loop(
     app: tauri::AppHandle,
     interval_ms: u64,
     cancel: CancellationToken,
+    monitor_engine: Arc<tokio::sync::Mutex<irtool_monitor::MonitorEngine>>,
 ) {
     info!(interval_ms, "network polling loop starting");
     let mut ticker = tokio::time::interval(Duration::from_millis(interval_ms));
@@ -151,11 +153,16 @@ async fn run_polling_loop(
                             items: merged,
                             timestamp: irtool_net_monitor::types::now_epoch_secs(),
                         };
-                        if let Err(e) = app.emit(EVT_NETWORK_SNAPSHOT, &payload) {
-                            error!("emit snapshot failed: {}", e);
+                        // 只在非后台模式时 emit network 事件到前端
+                        let is_background = monitor_engine.lock().await.is_background_mode();
+                        if !is_background {
+                            if let Err(e) = app.emit(EVT_NETWORK_SNAPSHOT, &payload) {
+                                error!("emit snapshot failed: {}", e);
+                            }
                         }
                     }
                     Ok(Err(e)) => {
+                        // 错误事件始终 emit，这样如果用户从托盘恢复窗口能看到问题
                         let _ = app.emit(EVT_NETWORK_ERROR, e.to_string());
                     }
                     Err(e) => {
@@ -177,8 +184,9 @@ pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
     let shared_retention = Arc::new(Mutex::new(retention));
+    let monitor_engine = state.monitor_engine.clone();
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
-        run_polling_loop(collector, history, shared_retention, app_clone, interval, token).await;
+        run_polling_loop(collector, history, shared_retention, app_clone, interval, token, monitor_engine).await;
     });
 }

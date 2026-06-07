@@ -16,6 +16,101 @@ import { LogCollectorConfigDialog } from "../components/LogCollectorConfigDialog
 import { toast } from "sonner";
 import * as api from "../api";
 
+/**
+ * 将 MonitorEvent 转换为 SysmonEvent 格式，从 raw_json 解析出所有字段
+ * raw_json 存储的是完整的 SysmonEvent 或 PcapEvent 的 JSON 序列化
+ */
+export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
+  let raw: any = {};
+  try {
+    raw = JSON.parse(me.raw_json);
+  } catch {}
+
+  const isPcap = me.source === "pcap";
+
+  if (isPcap) {
+    const eventKind = raw.event_kind === "tls_sni" ? "tls_sni" : "dns_pcap";
+    return {
+      event_id: 0,
+      event_type: eventKind,
+      timestamp: new Date(me.timestamp).toISOString(),
+      timestamp_epoch: me.timestamp / 1000,
+      timestamp_valid: true,
+      record_id: me.id,
+      raw_data: {},
+      process_id: 0,
+      process_name: me.process_name || "",
+      process_path: "",
+      user: "",
+      rule_name: "",
+      query_name: raw.domain || me.key_field,
+      query_results: raw.query_type || "",
+      query_status: 0,
+      source_ip: raw.src_ip || "",
+      source_port: raw.src_port || 0,
+      destination_ip: raw.dst_ip || "",
+      destination_port: raw.dst_port || 0,
+      protocol: eventKind === "tls_sni" ? "TCP" : "UDP",
+      initiated: true,
+      is_external: false,
+      source_process_id: 0,
+      source_process_name: "",
+      source_process_path: "",
+      target_process_id: 0,
+      target_process_name: "",
+      target_process_path: "",
+      start_address: "",
+      start_module: "",
+      start_function: "",
+      is_suspicious: false,
+      target_filename: "",
+      creation_utc_time: "",
+      _rawJson: me.raw_json,
+      _source: me.source,
+    };
+  }
+
+  // SysmonEvent: 直接从 raw 中提取所有字段
+  return {
+    event_id: raw.event_id || 0,
+    event_type: me.event_type,
+    timestamp: raw.timestamp || new Date(me.timestamp).toISOString(),
+    timestamp_epoch: raw.timestamp_epoch || me.timestamp / 1000,
+    timestamp_valid: raw.timestamp_valid ?? true,
+    record_id: me.id,
+    raw_data: raw.raw_data || {},
+    process_id: raw.process_id || 0,
+    process_name: raw.process_name || me.process_name,
+    process_path: raw.process_path || "",
+    user: raw.user || "",
+    rule_name: raw.rule_name || "",
+    query_name: raw.query_name || me.key_field,
+    query_results: raw.query_results || "",
+    query_status: raw.query_status || 0,
+    source_ip: raw.source_ip || "",
+    source_port: raw.source_port || 0,
+    destination_ip: raw.destination_ip || "",
+    destination_port: raw.destination_port || 0,
+    protocol: raw.protocol || "",
+    initiated: raw.initiated ?? true,
+    is_external: raw.is_external ?? false,
+    source_process_id: raw.source_process_id || 0,
+    source_process_name: raw.source_process_name || "",
+    source_process_path: raw.source_process_path || "",
+    target_process_id: raw.target_process_id || 0,
+    target_process_name: raw.target_process_name || "",
+    target_process_path: raw.target_process_path || "",
+    start_address: raw.start_address || "",
+    start_module: raw.start_module || "",
+    start_function: raw.start_function || "",
+    is_suspicious: raw.is_suspicious ?? false,
+    target_filename: raw.target_filename || "",
+    creation_utc_time: raw.creation_utc_time || "",
+    _rawJson: me.raw_json,
+    _source: me.source,
+  };
+}
+
 export default function LogCollectorPage() {
   const { t } = useTranslation();
   const { data: status, refetch: refetchStatus } = useSysmonStatus();

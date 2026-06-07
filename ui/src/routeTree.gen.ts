@@ -13,6 +13,7 @@ import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as LogCollectorRouteImport } from './routes/log-collector'
+import { Route as DatabaseSearchRouteImport } from './routes/database-search'
 import { Route as AutorunsRouteImport } from './routes/autoruns'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -36,6 +37,11 @@ const LogCollectorRoute = LogCollectorRouteImport.update({
   path: '/log-collector',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DatabaseSearchRoute = DatabaseSearchRouteImport.update({
+  id: '/database-search',
+  path: '/database-search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AutorunsRoute = AutorunsRouteImport.update({
   id: '/autoruns',
   path: '/autoruns',
@@ -50,6 +56,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
   '/settings': typeof SettingsRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
   '/settings': typeof SettingsRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
   '/settings': typeof SettingsRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/autoruns'
+    | '/database-search'
     | '/log-collector'
     | '/network'
     | '/settings'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/autoruns'
+    | '/database-search'
     | '/log-collector'
     | '/network'
     | '/settings'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/autoruns'
+    | '/database-search'
     | '/log-collector'
     | '/network'
     | '/settings'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AutorunsRoute: typeof AutorunsRoute
+  DatabaseSearchRoute: typeof DatabaseSearchRoute
   LogCollectorRoute: typeof LogCollectorRoute
   NetworkRoute: typeof NetworkRoute
   SettingsRoute: typeof SettingsRoute
@@ -138,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogCollectorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/database-search': {
+      id: '/database-search'
+      path: '/database-search'
+      fullPath: '/database-search'
+      preLoaderRoute: typeof DatabaseSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/autoruns': {
       id: '/autoruns'
       path: '/autoruns'
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AutorunsRoute: AutorunsRoute,
+  DatabaseSearchRoute: DatabaseSearchRoute,
   LogCollectorRoute: LogCollectorRoute,
   NetworkRoute: NetworkRoute,
   SettingsRoute: SettingsRoute,

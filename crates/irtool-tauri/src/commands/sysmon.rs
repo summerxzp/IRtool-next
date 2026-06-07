@@ -123,13 +123,16 @@ pub async fn cmd_sysmon_start_subscription(
     let monitor_engine = state.monitor_engine.clone();
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            // 规则引擎处理
+            // 规则引擎始终处理
             let alerts = monitor_engine.lock().await.process_sysmon_event(&event).await;
             for alert in &alerts {
                 let _ = app.emit(crate::events::EVT_MONITOR_ALERT, alert);
             }
-            // 始终 emit 到前端（前端自行决定是否展示）
-            let _ = app.emit(EVT_SYSMON_EVENT, &event);
+            // 只在非后台模式时 emit 到前端
+            let is_background = monitor_engine.lock().await.is_background_mode();
+            if !is_background {
+                let _ = app.emit(EVT_SYSMON_EVENT, &event);
+            }
         }
     });
 

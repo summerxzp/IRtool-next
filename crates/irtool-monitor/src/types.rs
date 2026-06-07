@@ -4,6 +4,8 @@ use specta::Type;
 /// 监控事件的统一轻量模型，从各采集模块转换而来
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MonitorEvent {
+    /// 数据库记录 ID（由 SQLite 自动生成），仅查询 DB 时有值，采集时始终为 0
+    pub id: i64,
     /// epoch 毫秒
     pub timestamp: i64,
     /// 事件来源
@@ -78,6 +80,8 @@ pub struct MonitorConfig {
     pub enable_sni: bool,
     /// 启用网络层 DNS 抓包（UDP:53）
     pub enable_dns_pcap: bool,
+    /// 每次从数据库加载多少条记录（供前端review使用）
+    pub load_limit: u32,
 }
 
 impl Default for MonitorConfig {
@@ -90,6 +94,7 @@ impl Default for MonitorConfig {
             db_path: String::new(),
             enable_sni: true,
             enable_dns_pcap: true,
+            load_limit: 1000,
         }
     }
 }

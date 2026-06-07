@@ -88,8 +88,8 @@ export function EventDetail({ event, onClose }: Props) {
       <Separator />
 
       <FieldRow label={t("log-collector.detail.time")} value={event.timestamp} />
-      <FieldRow label={t("log-collector.detail.process")} value={`${event.process_name} (${event.process_id})`} />
-      <FieldRow label={t("log-collector.detail.path")} value={event.process_path} copyable />
+      <FieldRow label={t("log-collector.detail.process")} value={event.process_name && event.process_name !== "<unknown process>" ? `${event.process_name} (${event.process_id})` : `PID: ${event.process_id}`} />
+      <FieldRow label={t("log-collector.detail.path")} value={event.process_path === "<unknown process>" ? "" : event.process_path} copyable />
       <FieldRow label={t("log-collector.detail.user")} value={event.user} />
 
       {(event.event_type as ExtendedSysmonEventType) === "dns" || (event.event_type as ExtendedSysmonEventType) === "dns_client" ? (

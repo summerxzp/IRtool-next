@@ -365,6 +365,30 @@ async cmdMonitorClearAlerts() : Promise<Result<number, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async cmdMonitorGetEvents(limit: number) : Promise<Result<MonitorEvent[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_events", { limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorGetEventCount() : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_event_count") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorSearchEvents(source: string | null, eventType: string | null, processName: string | null, keyField: string | null, searchText: string | null, limit: number, offset: number) : Promise<Result<MonitorEvent[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_search_events", { source, eventType, processName, keyField, searchText, limit, offset }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_test_feishu", { webhookUrl }) };
@@ -437,6 +461,7 @@ export type DeleteResult = { success: boolean; message: string }
  * Event configuration entry.
  */
 export type EventConfigEntry = { key: string; name: string; event_id: number; xml_tag: string; default_enabled: boolean }
+export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
 export type Family = "v4" | "v6"
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
 /**
@@ -470,7 +495,43 @@ enable_sni: boolean;
 /**
  * 启用网络层 DNS 抓包（UDP:53）
  */
-enable_dns_pcap: boolean }
+enable_dns_pcap: boolean; 
+/**
+ * 每次从数据库加载多少条记录（供前端review使用）
+ */
+load_limit: number }
+/**
+ * 监控事件的统一轻量模型，从各采集模块转换而来
+ */
+export type MonitorEvent = { 
+/**
+ * 数据库记录 ID（由 SQLite 自动生成），仅查询 DB 时有值，采集时始终为 0
+ */
+id: number; 
+/**
+ * epoch 毫秒
+ */
+timestamp: number; 
+/**
+ * 事件来源
+ */
+source: EventSource; 
+/**
+ * 事件类型标识（dns / dns_client / network_connect / ...）
+ */
+event_type: string; 
+/**
+ * 进程名
+ */
+process_name: string; 
+/**
+ * 规则匹配关键字段：域名 or IP:Port
+ */
+key_field: string; 
+/**
+ * 原始数据 JSON
+ */
+raw_json: string }
 /**
  * 监控规则
  */

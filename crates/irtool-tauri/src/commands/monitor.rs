@@ -58,6 +58,41 @@ pub async fn cmd_monitor_clear_alerts(state: State<'_, AppState>) -> Result<u64,
     state.monitor_engine.lock().await.clear_alerts()
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_get_events(state: State<'_, AppState>, limit: u32) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
+    state.monitor_engine.lock().await.get_recent_events(limit)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_get_event_count(state: State<'_, AppState>) -> Result<u64, IrError> {
+    state.monitor_engine.lock().await.get_event_count()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_search_events(
+    state: State<'_, AppState>,
+    source: Option<String>,
+    event_type: Option<String>,
+    process_name: Option<String>,
+    key_field: Option<String>,
+    search_text: Option<String>,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
+    state.monitor_engine.lock().await.search_events(
+        source.as_deref(),
+        event_type.as_deref(),
+        process_name.as_deref(),
+        key_field.as_deref(),
+        search_text.as_deref(),
+        limit,
+        offset,
+    )
+}
+
 // --- P6 新增 ---
 
 #[tauri::command]
@@ -90,13 +125,16 @@ pub async fn cmd_pcap_start(
     let monitor_engine = state.monitor_engine.clone();
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            // 规则引擎处理
+            // 规则引擎始终处理
             let alerts = monitor_engine.lock().await.process_pcap_event(&event).await;
             for alert in &alerts {
                 let _ = app.emit(crate::events::EVT_MONITOR_ALERT, alert);
             }
-            // 始终 emit pcap 事件到前端
-            let _ = app.emit(crate::events::EVT_PCAP_EVENT, &event);
+            // 只在非后台模式时 emit pcap 事件到前端
+            let is_background = monitor_engine.lock().await.is_background_mode();
+            if !is_background {
+                let _ = app.emit(crate::events::EVT_PCAP_EVENT, &event);
+            }
         }
     });
 

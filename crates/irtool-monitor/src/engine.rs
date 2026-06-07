@@ -198,6 +198,7 @@ impl MonitorEngine {
 
         // 先用域名匹配
         let domain_event = MonitorEvent {
+            id: 0,
             timestamp: event.timestamp,
             source: EventSource::Pcap,
             event_type: match event.event_kind {
@@ -213,6 +214,7 @@ impl MonitorEngine {
         // 再用 IP:Port 匹配（覆盖规则配置了 IP 目标的场景）
         if !event.dst_ip.is_empty() {
             let ip_event = MonitorEvent {
+                id: 0,
                 timestamp: event.timestamp,
                 source: EventSource::Pcap,
                 event_type: match event.event_kind {
@@ -256,6 +258,42 @@ impl MonitorEngine {
             Ok(0)
         }
     }
+
+    /// 获取最近事件
+    pub fn get_recent_events(&self, limit: u32) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.get_recent_events(limit)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// 获取事件总数
+    pub fn get_event_count(&self) -> Result<u64, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.get_event_count()
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// 搜索事件，支持多种过滤条件
+    pub fn search_events(
+        &self,
+        source: Option<&str>,
+        event_type: Option<&str>,
+        process_name: Option<&str>,
+        key_field: Option<&str>,
+        search_text: Option<&str>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.search_events(source, event_type, process_name, key_field, search_text, limit, offset)
+        } else {
+            Ok(Vec::new())
+        }
+    }
 }
 
 /// SysmonEvent → MonitorEvent 转换
@@ -293,6 +331,7 @@ fn sysmon_to_monitor_event(event: &SysmonEvent) -> MonitorEvent {
     let raw_json = serde_json::to_string(&event).unwrap_or_default();
 
     MonitorEvent {
+        id: 0,
         timestamp,
         source,
         event_type,
