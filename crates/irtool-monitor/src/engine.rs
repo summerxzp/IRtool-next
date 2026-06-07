@@ -149,7 +149,7 @@ impl MonitorEngine {
                     continue;
                 }
 
-                let alert = Alert {
+                let mut alert = Alert {
                     id: 0,
                     timestamp: event.timestamp,
                     rule_name: rule.name.clone(),
@@ -165,7 +165,7 @@ impl MonitorEngine {
 
                 // 存储告警
                 if let Some(storage) = &self.storage {
-                    if let Err(e) = storage.insert_alert(&alert) {
+                    if let Err(e) = storage.insert_alert(&mut alert) {
                         warn!("存储告警失败: {}", e);
                     }
                 }
@@ -245,6 +245,15 @@ impl MonitorEngine {
             storage.get_recent_alerts(limit)
         } else {
             Ok(vec![])
+        }
+    }
+
+    /// 清除所有告警
+    pub fn clear_alerts(&self) -> Result<u64, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.clear_alerts()
+        } else {
+            Ok(0)
         }
     }
 }

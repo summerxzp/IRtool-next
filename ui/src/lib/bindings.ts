@@ -357,6 +357,14 @@ async cmdMonitorIsBackground() : Promise<Result<boolean, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async cmdMonitorClearAlerts() : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_clear_alerts") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_test_feishu", { webhookUrl }) };
@@ -392,6 +400,14 @@ async cmdPcapStop() : Promise<Result<null, IrError>> {
 async cmdPcapIsRunning() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_running") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdShowAlertPopup(ruleName: string, keyField: string, eventType: string, processName: string, protocol: string, timestamp: number, sourceAddr: string | null, processChain: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_show_alert_popup", { ruleName, keyField, eventType, processName, protocol, timestamp, sourceAddr, processChain }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

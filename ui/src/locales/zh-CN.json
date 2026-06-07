@@ -3,7 +3,9 @@
     "title": "安全告警",
     "no-alerts": "暂无告警",
     "mark-all-read": "全部已读",
-    "confirm-clear": "确认清空？"
+    "confirm-clear": "确认清空？",
+    "expand-all": "展开全部",
+    "collapse-all": "折叠全部"
   },
   "app": {
     "name": "IRtool",
@@ -43,6 +45,7 @@
       "interval-5s": "5 秒",
       "proto-all": "全部协议",
       "state-all": "全部状态",
+      "state-label": "状态",
       "search-placeholder": "PID / IP / 端口 / 进程名",
       "show-history": "显示历史",
       "clear-history": "清空历史",
@@ -102,6 +105,7 @@
       "scan": "扫描",
       "cancel": "取消",
       "all-categories": "全部分类",
+      "category-label": "分类",
       "status-all": "全部状态",
       "status-enabled": "已启用",
       "status-disabled": "已禁用",
@@ -211,6 +215,7 @@
       "stop": "停止",
       "load-history": "加载历史",
       "all-events": "全部事件",
+      "event-type-label": "事件类型",
       "external-only": "仅外连",
       "search-placeholder": "搜索域名/IP/进程...",
       "export": "导出",
@@ -222,8 +227,8 @@
     "table": {
       "time": "时间",
       "type": "类型",
-      "process": "进程",
-      "detail": "详情",
+      "destination": "目的地址",
+      "path": "路径",
       "external": "外连",
       "no-events": "暂无事件"
     },
@@ -264,6 +269,8 @@
       "description": "配置日志采集的事件类型和数据源",
       "apply": "应用配置",
       "applying": "应用中...",
+      "select-all": "全选",
+      "deselect-all": "取消全选",
       "log-size": "日志上限",
       "log-size-unit": "MB",
       "select-all": "全选",

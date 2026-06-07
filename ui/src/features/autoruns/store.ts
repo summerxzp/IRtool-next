@@ -1,22 +1,18 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { ScanProgress, SignatureProgress } from "./types";
 
 export interface AutorunsFilters {
   search: string;
-  category: string;
+  categories: string[];
   status: "all" | "enabled" | "disabled";
   signature: "all" | "valid" | "invalid" | "unsigned";
 }
-
-type DetailPosition = "bottom" | "right";
 
 interface AutorunsState {
   filters: AutorunsFilters;
   setFilter: <K extends keyof AutorunsFilters>(key: K, value: AutorunsFilters[K]) => void;
   resetFilters: () => void;
-
-  detailPosition: DetailPosition;
-  setDetailPosition: (pos: DetailPosition) => void;
 
   selectedEntryId: number | null;
   setSelectedEntryId: (id: number | null) => void;
@@ -51,46 +47,51 @@ interface AutorunsState {
 
 const DEFAULT_FILTERS: AutorunsFilters = {
   search: "",
-  category: "all",
+  categories: [],
   status: "all",
   signature: "all",
 };
 
-export const useAutorunsStore = create<AutorunsState>((set) => ({
-  filters: DEFAULT_FILTERS,
-  setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
-  resetFilters: () => set({ filters: DEFAULT_FILTERS }),
+export const useAutorunsStore = create<AutorunsState>()(
+  persist(
+    (set) => ({
+      filters: DEFAULT_FILTERS,
+      setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
+      resetFilters: () => set({ filters: DEFAULT_FILTERS }),
 
-  detailPosition: "bottom",
-  setDetailPosition: (detailPosition) => set({ detailPosition }),
+      selectedEntryId: null,
+      setSelectedEntryId: (selectedEntryId) => set({ selectedEntryId }),
 
-  selectedEntryId: null,
-  setSelectedEntryId: (selectedEntryId) => set({ selectedEntryId }),
+      scanProgress: null,
+      setScanProgress: (scanProgress) => set({ scanProgress }),
 
-  scanProgress: null,
-  setScanProgress: (scanProgress) => set({ scanProgress }),
+      signatureProgress: null,
+      setSignatureProgress: (signatureProgress) => set({ signatureProgress }),
 
-  signatureProgress: null,
-  setSignatureProgress: (signatureProgress) => set({ signatureProgress }),
+      scanning: false,
+      setScanning: (scanning) => set({ scanning }),
 
-  scanning: false,
-  setScanning: (scanning) => set({ scanning }),
+      verifyingSignatures: false,
+      setVerifyingSignatures: (verifyingSignatures) => set({ verifyingSignatures }),
 
-  verifyingSignatures: false,
-  setVerifyingSignatures: (verifyingSignatures) => set({ verifyingSignatures }),
+      calculatingHash: false,
+      setCalculatingHash: (calculatingHash) => set({ calculatingHash }),
 
-  calculatingHash: false,
-  setCalculatingHash: (calculatingHash) => set({ calculatingHash }),
+      hashProgress: null,
+      setHashProgress: (hashProgress) => set({ hashProgress }),
 
-  hashProgress: null,
-  setHashProgress: (hashProgress) => set({ hashProgress }),
+      error: null,
+      setError: (error) => set({ error }),
 
-  error: null,
-  setError: (error) => set({ error }),
+      lastScanDuration: null,
+      setLastScanDuration: (lastScanDuration) => set({ lastScanDuration }),
 
-  lastScanDuration: null,
-  setLastScanDuration: (lastScanDuration) => set({ lastScanDuration }),
-
-  sigcheckResult: null,
-  setSigcheckResult: (sigcheckResult) => set({ sigcheckResult }),
-}));
+      sigcheckResult: null,
+      setSigcheckResult: (sigcheckResult) => set({ sigcheckResult }),
+    }),
+    {
+      name: "irtool-autoruns",
+      partialize: () => ({}),
+    }
+  )
+);

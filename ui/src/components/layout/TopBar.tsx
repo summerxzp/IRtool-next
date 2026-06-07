@@ -1,21 +1,46 @@
-import { Sun, Moon, Minus, Square, X, Bell } from "lucide-react";
+import { Sun, Moon, Minus, Square, X, Bell, PanelRight, PanelBottom } from "lucide-react";
 import { useThemeStore } from "@/stores/theme-store";
 import { Button } from "@/components/ui/button";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useState, useEffect } from "react";
 import { useAlertStore } from "@/stores/alert-store";
 import { AlertPanel } from "./AlertPanel";
+import { useRouterState } from "@tanstack/react-router";
+import { useUIStore } from "@/stores/ui-store";
 
 export function TopBar() {
   const { resolvedTheme, setTheme } = useThemeStore();
   const [_isMaximized, setIsMaximized] = useState(false);
   const [alertPanelOpen, setAlertPanelOpen] = useState(false);
   const unreadCount = useAlertStore((s) => s.unreadCount);
+  const alertPanelAutoOpen = useAlertStore((s) => s.alertPanelAutoOpen);
+  const setAlertPanelAutoOpen = useAlertStore((s) => s.setAlertPanelAutoOpen);
+
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const detailPage = pathname === "/autoruns" ? "autoruns"
+    : pathname === "/log-collector" ? "log-collector"
+    : pathname === "/network" ? "network"
+    : pathname === "/workspace" ? "workspace"
+    : null;
+
+  const detailPosition = useUIStore((s) =>
+    detailPage ? (s.detailPositions[detailPage] ?? "right") : null
+  );
+  const setDetailPosition = useUIStore((s) => s.setDetailPosition);
 
   useEffect(() => {
     const window = getCurrentWebviewWindow();
     window.isMaximized().then(setIsMaximized);
   }, []);
+
+  // Auto-open alert panel when notification is clicked
+  useEffect(() => {
+    if (alertPanelAutoOpen) {
+      setAlertPanelOpen(true);
+      setAlertPanelAutoOpen(false);
+    }
+  }, [alertPanelAutoOpen, setAlertPanelAutoOpen]);
 
   const handleMinimize = () => {
     getCurrentWebviewWindow().minimize();
@@ -53,7 +78,8 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 relative"
-          onClick={() => setAlertPanelOpen(!alertPanelOpen)}
+          data-alert-toggle
+          onClick={() => setAlertPanelOpen((prev) => !prev)}
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
@@ -65,6 +91,18 @@ export function TopBar() {
 
         {alertPanelOpen && (
           <AlertPanel onClose={() => setAlertPanelOpen(false)} />
+        )}
+
+        {detailPage && detailPosition && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setDetailPosition(detailPage, detailPosition === "bottom" ? "right" : "bottom")}
+            title={detailPosition === "bottom" ? "Switch to Right" : "Switch to Bottom"}
+          >
+            {detailPosition === "bottom" ? <PanelRight className="h-4 w-4" /> : <PanelBottom className="h-4 w-4" />}
+          </Button>
         )}
 
         <Button

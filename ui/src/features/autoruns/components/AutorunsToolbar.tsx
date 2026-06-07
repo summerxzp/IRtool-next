@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, X, Download, Hash, PanelBottom, PanelRight } from "lucide-react";
+import { Play, X, Download, Hash, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAutorunsStore } from "../store";
 
 interface Props {
@@ -24,8 +27,6 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
   const { t } = useTranslation();
   const filters = useAutorunsStore((s) => s.filters);
   const setFilter = useAutorunsStore((s) => s.setFilter);
-  const detailPosition = useAutorunsStore((s) => s.detailPosition);
-  const setDetailPosition = useAutorunsStore((s) => s.setDetailPosition);
 
   const [searchInput, setSearchInput] = useState(filters.search);
   useEffect(() => {
@@ -45,13 +46,31 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
         </Button>
       )}
 
-      <Select value={filters.category} onValueChange={(v) => setFilter("category", v)}>
-        <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{t("autoruns.toolbar.all-categories")}</SelectItem>
-          {categories.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-        </SelectContent>
-      </Select>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="secondary" size="sm" className="h-7 text-xs">
+            {filters.categories.length === 0 ? t("autoruns.toolbar.all-categories") : `${t("autoruns.toolbar.category-label")} (${filters.categories.length})`}
+            <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-2 max-h-60 overflow-y-auto" align="start">
+          {categories.map((c) => (
+            <div
+              key={c}
+              className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-bg-elev-2 rounded px-1"
+              onClick={() => {
+                const next = filters.categories.includes(c)
+                  ? filters.categories.filter((v) => v !== c)
+                  : [...filters.categories, c];
+                setFilter("categories", next);
+              }}
+            >
+              <Checkbox checked={filters.categories.includes(c)} />
+              <Label className="text-xs cursor-pointer">{c}</Label>
+            </div>
+          ))}
+        </PopoverContent>
+      </Popover>
 
       <Select value={filters.status} onValueChange={(v) => setFilter("status", v as typeof filters.status)}>
         <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
@@ -71,10 +90,6 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
       {searchInput && (<Button variant="ghost" size="icon" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
 
       <div className="flex-1" />
-
-      <Button variant="ghost" size="icon" onClick={() => setDetailPosition(detailPosition === "bottom" ? "right" : "bottom")} title={detailPosition === "bottom" ? t("autoruns.toolbar.detail-right") : t("autoruns.toolbar.detail-bottom")}>
-        {detailPosition === "bottom" ? <PanelRight className="h-3.5 w-3.5" /> : <PanelBottom className="h-3.5 w-3.5" />}
-      </Button>
 
       <Button variant="secondary" size="sm" onClick={onBatchCalculateHash} disabled={!hasData || calculatingHash}>
         <Hash className="h-3.5 w-3.5 mr-1" />{calculatingHash ? t("autoruns.toolbar.calculating-hash") : t("autoruns.toolbar.batch-hash")}

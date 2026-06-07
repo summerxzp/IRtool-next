@@ -1,10 +1,13 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { SysmonEvent, SysmonStatus, LogCollectorFilters } from "./types";
 
 const MAX_EVENTS = 10000;
+const PERSIST_EVENTS = 2000;
 
 interface LogCollectorState {
   events: SysmonEvent[];
+  seenKeys: Set<string>;
   collecting: boolean;
   startTime: number | null;
   sysmonStatus: SysmonStatus | null;
@@ -26,43 +29,89 @@ interface LogCollectorState {
 }
 
 const DEFAULT_FILTERS: LogCollectorFilters = {
-  eventType: "all",
+  eventTypes: [],
   externalOnly: false,
   search: "",
 };
 
-export const useLogCollectorStore = create<LogCollectorState>((set) => ({
-  events: [],
-  collecting: false,
-  startTime: null,
-  sysmonStatus: null,
-  filters: DEFAULT_FILTERS,
-  selectedEvent: null,
-  autoScroll: true,
-  enabledEventKeys: ["dns_client", "dns", "network_connect"],
+export const useLogCollectorStore = create<LogCollectorState>()(
+  persist(
+    (set) => ({
+      events: [],
+      seenKeys: new Set<string>(),
+      collecting: false,
+      startTime: null,
+      sysmonStatus: null,
+      filters: DEFAULT_FILTERS,
+      selectedEvent: null,
+      autoScroll: true,
+      enabledEventKeys: ["dns_client", "dns", "network_connect"],
 
-  addEvents: (newEvents) =>
-    set((s) => {
-      if (newEvents.length === 0) return s;
-      const seen = new Set(s.events.map((e) => `${e.record_id}-${e.timestamp}-${e.event_id}`));
-      const uniqueNew = newEvents.filter((e) => {
-        const key = `${e.record_id}-${e.timestamp}-${e.event_id}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      if (uniqueNew.length === 0) return s;
-      const combined = [...s.events, ...uniqueNew];
-      return { events: combined.length > MAX_EVENTS ? combined.slice(-MAX_EVENTS) : combined };
+      addEvents: (newEvents) =>
+        set((s) => {
+          if (newEvents.length === 0) return s;
+          const uniqueNew = newEvents.filter((e) => {
+            const key = `${e.record_id}-${e.timestamp}-${e.event_id}`;
+            if (s.seenKeys.has(key)) return false;
+            s.seenKeys.add(key);
+            return true;
+          });
+          if (uniqueNew.length === 0) return s;
+          const combined = [...s.events, ...uniqueNew];
+          if (combined.length > MAX_EVENTS) {
+            const removed = combined.slice(0, combined.length - MAX_EVENTS);
+            const newSeen = new Set(s.seenKeys);
+            for (const e of removed) {
+              newSeen.delete(`${e.record_id}-${e.timestamp}-${e.event_id}`);
+            }
+            return { events: combined.slice(-MAX_EVENTS), seenKeys: newSeen };
+          }
+          return { events: combined };
+        }),
+
+      clearEvents: () => set({ events: [], seenKeys: new Set(), selectedEvent: null }),
+      setCollecting: (collecting) => set({ collecting }),
+      setStartTime: (startTime) => set({ startTime }),
+      setSysmonStatus: (sysmonStatus) => set({ sysmonStatus }),
+      setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
+      resetFilters: () => set({ filters: DEFAULT_FILTERS }),
+      setSelectedEvent: (selectedEvent) => set({ selectedEvent }),
+      setAutoScroll: (autoScroll) => set({ autoScroll }),
+      setEnabledEventKeys: (enabledEventKeys) => set({ enabledEventKeys }),
     }),
-
-  clearEvents: () => set({ events: [], selectedEvent: null }),
-  setCollecting: (collecting) => set({ collecting }),
-  setStartTime: (startTime) => set({ startTime }),
-  setSysmonStatus: (sysmonStatus) => set({ sysmonStatus }),
-  setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
-  resetFilters: () => set({ filters: DEFAULT_FILTERS }),
-  setSelectedEvent: (selectedEvent) => set({ selectedEvent }),
-  setAutoScroll: (autoScroll) => set({ autoScroll }),
-  setEnabledEventKeys: (enabledEventKeys) => set({ enabledEventKeys }),
-}));
+    {
+      name: "irtool-log-collector",
+      storage: {
+        getItem: (name) => {
+          const str = sessionStorage.getItem(name);
+          if (!str) return null;
+          const parsed = JSON.parse(str);
+          if (parsed?.state?.seenKeys && Array.isArray(parsed.state.seenKeys)) {
+            parsed.state.seenKeys = new Set(parsed.state.seenKeys);
+          }
+          return parsed;
+        },
+        setItem: (name, value) => {
+          const state = value.state as LogCollectorState;
+          const toStore = JSON.parse(JSON.stringify(value));
+          // JSON.stringify converts Set to empty object, so replace with array
+          if (toStore.state?.seenKeys && !(toStore.state.seenKeys instanceof Array)) {
+            toStore.state.seenKeys = Array.from(state.seenKeys);
+          }
+          // Only persist last PERSIST_EVENTS events to avoid bloating sessionStorage
+          if (toStore.state?.events?.length > PERSIST_EVENTS) {
+            toStore.state.events = toStore.state.events.slice(-PERSIST_EVENTS);
+          }
+          sessionStorage.setItem(name, JSON.stringify(toStore));
+        },
+        removeItem: (name) => sessionStorage.removeItem(name),
+      },
+      partialize: (state) =>
+        ({
+          events: state.events,
+          seenKeys: state.seenKeys,
+          enabledEventKeys: state.enabledEventKeys,
+        }) as LogCollectorState,
+    }
+  )
+);

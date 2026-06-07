@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useAlertStore } from "@/stores/alert-store";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { useAlertStore, alertKey } from "@/stores/alert-store";
+import { ChevronDown, ChevronRight, Trash2, ChevronsUpDown } from "lucide-react";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   dns: "DNS查询",
@@ -22,7 +22,7 @@ type DetailRow =
   | { type: "two-col"; left: DetailCell; right: DetailCell }
   | { type: "full"; cell: DetailCell };
 
-function parseRawJson(raw: string, alertTimestamp?: number): DetailRow[] {
+function parseRawJson(raw: string): DetailRow[] {
   try {
     const v = JSON.parse(raw);
     const rows: DetailRow[] = [];
@@ -33,26 +33,17 @@ function parseRawJson(raw: string, alertTimestamp?: number): DetailRow[] {
 
     if (isNetwork) {
       // Sysmon network_connect
-      if (v.protocol || v.user)
+      if (v.source_ip)
         rows.push({
           type: "two-col",
-          left: { label: "协议", value: v.protocol ?? "-" },
+          left: { label: "源地址", value: `${v.source_ip}${v.source_port ? `:${v.source_port}` : ""}` },
           right: { label: "用户", value: v.user ?? "-" },
         });
-      if (v.source_ip || v.destination_ip)
+      if (v.destination_ip)
         rows.push({
-          type: "two-col",
-          left: { label: "源地址", value: v.source_ip ? `${v.source_ip}:${v.source_port ?? ""}` : "-" },
-          right: { label: "目标地址", value: v.destination_ip ? `${v.destination_ip}:${v.destination_port ?? ""}` : "-" },
+          type: "full",
+          cell: { label: "目标地址", value: `${v.destination_ip}${v.destination_port ? `:${v.destination_port}` : ""}` },
         });
-      if (v.process_name || v.process_id)
-        rows.push({
-          type: "two-col",
-          left: { label: "进程", value: v.process_name ? `${v.process_name} (${v.process_id ?? "-"})` : "-" },
-          right: { label: "发起", value: v.initiated !== undefined ? (v.initiated ? "是" : "否") : "-" },
-        });
-      if (alertTimestamp)
-        rows.push({ type: "full", cell: { label: "时间", value: new Date(alertTimestamp).toLocaleString() } });
       if (v.process_path)
         rows.push({ type: "full", cell: { label: "路径", value: v.process_path } });
       if (v.process_chain)
@@ -63,16 +54,18 @@ function parseRawJson(raw: string, alertTimestamp?: number): DetailRow[] {
         rows.push({ type: "full", cell: { label: "查询域名", value: v.query_name } });
       if (v.query_results)
         rows.push({ type: "full", cell: { label: "解析结果", value: v.query_results } });
-      if (v.query_status !== undefined)
+      if (v.query_status !== undefined && v.query_status !== 0)
         rows.push({ type: "full", cell: { label: "查询状态", value: String(v.query_status) } });
       if (v.process_path)
         rows.push({ type: "full", cell: { label: "路径", value: v.process_path } });
-      if (v.process_name || v.process_id)
+      if (v.process_name || v.process_id || v.source_ip)
         rows.push({
           type: "two-col",
-          left: { label: "进程", value: v.process_name ? `${v.process_name} (${v.process_id ?? "-"})` : "-" },
+          left: { label: "源IP", value: v.source_ip ? `${v.source_ip}${v.source_port ? `:${v.source_port}` : ""}` : (v.process_name ? `${v.process_name} (${v.process_id ?? "-"})` : "-") },
           right: { label: "用户", value: v.user ?? "-" },
         });
+      if (v.process_chain)
+        rows.push({ type: "full", cell: { label: "进程链", value: v.process_chain } });
     } else if (isPcap) {
       // Pcap (tls_sni / dns_query)
       const kindLabel = v.event_kind === "tls_sni" ? "TLS SNI" : "DNS查询";
@@ -88,6 +81,8 @@ function parseRawJson(raw: string, alertTimestamp?: number): DetailRow[] {
         });
       if (v.query_type)
         rows.push({ type: "full", cell: { label: "查询类型", value: v.query_type } });
+      if (v.process_chain)
+        rows.push({ type: "full", cell: { label: "进程链", value: v.process_chain } });
     } else {
       // Fallback: show all key-value pairs
       for (const [key, val] of Object.entries(v)) {
@@ -106,20 +101,38 @@ function parseRawJson(raw: string, alertTimestamp?: number): DetailRow[] {
 export function AlertPanel({ onClose }: Props) {
   const { t } = useTranslation();
   const { alerts, readIds, markAllRead, markRead, clearAlerts } = useAlertStore();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const highlightedAlertKey = useAlertStore((s) => s.highlightedAlertKey);
+  const setHighlightedAlertKey = useAlertStore((s) => s.setHighlightedAlertKey);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on click outside
+  // Close on click outside (excluding the alert toggle button)
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-alert-toggle]")) return;
+      if (panelRef.current && !panelRef.current.contains(target)) {
         onClose();
       }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
+
+  // Auto-expand and scroll to highlighted alert when notification is clicked
+  useEffect(() => {
+    if (highlightedAlertKey != null) {
+      const key = highlightedAlertKey;
+      setExpandedIds((prev) => new Set(prev).add(key));
+      setHighlightedAlertKey(null);
+      setTimeout(() => {
+        const el = document.querySelector(`[data-alert-key="${key}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [highlightedAlertKey, setHighlightedAlertKey]);
 
   const formatTime = (ts: number) => {
     return new Date(ts).toLocaleString();
@@ -150,6 +163,21 @@ export function AlertPanel({ onClose }: Props) {
           </button>
           <button
             className="text-[10px] text-accent hover:underline"
+            onClick={() => {
+              if (allExpanded) {
+                setAllExpanded(false);
+                setExpandedIds(new Set());
+              } else {
+                setAllExpanded(true);
+                setExpandedIds(new Set(alerts.map((a) => alertKey(a))));
+              }
+            }}
+            title={allExpanded ? t("alert.collapse-all") : t("alert.expand-all")}
+          >
+            <ChevronsUpDown className="h-3 w-3 text-fg-tertiary hover:text-fg-secondary" />
+          </button>
+          <button
+            className="text-[10px] text-accent hover:underline"
             onClick={markAllRead}
           >
             {t("alert.mark-all-read")}
@@ -162,17 +190,24 @@ export function AlertPanel({ onClose }: Props) {
           <p className="text-xs text-fg-tertiary py-6 text-center">{t("alert.no-alerts")}</p>
         )}
         {alerts.map((alert) => {
-          const isExpanded = expandedId === alert.id;
-          const isUnread = !readIds.has(alert.id);
-          const details = isExpanded ? parseRawJson(alert.raw_json, alert.timestamp) : [];
-          const hasDetails = parseRawJson(alert.raw_json, alert.timestamp).length > 0;
+          const key = alertKey(alert);
+          const isExpanded = expandedIds.has(key);
+          const isUnread = !readIds.has(key);
+          const details = isExpanded ? parseRawJson(alert.raw_json) : [];
+          const hasDetails = parseRawJson(alert.raw_json).length > 0;
           return (
             <div
-              key={`${alert.id}-${alert.timestamp}`}
+              key={key}
+              data-alert-key={key}
               className="px-3 py-2 border-b border-border/50 hover:bg-bg-elev-2 cursor-pointer"
               onClick={() => {
-                setExpandedId(isExpanded ? null : alert.id);
-                if (isUnread) markRead(alert.id);
+                setExpandedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+                if (isUnread) markRead(key);
               }}
             >
               <div className="flex items-start gap-2">
@@ -186,10 +221,24 @@ export function AlertPanel({ onClose }: Props) {
                   <p className="text-[11px] text-fg-secondary mt-0.5 truncate">
                     {alert.key_field}
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-fg-tertiary">{EVENT_TYPE_LABELS[alert.event_type] || alert.event_type}</span>
+                  <div className="flex items-center gap-1 mt-0.5 text-[10px] text-fg-tertiary">
+                    <span>{EVENT_TYPE_LABELS[alert.event_type] || alert.event_type}</span>
+                    {(() => {
+                      try {
+                        const raw = JSON.parse(alert.raw_json);
+                        if (raw.protocol) return <>{` | ${raw.protocol.toUpperCase()}`}</>;
+                        if (raw.event_kind === "tls_sni") return <>{" | TCP"}</>;
+                        if (raw.event_kind === "dns_query") return <>{" | UDP"}</>;
+                      } catch {}
+                      return null;
+                    })()}
                     {alert.process_name && (
-                      <span className="text-[10px] text-fg-tertiary">| {alert.process_name}</span>
+                      <>{` | ${alert.process_name}${(() => {
+                        try {
+                          const raw = JSON.parse(alert.raw_json);
+                          return raw.process_id ? ` (${raw.process_id})` : "";
+                        } catch { return ""; }
+                      })()}`}</>
                     )}
                   </div>
 

@@ -48,6 +48,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 specta = "2.0.0-rc"
 specta-typescript = "0.0.7"
 tauri-specta = { version = "2.0.0-rc", features = ["derive", "typescript"] }

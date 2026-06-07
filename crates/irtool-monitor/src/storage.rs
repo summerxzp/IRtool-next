@@ -77,7 +77,7 @@ impl EventStorage {
     }
 
     /// 写入告警
-    pub fn insert_alert(&self, alert: &Alert) -> Result<(), IrError> {
+    pub fn insert_alert(&self, alert: &mut Alert) -> Result<(), IrError> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO alerts (timestamp, rule_name, event_type, process_name, key_field, action_taken, raw_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -91,6 +91,8 @@ impl EventStorage {
                 alert.raw_json,
             ],
         ).map_err(|e| IrError::Internal(format!("插入告警失败: {}", e)))?;
+        // Get the auto-incremented id that was just inserted
+        alert.id = conn.last_insert_rowid();
         Ok(())
     }
 
@@ -130,5 +132,13 @@ impl EventStorage {
             alerts.push(row.map_err(|e| IrError::Internal(format!("读取告警行失败: {}", e)))?);
         }
         Ok(alerts)
+    }
+
+    /// 清除所有告警
+    pub fn clear_alerts(&self) -> Result<u64, IrError> {
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute("DELETE FROM alerts", [])
+            .map_err(|e| IrError::Internal(format!("清除告警失败: {}", e)))?;
+        Ok(deleted as u64)
     }
 }

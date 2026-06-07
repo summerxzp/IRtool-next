@@ -5,7 +5,7 @@ export type { SysmonEvent, SysmonEventType, SysmonStatus, EventConfigEntry } fro
 export type ExtendedSysmonEventType = SysmonEventType | "tls_sni" | "dns_pcap";
 
 export interface LogCollectorFilters {
-  eventType: ExtendedSysmonEventType | "all";
+  eventTypes: ExtendedSysmonEventType[];
   externalOnly: boolean;
   search: string;
 }

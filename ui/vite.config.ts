@@ -33,5 +33,11 @@ export default defineConfig({
     minify: "esbuild",
     sourcemap: true,
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        "alert-popup": path.resolve(__dirname, "alert-popup.html"),
+      },
+    },
   },
 });

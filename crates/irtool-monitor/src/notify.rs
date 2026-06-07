@@ -120,10 +120,10 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
     } else {
         // ---- Sysmon 事件布局 ----
         // 第一行：协议 / 用户
-        let protocol = raw.get("protocol").and_then(|v| v.as_str()).unwrap_or("-");
+        let protocol = raw.get("protocol").and_then(|v| v.as_str()).unwrap_or("-").to_uppercase();
         let user = raw.get("user").and_then(|v| v.as_str()).unwrap_or("-");
         elements.push(column_set(
-            lark_md_col("**协议**", protocol),
+            lark_md_col("**协议**", &protocol),
             lark_md_col("**用户**", user),
         ));
 

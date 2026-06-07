@@ -24,7 +24,22 @@ fn matches_target(key_field: &str, target: &str) -> bool {
     if target.contains('/') {
         return matches_cidr(key_field, target);
     }
-    // 通配符 *.evil.com
+    // 中间层级通配符 *.doubao.*
+    if target.starts_with("*.") && target.ends_with(".*") {
+        let middle = &target[2..target.len() - 2];
+        if middle.is_empty() {
+            return false;
+        }
+        let key = key_field
+            .rsplit_once(':')
+            .map(|(k, _)| k)
+            .unwrap_or(key_field);
+        return key == middle
+            || key.starts_with(&format!("{}.", middle))
+            || key.ends_with(&format!(".{}", middle))
+            || key.contains(&format!(".{}.", middle));
+    }
+    // 前缀通配符 *.evil.com
     if let Some(suffix) = target.strip_prefix("*.") {
         return key_field == suffix || key_field.ends_with(&format!(".{}", suffix));
     }
@@ -77,6 +92,16 @@ mod tests {
     fn test_ip_port_match() {
         assert!(matches_target("1.2.3.4:443", "1.2.3.4"));
         assert!(!matches_target("1.2.3.5:443", "1.2.3.4"));
+    }
+
+    #[test]
+    fn test_middle_wildcard_match() {
+        assert!(matches_target("www.doubao.com", "*.doubao.*"));
+        assert!(matches_target("doubao.com", "*.doubao.*"));
+        assert!(matches_target("api.doubao.cn", "*.doubao.*"));
+        assert!(matches_target("a.b.doubao.c.d", "*.doubao.*"));
+        assert!(!matches_target("notdoubao.com", "*.doubao.*"));
+        assert!(!matches_target("doubao2.com", "*.doubao.*"));
     }
 
     #[test]

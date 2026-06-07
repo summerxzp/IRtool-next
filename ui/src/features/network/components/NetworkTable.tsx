@@ -31,8 +31,8 @@ export function NetworkTable({ data, onRowSelect, onRowContextMenu, selectedRowI
     if (filters.proto !== "all") {
       result = result.filter((r) => r.proto === filters.proto);
     }
-    if (filters.state !== "all") {
-      result = result.filter((r) => r.state === filters.state);
+    if (filters.states.length > 0) {
+      result = result.filter((r) => filters.states.includes(r.state));
     }
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();

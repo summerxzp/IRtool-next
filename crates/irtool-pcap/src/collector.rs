@@ -102,8 +102,19 @@ impl PcapCollector {
         config: PcapConfig,
         tx: mpsc::UnboundedSender<PcapEvent>,
     ) -> Result<(), IrError> {
+        // 如果正在运行，先停止
         if self.running.load(Ordering::SeqCst) {
-            return Err(IrError::Internal("抓包已在运行".to_string()));
+            self.stop();
+            // 等待线程退出（最多 200ms）
+            for _ in 0..20 {
+                if !self.running.load(Ordering::SeqCst) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            if self.running.load(Ordering::SeqCst) {
+                return Err(IrError::Internal("抓包线程未能及时停止".to_string()));
+            }
         }
 
         let local_ip = Self::get_local_ip()?;
@@ -133,13 +144,15 @@ impl PcapCollector {
         ))
     }
 
-    /// 停止抓包
+    /// 停止抓包（非阻塞，设置标志后立即返回，线程会在 100ms 内自行退出）
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+        // 不等待线程 join，避免在异步上下文中阻塞
+        // 线程会在 select 超时（100ms）后检查 running 标志并退出
         if let Some(handle) = self.thread_handle.take() {
-            let _ = handle.join();
+            std::mem::drop(handle);
         }
-        info!("Pcap collector stopped");
+        info!("Pcap collector stop requested");
     }
 
     pub fn is_running(&self) -> bool {

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IRtool Alert</title>
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        user-select: none;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        background: var(--bg-base);
+      }
+      :root[data-theme="light"] html,
+      :root[data-theme="light"] body {
+        background: var(--bg-base);
+      }
+      :root[data-theme="dark"] html,
+      :root[data-theme="dark"] body {
+        background: var(--bg-base);
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: stretch;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/alert-popup-main.tsx"></script>
+  </body>
+</html>

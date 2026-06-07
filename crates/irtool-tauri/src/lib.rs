@@ -13,7 +13,6 @@ use crate::commands::network::*;
 use crate::commands::process::*;
 use crate::commands::sysmon::*;
 use crate::state::AppState;
-use tauri::Emitter;
 use serde::Serialize;
 use specta::Type;
 use specta_typescript::Typescript;
@@ -138,12 +137,15 @@ pub fn run() {
         cmd_monitor_exit_background,
         cmd_monitor_get_alerts,
         cmd_monitor_is_background,
+        cmd_monitor_clear_alerts,
         cmd_monitor_test_feishu,
         // --- P6 新增 ---
         cmd_pcap_is_available,
         cmd_pcap_start,
         cmd_pcap_stop,
         cmd_pcap_is_running,
+        // --- Alert Popup ---
+        cmd_show_alert_popup,
     ]);
 
     #[cfg(debug_assertions)]
@@ -168,6 +170,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
@@ -176,33 +179,6 @@ pub fn run() {
 
             // 创建系统托盘
             crate::tray::create_tray(app.handle())?;
-
-            // 根据配置自动启动 pcap（如果 enable_sni 或 enable_dns_pcap 为 true）
-            {
-                let engine = app_state.monitor_engine.clone();
-                let collector = app_state.pcap_collector.clone();
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let config = engine.lock().await.get_config();
-                    if config.enable_sni || config.enable_dns_pcap {
-                        let pcap_config = irtool_pcap::PcapConfig {
-                            enable_sni: config.enable_sni,
-                            enable_dns_pcap: config.enable_dns_pcap,
-                        };
-                        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<irtool_pcap::PcapEvent>();
-                        if let Ok(()) = collector.lock().await.start(pcap_config, tx) {
-                            info!("Pcap auto-started based on saved config");
-                            while let Some(event) = rx.recv().await {
-                                let alerts = engine.lock().await.process_pcap_event(&event).await;
-                                for alert in &alerts {
-                                    let _ = app_handle.emit(crate::events::EVT_MONITOR_ALERT, alert);
-                                }
-                                let _ = app_handle.emit(crate::events::EVT_PCAP_EVENT, &event);
-                            }
-                        }
-                    }
-                });
-            }
 
             // 拦截窗口关闭：仅后台监测模式时隐藏到托盘，否则退出
             if let Some(window) = app.get_webview_window("main") {

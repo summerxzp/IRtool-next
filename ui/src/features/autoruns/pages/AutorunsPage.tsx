@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { useAutorunsData, useAutorunsScan, useDeleteEntry, useCalculateHash } from "../hooks";
 import * as api from "../api";
 import { useAutorunsStore } from "../store";
+import { useUIStore } from "@/stores/ui-store";
 import { AutorunsToolbar } from "../components/AutorunsToolbar";
 import { AutorunsTable } from "../components/AutorunsTable";
 import { AutorunsDetail } from "../components/AutorunsDetail";
@@ -27,7 +28,7 @@ export function AutorunsPage() {
   const scanning = useAutorunsStore((s) => s.scanning);
   const verifyingSignatures = useAutorunsStore((s) => s.verifyingSignatures);
   const signatureProgress = useAutorunsStore((s) => s.signatureProgress);
-  const detailPosition = useAutorunsStore((s) => s.detailPosition);
+  const detailPosition = useUIStore((s) => s.detailPositions["autoruns"] ?? "right");
   const scanProgress = useAutorunsStore((s) => s.scanProgress);
   const error = useAutorunsStore((s) => s.error);
   const setError = useAutorunsStore((s) => s.setError);
@@ -62,8 +63,8 @@ export function AutorunsPage() {
     if (filters.signature !== "all") {
       result = result.filter((r) => r.signature.kind === filters.signature);
     }
-    if (filters.category !== "all") {
-      result = result.filter((r) => r.category === filters.category);
+    if (filters.categories.length > 0) {
+      result = result.filter((r) => filters.categories.includes(r.category));
     }
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();

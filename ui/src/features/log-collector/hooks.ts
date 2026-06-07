@@ -198,6 +198,18 @@ export function useStartCollection(enabledEventIds: number[] = DEFAULT_ENABLED_E
   return useMutation({
     mutationFn: async () => {
       await api.startSubscription(enabledEventIds, 500);
+      // 启动 pcap（根据保存的配置）
+      try {
+        const config = await api.monitorGetConfig();
+        if (config.enable_sni || config.enable_dns_pcap) {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("cmd_pcap_start", {
+            config: { enable_sni: config.enable_sni, enable_dns_pcap: config.enable_dns_pcap },
+          });
+        }
+      } catch {
+        // pcap 启动失败不影响主流程
+      }
     },
     onSuccess: () => {
       setCollecting(true);
@@ -214,6 +226,13 @@ export function useStopCollection() {
   return useMutation({
     mutationFn: async () => {
       await api.stopSubscription();
+      // 停止 pcap
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("cmd_pcap_stop");
+      } catch {
+        // pcap 停止失败不影响主流程
+      }
     },
     onSuccess: () => {
       setCollecting(false);

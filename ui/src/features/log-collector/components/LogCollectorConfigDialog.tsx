@@ -77,6 +77,53 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
     });
   };
 
+  const selectAll = () => {
+    const allKeys = eventConfigs.map((c) => c.key);
+    allKeys.push("tls_sni", "dns_pcap");
+    setEnabledKeys(new Set(allKeys));
+    setEnableSni(true);
+    setEnableDnsPcap(true);
+  };
+
+  const deselectAll = () => {
+    setEnabledKeys(new Set());
+    setEnableSni(false);
+    setEnableDnsPcap(false);
+  };
+
+  const toggleSection = (section: typeof EVENT_SECTIONS[number]) => {
+    const sectionKeys = [...section.eventKeys];
+    if ("extras" in section && section.extras) {
+      sectionKeys.push(...section.extras);
+    }
+    const allSelected = sectionKeys.every((k) => {
+      if (k === "tls_sni") return enableSni;
+      if (k === "dns_pcap") return enableDnsPcap;
+      return enabledKeys.has(k);
+    });
+    if (allSelected) {
+      setEnabledKeys((prev) => {
+        const next = new Set(prev);
+        section.eventKeys.forEach((k) => next.delete(k));
+        return next;
+      });
+      if ("extras" in section && section.extras) {
+        if (section.extras.includes("tls_sni")) setEnableSni(false);
+        if (section.extras.includes("dns_pcap")) setEnableDnsPcap(false);
+      }
+    } else {
+      setEnabledKeys((prev) => {
+        const next = new Set(prev);
+        section.eventKeys.forEach((k) => next.add(k));
+        return next;
+      });
+      if ("extras" in section && section.extras) {
+        if (section.extras.includes("tls_sni")) setEnableSni(true);
+        if (section.extras.includes("dns_pcap")) setEnableDnsPcap(true);
+      }
+    }
+  };
+
   const handleApply = () => {
     onApply(Array.from(enabledKeys), logSizeMb, { enable_sni: enableSni, enable_dns_pcap: enableDnsPcap });
   };
@@ -86,7 +133,19 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("log-collector.config-dialog.title")}</DialogTitle>
-          <DialogDescription>{t("log-collector.config-dialog.description")}</DialogDescription>
+          <div className="flex items-center justify-between">
+            <DialogDescription>{t("log-collector.config-dialog.description")}</DialogDescription>
+            <div className="flex items-center gap-1">
+              <button className="text-[10px] text-accent hover:underline" onClick={selectAll}>{t("log-collector.config-dialog.select-all")}</button>
+              <span className="text-[10px] text-fg-tertiary">|</span>
+              <button className="text-[10px] text-accent hover:underline" onClick={deselectAll}>{t("log-collector.config-dialog.deselect-all")}</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs shrink-0">{t("log-collector.config-dialog.log-size")}</Label>
+            <Input type="number" min={1} max={4096} value={logSizeMb} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) setLogSizeMb(v); }} className="h-7 w-20 text-xs" />
+            <span className="text-xs text-fg-tertiary">{t("log-collector.config-dialog.log-size-unit")}</span>
+          </div>
         </DialogHeader>
 
         <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
@@ -96,7 +155,10 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
                 {/* Section header with divider - centered */}
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className="flex-1 h-px bg-border" />
-                  <p className="text-[10px] font-medium text-fg-tertiary uppercase tracking-wider shrink-0">
+                  <p
+                    className="text-[10px] font-medium text-fg-tertiary uppercase tracking-wider shrink-0 cursor-pointer hover:text-fg-secondary"
+                    onDoubleClick={() => toggleSection(section)}
+                  >
                     {t(`log-collector.config-dialog.section-${section.key}`)}
                   </p>
                   <div className="flex-1 h-px bg-border" />
@@ -113,7 +175,6 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
                             <Checkbox
                               id={`cfg-evt-${cfg.key}`}
                               checked={enabledKeys.has(cfg.key)}
-                              onCheckedChange={() => toggleKey(cfg.key)}
                             />
                             <Label htmlFor={`cfg-evt-${cfg.key}`} className="text-xs cursor-pointer flex-1">
                               {cfg.name}
@@ -143,10 +204,6 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
                           <Checkbox
                             id={`cfg-evt-${extraKey}`}
                             checked={extraKey === "tls_sni" ? enableSni : enableDnsPcap}
-                            onCheckedChange={(v) => {
-                              if (extraKey === "tls_sni") setEnableSni(v === true);
-                              else setEnableDnsPcap(v === true);
-                            }}
                             disabled={!pcapAvailable}
                           />
                           <Label htmlFor={`cfg-evt-${extraKey}`} className="text-xs cursor-pointer flex-1">
@@ -164,22 +221,6 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
               </div>
             ))}
           </TooltipProvider>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <Label className="text-xs shrink-0">{t("log-collector.config-dialog.log-size")}</Label>
-            <Input
-              type="number"
-              min={1}
-              max={4096}
-              value={logSizeMb}
-              onChange={(e) => {
-                const v = parseInt(e.target.value);
-                if (!isNaN(v) && v > 0) setLogSizeMb(v);
-              }}
-              className="h-7 w-20 text-xs"
-            />
-            <span className="text-xs text-fg-tertiary">{t("log-collector.config-dialog.log-size-unit")}</span>
-          </div>
         </div>
 
         <DialogFooter>

@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Square, History, Trash2, Download, X, Settings, Unplug } from "lucide-react";
+import { Play, Square, History, Trash2, Download, X, Settings, Unplug, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS } from "../types";
 import type { ExtendedSysmonEventType, SysmonEvent } from "../types";
@@ -35,8 +35,7 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
     for (const e of events) {
       if (e.event_type !== "unknown") types.add(e.event_type);
     }
-    const sorted = Array.from(types).sort();
-    return ["all" as const, ...sorted];
+    return Array.from(types).sort();
   }, [events]);
 
   useEffect(() => {
@@ -63,18 +62,31 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
         {t("log-collector.toolbar.load-history")}
       </Button>
 
-      <Select value={filters.eventType} onValueChange={(v) => setFilter("eventType", v as ExtendedSysmonEventType | "all")}>
-        <SelectTrigger className="h-7 w-28 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="secondary" size="sm" className="h-7 text-xs">
+            {filters.eventTypes.length === 0 ? t("log-collector.toolbar.all-events") : `${t("log-collector.toolbar.event-type-label")} (${filters.eventTypes.length})`}
+            <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-2 max-h-60 overflow-y-auto" align="start">
           {eventTypeOptions.map((et) => (
-            <SelectItem key={et} value={et}>
-              {et === "all" ? t("log-collector.toolbar.all-events") : EVENT_TYPE_LABELS[et]}
-            </SelectItem>
+            <div
+              key={et}
+              className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-bg-elev-2 rounded px-1"
+              onClick={() => {
+                const next = filters.eventTypes.includes(et)
+                  ? filters.eventTypes.filter((v) => v !== et)
+                  : [...filters.eventTypes, et];
+                setFilter("eventTypes", next);
+              }}
+            >
+              <Checkbox checked={filters.eventTypes.includes(et)} />
+              <Label className="text-xs cursor-pointer">{EVENT_TYPE_LABELS[et]}</Label>
+            </div>
           ))}
-        </SelectContent>
-      </Select>
+        </PopoverContent>
+      </Popover>
 
       <div className="flex items-center gap-1.5">
         <Checkbox

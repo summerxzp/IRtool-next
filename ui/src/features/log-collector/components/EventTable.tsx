@@ -9,42 +9,45 @@ interface Props {
   events: SysmonEvent[];
 }
 
-function getEventSummary(event: SysmonEvent): string {
+function getDestination(event: SysmonEvent): string {
   const et = event.event_type as ExtendedSysmonEventType;
   switch (et) {
+    case "network_connect":
+      return `${event.destination_ip}:${event.destination_port}`;
     case "dns":
     case "dns_client":
     case "tls_sni":
     case "dns_pcap":
       return event.query_name || "-";
-    case "network_connect":
-      return `${event.destination_ip}:${event.destination_port}`;
     case "create_remote_thread":
       return `${event.source_process_name} → ${event.target_process_name}`;
     case "file_create":
       return event.target_filename || "-";
     default:
-      return "-";
+      return event.process_name || "-";
+  }
+}
+
+function getPath(event: SysmonEvent): string {
+  const et = event.event_type as ExtendedSysmonEventType;
+  switch (et) {
+    case "network_connect":
+    case "dns":
+    case "dns_client":
+    case "file_create":
+      return event.process_path || "";
+    case "tls_sni":
+    case "dns_pcap":
+      return "";
+    case "create_remote_thread":
+      return event.source_process_path || "";
+    default:
+      return event.process_path || "";
   }
 }
 
 function getCopyValue(event: SysmonEvent): string {
-  const et = event.event_type as ExtendedSysmonEventType;
-  switch (et) {
-    case "dns":
-    case "dns_client":
-    case "tls_sni":
-    case "dns_pcap":
-      return event.query_name;
-    case "network_connect":
-      return `${event.destination_ip}:${event.destination_port}`;
-    case "create_remote_thread":
-      return event.start_address;
-    case "file_create":
-      return event.target_filename;
-    default:
-      return "";
-  }
+  return getDestination(event);
 }
 
 /** Generate a unique stable key for an event row */
@@ -60,11 +63,11 @@ export function EventTable({ events }: Props) {
   // Filter events — keep stable reference
   const filtered = useMemo(() => {
     return events.filter((e) => {
-      if (filters.eventType !== "all" && e.event_type !== filters.eventType) return false;
+      if (filters.eventTypes.length > 0 && !filters.eventTypes.includes(e.event_type as ExtendedSysmonEventType)) return false;
       if (filters.externalOnly && !e.is_external) return false;
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const searchable = `${e.process_name} ${e.query_name} ${e.destination_ip} ${e.target_filename} ${e.source_process_name} ${e.target_process_name}`.toLowerCase();
+        const searchable = `${e.process_name} ${e.query_name} ${e.destination_ip} ${e.destination_port} ${e.source_ip} ${e.source_port} ${e.target_filename} ${e.source_process_name} ${e.target_process_name}`.toLowerCase();
         if (!searchable.includes(q)) return false;
       }
       return true;
@@ -99,6 +102,21 @@ export function EventTable({ events }: Props) {
   const ITEM_HEIGHT = 28; // px, fixed row height
   const OVERSCAN = 10;
   const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(600);
+
+  // Track actual container height via ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = entry.contentRect?.height ?? el.clientHeight;
+        if (h > 0) setContainerHeight(h);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Reset scroll position when filters change
   useEffect(() => {
@@ -114,14 +132,14 @@ export function EventTable({ events }: Props) {
   const { startIdx, endIdx, paddingTop, paddingBottom } = useMemo(() => {
     const total = filtered.length;
     const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
-    const end = Math.min(total, Math.ceil((scrollTop + (containerRef.current?.clientHeight ?? 600)) / ITEM_HEIGHT) + OVERSCAN);
+    const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN);
     return {
       startIdx: start,
       endIdx: end,
       paddingTop: start * ITEM_HEIGHT,
       paddingBottom: Math.max(0, (total - end) * ITEM_HEIGHT),
     };
-  }, [filtered.length, scrollTop]);
+  }, [filtered.length, scrollTop, containerHeight]);
 
   return (
     <div ref={containerRef} onScroll={handleScrollVirtual} className="flex-1 overflow-auto">
@@ -129,8 +147,8 @@ export function EventTable({ events }: Props) {
       <div className="sticky top-0 z-10 flex bg-bg-elev-2 border-b border-border text-[10px] text-fg-tertiary uppercase tracking-wider select-none">
         <div className="w-36 px-2 py-1 shrink-0">{t("log-collector.table.time")}</div>
         <div className="w-24 px-2 py-1 shrink-0">{t("log-collector.table.type")}</div>
-        <div className="w-32 px-2 py-1 shrink-0">{t("log-collector.table.process")}</div>
-        <div className="flex-1 px-2 py-1 min-w-0">{t("log-collector.table.detail")}</div>
+        <div className="w-44 px-2 py-1 shrink-0">{t("log-collector.table.destination")}</div>
+        <div className="flex-1 px-2 py-1 min-w-0">{t("log-collector.table.path")}</div>
       </div>
 
       {/* Virtualized rows */}
@@ -161,13 +179,11 @@ export function EventTable({ events }: Props) {
                   )}
                 </div>
               </div>
-              <div className="w-32 px-2 shrink-0 truncate text-fg-primary" title={event.process_path || event.source_process_name}>
-                {event.event_type === "create_remote_thread"
-                  ? `${event.source_process_name} → ${event.target_process_name}`
-                  : event.process_name || "-"}
+              <div className="w-44 px-2 shrink-0 truncate text-fg-primary" title={getDestination(event)}>
+                {getDestination(event)}
               </div>
-              <div className="flex-1 px-2 min-w-0 truncate text-fg-secondary" title={getEventSummary(event)}>
-                {getEventSummary(event)}
+              <div className="flex-1 px-2 min-w-0 truncate text-fg-secondary" title={getPath(event)}>
+                {getPath(event)}
               </div>
             </div>
           );

@@ -31,6 +31,7 @@ tauri-plugin-shell = { workspace = true }
 tauri-plugin-process = { workspace = true }
 tauri-plugin-store = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
+tauri-plugin-notification = { workspace = true }
 
 windows = { workspace = true, features = [
   "Win32_Foundation",

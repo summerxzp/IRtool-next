@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pause, Play, RefreshCcw, Trash2, Download, X } from "lucide-react";
+import { Pause, Play, RefreshCcw, Trash2, Download, X, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNetworkStore } from "../store";
 import type { ConnState, Proto, RetentionPolicyDto } from "../types";
 
@@ -22,8 +25,7 @@ interface Props {
 }
 
 const PROTO_OPTIONS: Array<Proto | "all"> = ["all", "tcp", "udp"];
-const STATE_OPTIONS: Array<ConnState | "all"> = [
-  "all",
+const STATE_OPTIONS: ConnState[] = [
   "ESTABLISHED",
   "LISTEN",
   "TIME_WAIT",
@@ -112,21 +114,31 @@ export function NetworkToolbar({
         </SelectContent>
       </Select>
 
-      <Select
-        value={filters.state}
-        onValueChange={(v) => setFilter("state", v as ConnState | "all")}
-      >
-        <SelectTrigger className="h-7 w-32 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="secondary" size="sm" className="h-7 text-xs">
+            {filters.states.length === 0 ? t("network.toolbar.state-all") : `${t("network.toolbar.state-label")} (${filters.states.length})`}
+            <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-40 p-2" align="start">
           {STATE_OPTIONS.map((s) => (
-            <SelectItem key={s} value={s}>
-              {s === "all" ? t("network.toolbar.state-all") : s}
-            </SelectItem>
+            <div
+              key={s}
+              className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-bg-elev-2 rounded px-1"
+              onClick={() => {
+                const next = filters.states.includes(s)
+                  ? filters.states.filter((v) => v !== s)
+                  : [...filters.states, s];
+                setFilter("states", next);
+              }}
+            >
+              <Checkbox checked={filters.states.includes(s)} />
+              <Label className="text-xs cursor-pointer">{s}</Label>
+            </div>
           ))}
-        </SelectContent>
-      </Select>
+        </PopoverContent>
+      </Popover>
 
       <Input
         type="text"

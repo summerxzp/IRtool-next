@@ -3,7 +3,9 @@
     "title": "Security Alerts",
     "no-alerts": "No alerts",
     "mark-all-read": "Mark all read",
-    "confirm-clear": "Confirm clear?"
+    "confirm-clear": "Confirm clear?",
+    "expand-all": "Expand all",
+    "collapse-all": "Collapse all"
   },
   "app": {
     "name": "IRtool",
@@ -43,6 +45,7 @@
       "interval-5s": "5 sec",
       "proto-all": "All Protocols",
       "state-all": "All States",
+      "state-label": "State",
       "search-placeholder": "PID / IP / Port / Process",
       "show-history": "Show History",
       "clear-history": "Clear History",
@@ -102,6 +105,7 @@
       "scan": "Scan",
       "cancel": "Cancel",
       "all-categories": "All Categories",
+      "category-label": "Category",
       "status-all": "All Status",
       "status-enabled": "Enabled",
       "status-disabled": "Disabled",
@@ -211,6 +215,7 @@
       "stop": "Stop",
       "load-history": "Load History",
       "all-events": "All Events",
+      "event-type-label": "Event Type",
       "external-only": "External Only",
       "search-placeholder": "Search domain/IP/process...",
       "export": "Export",
@@ -222,8 +227,8 @@
     "table": {
       "time": "Time",
       "type": "Type",
-      "process": "Process",
-      "detail": "Detail",
+      "destination": "Destination",
+      "path": "Path",
       "external": "External",
       "no-events": "No events"
     },
@@ -264,6 +269,8 @@
       "description": "Configure event types and data sources for log collection",
       "apply": "Apply Configuration",
       "applying": "Applying...",
+      "select-all": "Select All",
+      "deselect-all": "Deselect All",
       "log-size": "Log Size Limit",
       "log-size-unit": "MB",
       "select-all": "Select All",

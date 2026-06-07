@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Panel, Group, Separator } from "react-resizable-panels";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { invoke } from "@tauri-apps/api/core";
 import { useSysmonStatus, useDefaultEventConfigs, useStartCollection, useStopCollection, useLoadHistory, useUninstallSysmon, useLogMaxSize, useSyncCollectingState } from "../hooks";
 import { useLogCollectorStore } from "../store";
+import { useUIStore } from "@/stores/ui-store";
 import { SysmonInstallDialog } from "../components/SysmonInstallDialog";
 import { LogCollectorToolbar } from "../components/LogCollectorToolbar";
 import { EventTable } from "../components/EventTable";
@@ -21,7 +22,8 @@ export default function LogCollectorPage() {
   const { data: eventConfigs = [] } = useDefaultEventConfigs();
   const { data: logMaxSizeMb = 0 } = useLogMaxSize();
   const uninstallMutation = useUninstallSysmon();
-  const { events, collecting, selectedEvent, addEvents, clearEvents, enabledEventKeys, setEnabledEventKeys } = useLogCollectorStore();
+  const { events, collecting, selectedEvent, addEvents, clearEvents, enabledEventKeys, setEnabledEventKeys, setSelectedEvent } = useLogCollectorStore();
+  const detailPosition = useUIStore((s) => s.detailPositions["log-collector"] ?? "right");
   const eventIds = useMemo(() =>
     eventConfigs.filter((c) => enabledEventKeys.includes(c.key)).map((c) => c.event_id),
     [eventConfigs, enabledEventKeys]
@@ -194,15 +196,21 @@ export default function LogCollectorPage() {
         events={events}
       />
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={65} minSize={40}>
-          <EventTable events={events} />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={35} minSize={25}>
-          <EventDetail event={selectedEventDetail} />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      <div className="flex-1 min-h-0">
+        <Group orientation={detailPosition === "bottom" ? "vertical" : "horizontal"}>
+          <Panel defaultSize={detailPosition === "bottom" ? 60 : 70} minSize={40}>
+            <EventTable events={events} />
+          </Panel>
+          {selectedEvent != null && (
+            <>
+              <Separator className={detailPosition === "bottom" ? "h-px bg-border hover:bg-accent transition-colors" : "w-px bg-border hover:bg-accent transition-colors"} />
+              <Panel defaultSize={detailPosition === "bottom" ? 40 : 30} minSize={20}>
+                <EventDetail event={selectedEventDetail} onClose={() => setSelectedEvent(null)} />
+              </Panel>
+            </>
+          )}
+        </Group>
+      </div>
 
       <LogCollectorStatsBar sysmonRunning={status?.running ?? false} logMaxSizeMb={logMaxSizeMb} />
 

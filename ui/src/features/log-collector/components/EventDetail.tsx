@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Copy } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { commands } from "@/lib/bindings";
@@ -9,6 +9,7 @@ import type { SysmonEvent, ExtendedSysmonEventType } from "../types";
 
 interface Props {
   event: SysmonEvent | null;
+  onClose?: () => void;
 }
 
 function FieldRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
@@ -60,7 +61,7 @@ function ProcessChain({ pid }: { pid: number }) {
   );
 }
 
-export function EventDetail({ event }: Props) {
+export function EventDetail({ event, onClose }: Props) {
   const { t } = useTranslation();
 
   if (!event) {
@@ -73,9 +74,16 @@ export function EventDetail({ event }: Props) {
 
   return (
     <div className="p-3 space-y-2 overflow-auto h-full">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType]}</span>
-        <span className="text-[10px] text-fg-tertiary">EventID {event.event_id}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType]}</span>
+          <span className="text-[10px] text-fg-tertiary">EventID {event.event_id}</span>
+        </div>
+        {onClose && (
+          <button className="text-fg-tertiary hover:text-fg-primary shrink-0 p-0.5" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
       <Separator />
 

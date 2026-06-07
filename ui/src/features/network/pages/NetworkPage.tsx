@@ -14,6 +14,7 @@ import { NetworkDetail } from "../components/NetworkDetail";
 import { NetworkStatsBar } from "../components/NetworkStatsBar";
 import { KillProcessDialog } from "../components/KillProcessDialog";
 import { exportCsv } from "@/lib/csv";
+import { useUIStore } from "@/stores/ui-store";
 import type { NetConn } from "../types";
 
 export function NetworkPage() {
@@ -22,6 +23,7 @@ export function NetworkPage() {
   const killMutation = useKillProcess();
   const clearMutation = useClearHistory();
   const [selected, setSelected] = useState<NetConn | null>(null);
+  const detailPosition = useUIStore((s) => s.detailPositions["network"] ?? "right");
   const [killDialogOpen, setKillDialogOpen] = useState(false);
   const [contextRow, setContextRow] = useState<NetConn | null>(null);
   const [contextPos, setContextPos] = useState<{ x: number; y: number } | null>(null);
@@ -77,8 +79,8 @@ export function NetworkPage() {
       />
 
       <div className="flex-1 min-h-0">
-        <Group orientation="horizontal">
-          <Panel defaultSize={70} minSize={40}>
+        <Group orientation={detailPosition === "bottom" ? "vertical" : "horizontal"}>
+          <Panel defaultSize={detailPosition === "bottom" ? 60 : 70} minSize={40}>
             <NetworkTable
               data={data}
               onRowSelect={setSelected}
@@ -88,8 +90,8 @@ export function NetworkPage() {
           </Panel>
           {selected != null && (
             <>
-              <Separator className="w-px bg-border hover:bg-accent transition-colors" />
-              <Panel defaultSize={30} minSize={20}>
+              <Separator className={detailPosition === "bottom" ? "h-px" : "w-px"} style={{ backgroundColor: "var(--border)" }} />
+              <Panel defaultSize={detailPosition === "bottom" ? 40 : 30} minSize={20}>
                 <NetworkDetail conn={selected} onClose={() => setSelected(null)} />
               </Panel>
             </>
