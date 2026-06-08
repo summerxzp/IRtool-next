@@ -359,5 +359,99 @@
     },
     "save-success": "保存成功",
     "save-failed": "保存失败"
+  },
+  "workspace": {
+    "toolbar": {
+      "search-placeholder": "关键词 / 路径 / IP / 进程名",
+      "search": "搜索",
+      "scan": "规则扫描",
+      "refresh": "刷新",
+      "rules": "规则管理"
+    },
+    "tabs": {
+      "autoruns": "持久化项",
+      "network": "网络连接",
+      "events": "事件"
+    },
+    "columns": {
+      "entry": "条目",
+      "image-path": "文件路径",
+      "category": "分类",
+      "risk": "风险",
+      "proto": "协议",
+      "remote": "远程地址",
+      "state": "状态",
+      "pid": "PID",
+      "process": "进程名",
+      "type": "类型",
+      "time": "时间",
+      "destination": "目的地址"
+    },
+    "stats": {
+      "autoruns": "持久化 {{filtered}}/{{total}}",
+      "network": "网络 {{filtered}}/{{total}}",
+      "events": "事件 {{filtered}}/{{total}}"
+    },
+    "empty": {
+      "message": "请先在各专题页面完成扫描/采集",
+      "refresh": "刷新数据"
+    },
+    "table": {
+      "no-results": "无匹配结果"
+    },
+    "detail": {
+      "select-row": "请选择一条记录查看详情",
+      "image-path": "文件路径",
+      "launch-string": "启动命令",
+      "location": "注册表位置",
+      "publisher": "发布者",
+      "local": "本地地址",
+      "remote": "远程地址",
+      "process": "进程名",
+      "path": "路径",
+      "domain": "域名",
+      "destination-ip": "目标 IP",
+      "type": "事件类型",
+      "time": "时间",
+      "matched-rules": "匹配规则",
+      "delete": "删除",
+      "jump-registry": "跳转注册表",
+      "open-explorer": "在资源管理器中打开",
+      "more-operations": "更多操作",
+      "remove-hidden": "移除隐藏属性",
+      "take-ownership": "获取所有权",
+      "sample": "打包取样",
+      "kill": "终止进程",
+      "association": "关联分析",
+      "deleted": "已删除",
+      "killed": "已终止",
+      "command-success": "{{command}} 执行成功",
+      "sample-success": "取样打包完成"
+    },
+    "association": {
+      "no-results": "无关联结果",
+      "key": "关联键"
+    },
+    "rules": {
+      "title": "规则管理",
+      "search-placeholder": "搜索规则名/家族…",
+      "add": "添加",
+      "import": "导入",
+      "export": "导出",
+      "edit": "编辑",
+      "delete": "删除",
+      "no-rules": "暂无规则",
+      "add-rule": "添加规则",
+      "edit-rule": "编辑规则",
+      "rule-name": "规则名称",
+      "target": "目标",
+      "severity": "严重级别",
+      "family": "家族",
+      "conditions": "匹配条件",
+      "add-condition": "添加条件",
+      "field": "字段",
+      "value-placeholder": "匹配值",
+      "import-failed": "导入失败：格式无效"
+    }
   }
 }

@@ -12,6 +12,7 @@ use crate::commands::monitor::*;
 use crate::commands::network::*;
 use crate::commands::process::*;
 use crate::commands::sysmon::*;
+use crate::commands::workspace::*;
 use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
@@ -142,6 +143,8 @@ pub fn run() {
             cmd_monitor_get_event_count,
             cmd_monitor_search_events,
             cmd_monitor_test_feishu,
+        // --- P3 工作台 ---
+        cmd_workspace_run_command,
         // --- P6 新增 ---
         cmd_pcap_is_available,
         cmd_pcap_start,

@@ -359,5 +359,99 @@
     },
     "save-success": "Saved successfully",
     "save-failed": "Save failed"
+  },
+  "workspace": {
+    "toolbar": {
+      "search-placeholder": "Keyword / Path / IP / Process",
+      "search": "Search",
+      "scan": "Rule Scan",
+      "refresh": "Refresh",
+      "rules": "Rule Manager"
+    },
+    "tabs": {
+      "autoruns": "Autoruns",
+      "network": "Network",
+      "events": "Events"
+    },
+    "columns": {
+      "entry": "Entry",
+      "image-path": "Image Path",
+      "category": "Category",
+      "risk": "Risk",
+      "proto": "Proto",
+      "remote": "Remote",
+      "state": "State",
+      "pid": "PID",
+      "process": "Process",
+      "type": "Type",
+      "time": "Time",
+      "destination": "Destination"
+    },
+    "stats": {
+      "autoruns": "Autoruns {{filtered}}/{{total}}",
+      "network": "Network {{filtered}}/{{total}}",
+      "events": "Events {{filtered}}/{{total}}"
+    },
+    "empty": {
+      "message": "Please complete a scan or collection on the feature pages first",
+      "refresh": "Refresh Data"
+    },
+    "table": {
+      "no-results": "No matching results"
+    },
+    "detail": {
+      "select-row": "Select a record to view details",
+      "image-path": "Image Path",
+      "launch-string": "Launch String",
+      "location": "Registry Location",
+      "publisher": "Publisher",
+      "local": "Local Address",
+      "remote": "Remote Address",
+      "process": "Process",
+      "path": "Path",
+      "domain": "Domain",
+      "destination-ip": "Destination IP",
+      "type": "Event Type",
+      "time": "Time",
+      "matched-rules": "Matched Rules",
+      "delete": "Delete",
+      "jump-registry": "Jump to Registry",
+      "open-explorer": "Open in Explorer",
+      "more-operations": "More Operations",
+      "remove-hidden": "Remove Hidden Attribute",
+      "take-ownership": "Take Ownership",
+      "sample": "Package Sample",
+      "kill": "Kill Process",
+      "association": "Association Analysis",
+      "deleted": "Deleted",
+      "killed": "Killed",
+      "command-success": "{{command}} executed successfully",
+      "sample-success": "Sample packaged successfully"
+    },
+    "association": {
+      "no-results": "No associations found",
+      "key": "Association Key"
+    },
+    "rules": {
+      "title": "Rule Manager",
+      "search-placeholder": "Search rule name/family…",
+      "add": "Add",
+      "import": "Import",
+      "export": "Export",
+      "edit": "Edit",
+      "delete": "Delete",
+      "no-rules": "No rules",
+      "add-rule": "Add Rule",
+      "edit-rule": "Edit Rule",
+      "rule-name": "Rule Name",
+      "target": "Target",
+      "severity": "Severity",
+      "family": "Family",
+      "conditions": "Conditions",
+      "add-condition": "Add Condition",
+      "field": "Field",
+      "value-placeholder": "Match value",
+      "import-failed": "Import failed: invalid format"
+    }
   }
 }

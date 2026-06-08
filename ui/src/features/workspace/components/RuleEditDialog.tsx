@@ -1,0 +1,164 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Plus, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Rule, RuleTarget, Severity, Condition, ConditionType } from "../types";
+import { getFieldsForTarget } from "../types";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rule: Rule | null;
+  onSave: (rule: Rule) => void;
+}
+
+const TARGETS: RuleTarget[] = ["Autorun", "Network", "Event"];
+const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
+const CONDITION_TYPES: ConditionType[] = ["contains", "regex", "equals"];
+
+export function RuleEditDialog({ open, onOpenChange, rule, onSave }: Props) {
+  const { t } = useTranslation();
+  const isEdit = rule != null;
+
+  const [name, setName] = useState(rule?.name ?? "");
+  const [target, setTarget] = useState<RuleTarget>(rule?.target ?? "Autorun");
+  const [severity, setSeverity] = useState<Severity>(rule?.severity ?? "medium");
+  const [family, setFamily] = useState(rule?.family ?? "");
+  const [conditions, setConditions] = useState<Condition[]>(
+    rule?.conditions ?? [{ field: "", type: "contains", value: "" }]
+  );
+
+  const fields = getFieldsForTarget(target);
+
+  const handleAddCondition = () => {
+    setConditions([...conditions, { field: fields[0]?.key ?? "", type: "contains", value: "" }]);
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setConditions(conditions.filter((_, i) => i !== index));
+  };
+
+  const handleConditionChange = (index: number, partial: Partial<Condition>) => {
+    setConditions(conditions.map((c, i) => (i === index ? { ...c, ...partial } : c)));
+  };
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    const saved: Rule = {
+      id: rule?.id ?? `rule-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim(),
+      target,
+      conditions: conditions.filter((c) => c.value.trim()),
+      severity,
+      family: family.trim(),
+      enabled: rule?.enabled ?? true,
+    };
+    onSave(saved);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? t("workspace.rules.edit-rule") : t("workspace.rules.add-rule")}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">{t("workspace.rules.rule-name")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">{t("workspace.rules.target")}</Label>
+              <Select value={target} onValueChange={(v) => { setTarget(v as RuleTarget); setConditions([{ field: getFieldsForTarget(v as RuleTarget)[0]?.key ?? "", type: "contains", value: "" }]); }}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TARGETS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">{t("workspace.rules.severity")}</Label>
+              <Select value={severity} onValueChange={(v) => setSeverity(v as Severity)}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">{t("workspace.rules.family")}</Label>
+              <Input value={family} onChange={(e) => setFamily(e.target.value)} className="mt-1" />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">{t("workspace.rules.conditions")}</Label>
+              <Button variant="ghost" size="sm" onClick={handleAddCondition}>
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {t("workspace.rules.add-condition")}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {conditions.map((cond, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <Select value={cond.field} onValueChange={(v) => handleConditionChange(i, { field: v })}>
+                    <SelectTrigger className="w-28 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fields.map((f) => (
+                        <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={cond.type} onValueChange={(v) => handleConditionChange(i, { type: v as ConditionType })}>
+                    <SelectTrigger className="w-24 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONDITION_TYPES.map((ct) => (
+                        <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={cond.value}
+                    onChange={(e) => handleConditionChange(i, { value: e.target.value })}
+                    placeholder={t("workspace.rules.value-placeholder")}
+                    className="flex-1 h-7 text-xs"
+                  />
+                  <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleRemoveCondition(i)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={handleSave} disabled={!name.trim() || conditions.every((c) => !c.value.trim())}>
+            {t("common.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
