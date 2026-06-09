@@ -35,7 +35,7 @@ export function alertKey(a: { id: number; timestamp: number }): string {
 
 // Route mapping: event_type → page
 const NETWORK_EVENT_TYPES = new Set([
-  "dns", "dns_client", "dns_pcap", "tls_sni", "network_connect",
+  "dns", "dns_client", "dns_pcap", "tls_sni", "network_connect", "network_monitor",
 ]);
 
 function getPageForEventType(eventType: string): string {
@@ -109,10 +109,13 @@ export async function setupAlertListener() {
       }).catch(() => {});
     }
 
-    // Show and focus main window
+    // Show and focus main window (bring to front even when minimized or behind other windows)
     const win = getCurrentWindow();
-    win.show().catch(() => {});
-    win.setFocus().catch(() => {});
+    win.setAlwaysOnTop(true)
+      .then(() => win.show())
+      .then(() => win.setFocus())
+      .then(() => win.setAlwaysOnTop(false))
+      .catch(() => {});
 
     // Open alert panel and highlight
     const state = useAlertStore.getState();
@@ -130,13 +133,15 @@ export async function setupAlertListener() {
       const processName = (() => {
         try {
           const r = JSON.parse(alert.raw_json);
-          return r.process_id ? `${alert.process_name} (${r.process_id})` : alert.process_name;
+          const pid = r.process_id || r.pid;
+          return pid ? `${alert.process_name} (${pid})` : alert.process_name;
         } catch { return alert.process_name; }
       })();
       const protocol = (() => {
         try {
           const r = JSON.parse(alert.raw_json);
           if (r.protocol) return r.protocol.toUpperCase();
+          if (r.proto) return r.proto.toUpperCase();
           if (r.event_kind === "tls_sni") return "TCP";
           if (r.event_kind === "dns_query") return "UDP";
           return "";
@@ -148,6 +153,17 @@ export async function setupAlertListener() {
           const r = JSON.parse(alert.raw_json);
           if (r.source_ip) return `${r.source_ip}${r.source_port ? `:${r.source_port}` : ""}`;
           if (r.src_ip) return `${r.src_ip}${r.src_port ? `:${r.src_port}` : ""}`;
+          if (r.local?.addr) return `${r.local.addr}${r.local.port ? `:${r.local.port}` : ""}`;
+          return "";
+        } catch { return ""; }
+      })();
+      // Extract remote_addr from raw_json
+      const remoteAddr = (() => {
+        try {
+          const r = JSON.parse(alert.raw_json);
+          if (r.destination_ip) return `${r.destination_ip}${r.destination_port ? `:${r.destination_port}` : ""}`;
+          if (r.dst_ip) return `${r.dst_ip}${r.dst_port ? `:${r.dst_port}` : ""}`;
+          if (r.remote?.addr) return `${r.remote.addr}${r.remote.port ? `:${r.remote.port}` : ""}`;
           return "";
         } catch { return ""; }
       })();
@@ -159,14 +175,17 @@ export async function setupAlertListener() {
         } catch { return ""; }
       })();
       invoke("cmd_show_alert_popup", {
-        ruleName: alert.rule_name,
-        keyField: alert.key_field,
-        eventType: alert.event_type,
-        processName,
-        protocol,
-        timestamp: alert.timestamp,
-        sourceAddr,
-        processChain,
+        params: {
+          rule_name: alert.rule_name,
+          key_field: alert.key_field,
+          event_type: alert.event_type,
+          process_name: processName,
+          protocol,
+          timestamp: alert.timestamp,
+          source_addr: sourceAddr || null,
+          remote_addr: remoteAddr || null,
+          process_chain: processChain || null,
+        },
       }).catch((e) => console.warn("Alert popup failed:", e));
     } catch (e) {
       console.warn("Alert popup failed:", e);

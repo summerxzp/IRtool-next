@@ -56,7 +56,7 @@ pub async fn test_feishu_webhook(webhook_url: &str) -> Result<(), IrError> {
 
 async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
     let time_str = chrono::DateTime::from_timestamp_millis(alert.timestamp)
-        .map(|dt| dt.format("%Y/%m/%d %H:%M:%S").to_string())
+        .map(|dt| dt.with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap()).format("%Y/%m/%d %H:%M:%S").to_string())
         .unwrap_or_default();
 
     let raw: Option<serde_json::Value> = serde_json::from_str(&alert.raw_json).ok();
@@ -116,6 +116,39 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
             if let Some(qtype) = raw.get("query_type").and_then(|v| v.as_str()) {
                 elements.push(single_div(&format!("**查询类型**: {}", qtype)));
             }
+        }
+    } else if alert.event_type == "network_monitor" {
+        // ---- Network Monitor 事件布局 (irtool-net-monitor) ----
+        // 第一行：协议 / 状态
+        let proto = raw.get("proto").and_then(|v| v.as_str()).unwrap_or("-").to_uppercase();
+        let state = raw.get("state").and_then(|v| v.as_str()).unwrap_or("-");
+        elements.push(column_set(
+            lark_md_col("**协议**", &proto),
+            lark_md_col("**状态**", state),
+        ));
+
+        // 第二行：源地址 / 目标地址
+        let local_addr = raw.get("local").and_then(|v| v.get("addr")).and_then(|v| v.as_str()).unwrap_or("-");
+        let local_port = raw.get("local").and_then(|v| v.get("port")).and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let remote_addr = raw.get("remote").and_then(|v| v.get("addr")).and_then(|v| v.as_str()).unwrap_or("-");
+        let remote_port = raw.get("remote").and_then(|v| v.get("port")).and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        elements.push(column_set(
+            lark_md_col("**源地址**", &format!("{}{}", local_addr, local_port)),
+            lark_md_col("**目标地址**", &format!("{}{}", remote_addr, remote_port)),
+        ));
+
+        // 第三行：时间 / 进程
+        let pid = raw.get("pid").and_then(|v| v.as_u64()).map(|p| format!(" ({})", p)).unwrap_or_default();
+        let proc_name = raw.get("process_name").and_then(|v| v.as_str()).unwrap_or("-");
+        let proc_display = format!("{}{}", proc_name, pid);
+        elements.push(column_set(
+            lark_md_col("**时间**", &time_str),
+            lark_md_col("**进程**", &proc_display),
+        ));
+
+        // 路径（全宽）
+        if let Some(path) = raw.get("process_path").and_then(|v| v.as_str()) {
+            elements.push(single_div(&format!("**路径**\n{}", path)));
         }
     } else {
         // ---- Sysmon 事件布局 ----

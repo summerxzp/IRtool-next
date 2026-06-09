@@ -22,9 +22,13 @@
   "status": {
     "admin": "Admin",
     "non-admin": "Non-admin",
+    "network-monitoring": "Network Monitoring",
+    "network-idle": "Network Idle",
+    "sysmon-collecting": "Sysmon Collecting",
     "sysmon-installed": "Sysmon installed",
-    "sysmon-running": "Sysmon running",
-    "sysmon-not-installed": "Sysmon not installed"
+    "sysmon-not-installed": "Sysmon not installed",
+    "autoruns-scanned": "Autoruns Scanned",
+    "autoruns-not-scanned": "Autoruns Not Scanned"
   },
   "common": {
     "loading": "Loading…",
@@ -339,11 +343,43 @@
   "settings": {
     "title": "Settings",
     "tabs": {
+      "alert-rules": "Alert Rules",
       "notification": "Notification",
-      "data-source": "Data Sources"
+      "database": "Database Storage",
+      "data-source": "Data Sources",
+      "import-export": "Import / Export"
+    },
+    "alert-rules": {
+      "title": "Alert Rules",
+      "add": "Add Rule",
+      "empty": "No alert rules yet, click to add",
+      "rule-name": "Rule Name",
+      "targets-placeholder": "e.g.: evil.com, *.malware.net, 10.0.0.0/8",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     },
     "notification": {
-      "title": "Alert Notification Rules"
+      "title": "Notification Config",
+      "popup": "Popup Notification",
+      "feishu": "Feishu Notification",
+      "select-all": "Select All",
+      "deselect-all": "Deselect All",
+      "webhook-url": "Webhook URL",
+      "test": "Test",
+      "no-rules": "No rules available",
+      "popup-duration": "Popup Duration",
+      "popup-duration-hint": "seconds, 0 = no auto-close"
+    },
+    "database": {
+      "title": "Database Storage Configuration",
+      "retention-days": "Retention Days",
+      "retention-days-hint": "0 = keep forever",
+      "max-size": "Size Limit",
+      "max-size-hint": ", 0 = no limit",
+      "load-limit": "Load Limit",
+      "load-limit-hint": "Number of events loaded from database per query",
+      "db-path": "Storage Path",
+      "db-path-placeholder": "Leave empty for default path"
     },
     "data-source": {
       "title": "Data Source Configuration",
@@ -358,7 +394,17 @@
       "pcap-stopped": "Capture stopped"
     },
     "save-success": "Saved successfully",
-    "save-failed": "Save failed"
+    "save-failed": "Save failed",
+    "import-export": {
+      "title": "Import / Export",
+      "desc": "Export all configurations (alert rules, notification settings, database config, workspace rules), or import from a file to restore.",
+      "export": "Export Config",
+      "import": "Import Config",
+      "export-success": "Export successful",
+      "export-failed": "Export failed",
+      "import-success": "Import successful, some settings may require restart",
+      "import-failed": "Import failed: invalid file format"
+    }
   },
   "workspace": {
     "toolbar": {
@@ -451,6 +497,8 @@
       "add-condition": "Add Condition",
       "field": "Field",
       "value-placeholder": "Match value",
+      "ioc-placeholder": "One IP/domain per line",
+      "apply": "Apply",
       "import-failed": "Import failed: invalid format"
     }
   }

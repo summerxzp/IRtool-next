@@ -441,9 +441,9 @@ async cmdPcapIsRunning() : Promise<Result<boolean, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async cmdShowAlertPopup(ruleName: string, keyField: string, eventType: string, processName: string, protocol: string, timestamp: number, sourceAddr: string | null, processChain: string | null) : Promise<Result<null, string>> {
+async cmdShowAlertPopup(params: AlertPopupParams) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cmd_show_alert_popup", { ruleName, keyField, eventType, processName, protocol, timestamp, sourceAddr, processChain }) };
+    return { status: "ok", data: await TAURI_INVOKE("cmd_show_alert_popup", { params }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -465,6 +465,7 @@ async cmdShowAlertPopup(ruleName: string, keyField: string, eventType: string, p
  * 告警记录
  */
 export type Alert = { id: number; timestamp: number; rule_name: string; event_type: string; process_name: string; key_field: string; action_taken: string; raw_json: string }
+export type AlertPopupParams = { rule_name: string; key_field: string; event_type: string; process_name: string; protocol: string; timestamp: number; source_addr: string | null; remote_addr: string | null; process_chain: string | null }
 export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
@@ -511,9 +512,17 @@ enable_dns_pcap: boolean;
 /**
  * 每次从数据库加载多少条记录（供前端review使用）
  */
-load_limit: number }
+load_limit: number; 
 /**
- * 监控事件的统一轻量模型，从各采集模块转换而来
+ * 数据库最大大小（MB），0=不限制
+ */
+max_size_mb?: number; 
+/**
+ * 通知配置（与告警规则分离）
+ */
+notify_config?: NotifyConfig }
+/**
+ * 生成唯一 ID（基于时间戳和名称哈希）
  */
 export type MonitorEvent = { 
 /**
@@ -547,7 +556,11 @@ raw_json: string }
 /**
  * 监控规则
  */
-export type MonitorRule = { name: string; 
+export type MonitorRule = { 
+/**
+ * 规则唯一 ID（用于关联通知配置）
+ */
+id: string; name: string; 
 /**
  * 匹配目标：域名（支持 *.suffix 通配）or IP or CIDR
  */
@@ -557,10 +570,6 @@ targets: string[];
  */
 event_types: string[]; 
 /**
- * 通知方式
- */
-actions: NotifyAction[]; 
-/**
  * 是否启用
  */
 enabled: boolean }
@@ -568,7 +577,26 @@ export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
 export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
-export type NotifyAction = "popup" | { feishu: { webhook_url: string } }
+/**
+ * 通知配置（与告警规则分离）
+ */
+export type NotifyConfig = { 
+/**
+ * 触发弹窗的规则 ID 列表
+ */
+popup_rule_ids: string[]; 
+/**
+ * 触发飞书的规则 ID 列表
+ */
+feishu_rule_ids: string[]; 
+/**
+ * 飞书 Webhook URL
+ */
+feishu_webhook_url: string; 
+/**
+ * 弹窗显示时长（秒），0 = 不自动关闭
+ */
+popup_duration_secs?: number }
 /**
  * pcap 配置
  */

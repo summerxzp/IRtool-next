@@ -121,9 +121,9 @@ impl MonitorEngine {
     /// 处理一条 MonitorEvent
     pub async fn process_monitor_event(&self, event: &MonitorEvent) -> Vec<Alert> {
         // 在锁内提取所需数据，确保 MutexGuard 不跨 .await
-        let (rules, background_mode, persist_event_types) = {
+        let (rules, background_mode, persist_event_types, notify_config) = {
             let config = self.config.lock();
-            (config.rules.clone(), config.background_mode, config.persist_event_types.clone())
+            (config.rules.clone(), config.background_mode, config.persist_event_types.clone(), config.notify_config.clone())
         };
 
         let mut alerts = Vec::new();
@@ -149,6 +149,21 @@ impl MonitorEngine {
                     continue;
                 }
 
+                // 根据 rule.id 在 notify_config 中查找通知方式
+                let mut actions = Vec::new();
+                let mut action_taken_parts = Vec::new();
+
+                if notify_config.popup_rule_ids.contains(&rule.id) {
+                    actions.push(NotifyAction::Popup);
+                    action_taken_parts.push("popup");
+                }
+                if notify_config.feishu_rule_ids.contains(&rule.id) {
+                    actions.push(NotifyAction::Feishu { webhook_url: notify_config.feishu_webhook_url.clone() });
+                    action_taken_parts.push("feishu");
+                }
+
+                let action_taken = action_taken_parts.join(",");
+
                 let mut alert = Alert {
                     id: 0,
                     timestamp: event.timestamp,
@@ -156,10 +171,7 @@ impl MonitorEngine {
                     event_type: event.event_type.clone(),
                     process_name: event.process_name.clone(),
                     key_field: event.key_field.clone(),
-                    action_taken: rule.actions.iter().map(|a| match a {
-                        NotifyAction::Popup => "popup".to_string(),
-                        NotifyAction::Feishu { .. } => "feishu".to_string(),
-                    }).collect::<Vec<_>>().join(","),
+                    action_taken,
                     raw_json: event.raw_json.clone(),
                 };
 
@@ -171,7 +183,7 @@ impl MonitorEngine {
                 }
 
                 // 发送通知
-                notify::send_notification(&alert, &rule.actions).await;
+                notify::send_notification(&alert, &actions).await;
                 alerts.push(alert);
             }
         }

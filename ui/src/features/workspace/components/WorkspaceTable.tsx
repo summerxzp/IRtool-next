@@ -96,13 +96,13 @@ export function WorkspaceTable({ onRowSelect }: Props) {
   const handleRowClick = (key: string) => {
     switch (activeTab) {
       case "autoruns":
-        setSelectedAutorunId(Number(key));
+        setSelectedAutorunId(selectedAutorunId != null && String(selectedAutorunId) === key ? null : Number(key));
         break;
       case "network":
-        setSelectedNetworkKey(key);
+        setSelectedNetworkKey(selectedNetworkKey === key ? null : key);
         break;
       case "events":
-        setSelectedEventKey(key);
+        setSelectedEventKey(selectedEventKey === key ? null : key);
         break;
     }
     onRowSelect(key);

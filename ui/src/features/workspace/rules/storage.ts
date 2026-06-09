@@ -2,6 +2,8 @@ import type { Rule, ConditionType, Severity, RuleTarget } from "../types";
 import { DEFAULT_RULES } from "./default-rules";
 
 const STORAGE_KEY = "irtool-workspace-rules";
+const VERSION_KEY = "irtool-workspace-rules-version";
+const CURRENT_VERSION = 2; // Bump when default rules change and should be merged
 
 const VALID_CONDITION_TYPES: ConditionType[] = ["contains", "regex", "equals"];
 const VALID_SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];
@@ -38,7 +40,21 @@ export function loadRules(): Rule[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [...DEFAULT_RULES];
     const valid = parsed.filter(isValidRule);
-    return valid.length > 0 ? valid : [...DEFAULT_RULES];
+    if (valid.length === 0) return [...DEFAULT_RULES];
+
+    // Merge new default rules if version bumped
+    const savedVersion = parseInt(localStorage.getItem(VERSION_KEY) ?? "0", 10);
+    if (savedVersion < CURRENT_VERSION) {
+      const existingIds = new Set(valid.map((r) => r.id));
+      const newDefaults = DEFAULT_RULES.filter((r) => !existingIds.has(r.id));
+      if (newDefaults.length > 0) {
+        valid.push(...newDefaults);
+        saveRules(valid);
+      }
+      localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
+    }
+
+    return valid;
   } catch {
     return [...DEFAULT_RULES];
   }

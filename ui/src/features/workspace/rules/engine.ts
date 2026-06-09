@@ -5,20 +5,27 @@ import type { Condition, Rule, RuleTarget } from "../types";
 
 // --- Condition evaluation ---
 
+/** Match a single value against a condition. Supports multi-line condition values (one per line, any match). */
 export function matchCondition(value: unknown, condition: Condition): boolean {
   const str = value == null ? "" : String(value);
-  switch (condition.type) {
+  const lines = condition.value.split("\n").filter((l) => l.trim());
+  if (lines.length === 0) return false;
+  return lines.some((line) => matchSingleLine(str, line.trim(), condition.type));
+}
+
+function matchSingleLine(str: string, pattern: string, type: Condition["type"]): boolean {
+  switch (type) {
     case "contains":
-      return str.includes(condition.value);
+      return str.includes(pattern);
     case "regex": {
       try {
-        return new RegExp(condition.value, "i").test(str);
+        return new RegExp(pattern, "i").test(str);
       } catch {
         return false;
       }
     }
     case "equals":
-      return str === condition.value;
+      return str === pattern;
   }
 }
 
@@ -123,10 +130,13 @@ function matchesRule(
   getField: (field: string) => unknown,
   rule: Rule,
 ): boolean {
-  return rule.conditions.every((cond) => {
+  const check = (cond: Condition) => {
     const value = getField(cond.field);
     return matchCondition(value, cond);
-  });
+  };
+  return rule.logic === "or"
+    ? rule.conditions.some(check)
+    : rule.conditions.every(check);
 }
 
 function filterRules(rules: Rule[], target: RuleTarget): Rule[] {

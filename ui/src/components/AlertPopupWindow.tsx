@@ -5,10 +5,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 type PopupData = {
   rule_name: string;
   key_field: string;
+  event_type?: string;
   source_addr?: string;
+  remote_addr?: string;
+  protocol?: string;
   process_chain?: string;
   action_taken?: string;
   timestamp: string;
+  duration_secs?: number;
 };
 
 export default function AlertPopupWindow() {
@@ -29,9 +33,12 @@ export default function AlertPopupWindow() {
       // Show the window now that content is ready — avoids white flash
       getCurrentWindow().show().catch(() => {});
       if (dismissTimer) clearTimeout(dismissTimer);
-      dismissTimer = setTimeout(() => {
-        getCurrentWindow().close().catch(() => {});
-      }, 8000);
+      const duration = (event.payload.duration_secs ?? 10) * 1000;
+      if (duration > 0) {
+        dismissTimer = setTimeout(() => {
+          getCurrentWindow().close().catch(() => {});
+        }, duration);
+      }
     });
 
     const unlistenDismiss = listen("evt_dismiss_alert_popup", () => {
@@ -50,7 +57,10 @@ export default function AlertPopupWindow() {
   const handleClick = () => {
     if (popup) {
       import("@tauri-apps/api/event").then(({ emit }) => {
-        emit("evt_alert_popup_clicked", { alert_key: popup.key_field }).catch(() => {});
+        emit("evt_alert_popup_clicked", {
+          alert_key: popup.key_field,
+          event_type: (popup as Record<string, unknown>).event_type as string | undefined,
+        }).catch(() => {});
       });
       getCurrentWindow().close().catch(() => {});
     }
@@ -155,6 +165,16 @@ export default function AlertPopupWindow() {
             {popup.source_addr && (
               <div style={{ fontSize: "11px", color: "var(--fg-tertiary)" }}>
                 源地址: {popup.source_addr}
+              </div>
+            )}
+            {popup.remote_addr && (
+              <div style={{ fontSize: "11px", color: "var(--fg-tertiary)" }}>
+                目标地址: {popup.remote_addr}
+              </div>
+            )}
+            {popup.protocol && (
+              <div style={{ fontSize: "11px", color: "var(--fg-tertiary)" }}>
+                协议: {popup.protocol}
               </div>
             )}
             {popup.process_chain && (

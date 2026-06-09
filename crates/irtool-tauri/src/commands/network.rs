@@ -1,6 +1,7 @@
-use crate::events::{EVT_NETWORK_ERROR, EVT_NETWORK_SNAPSHOT};
+use crate::events::{EVT_MONITOR_ALERT, EVT_NETWORK_ERROR, EVT_NETWORK_SNAPSHOT};
 use crate::state::AppState;
 use irtool_core::IrError;
+use irtool_monitor::{EventSource, MonitorEvent};
 use irtool_net_monitor::{kill_process, NetCollector, NetConn, RetentionPolicy};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -148,10 +149,21 @@ async fn run_polling_loop(
                 match snap {
                     Ok(Ok(items)) => {
                         let ret = *retention.lock();
+                        let now_secs = irtool_net_monitor::types::now_epoch_secs();
                         let merged = history.merge(items, ret);
+                        // 将新增连接（first_seen == now）转发到告警引擎
+                        for conn in &merged {
+                            if conn.first_seen == now_secs {
+                                let monitor_event = netconn_to_monitor_event(conn);
+                                let alerts = monitor_engine.lock().await.process_monitor_event(&monitor_event).await;
+                                for alert in &alerts {
+                                    let _ = app.emit(EVT_MONITOR_ALERT, alert);
+                                }
+                            }
+                        }
                         let payload = NetworkSnapshotPayload {
                             items: merged,
-                            timestamp: irtool_net_monitor::types::now_epoch_secs(),
+                            timestamp: now_secs,
                         };
                         // 只在非后台模式时 emit network 事件到前端
                         let is_background = monitor_engine.lock().await.is_background_mode();
@@ -189,4 +201,17 @@ pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         run_polling_loop(collector, history, shared_retention, app_clone, interval, token, monitor_engine).await;
     });
+}
+
+/// NetConn → MonitorEvent 转换
+fn netconn_to_monitor_event(conn: &NetConn) -> MonitorEvent {
+    MonitorEvent {
+        id: 0,
+        timestamp: (conn.first_seen as i64) * 1000,
+        source: EventSource::NetMonitor,
+        event_type: "network_monitor".to_string(),
+        process_name: conn.process_name.clone().unwrap_or_default(),
+        key_field: format!("{}:{}", conn.remote.addr, conn.remote.port),
+        raw_json: serde_json::to_string(&conn).unwrap_or_default(),
+    }
 }

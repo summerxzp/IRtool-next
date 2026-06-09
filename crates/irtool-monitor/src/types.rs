@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// 监控事件的统一轻量模型，从各采集模块转换而来
+/// 生成唯一 ID（基于时间戳和名称哈希）
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MonitorEvent {
     /// 数据库记录 ID（由 SQLite 自动生成），仅查询 DB 时有值，采集时始终为 0
@@ -32,13 +32,13 @@ pub enum EventSource {
 /// 监控规则
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MonitorRule {
+    /// 规则唯一 ID（用于关联通知配置）
+    pub id: String,
     pub name: String,
     /// 匹配目标：域名（支持 *.suffix 通配）or IP or CIDR
     pub targets: Vec<String>,
     /// 只匹配哪些事件类型，空=全部
     pub event_types: Vec<String>,
-    /// 通知方式
-    pub actions: Vec<NotifyAction>,
     /// 是否启用
     pub enabled: bool,
 }
@@ -48,6 +48,35 @@ pub struct MonitorRule {
 pub enum NotifyAction {
     Popup,
     Feishu { webhook_url: String },
+}
+
+/// 通知配置（与告警规则分离）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct NotifyConfig {
+    /// 触发弹窗的规则 ID 列表
+    pub popup_rule_ids: Vec<String>,
+    /// 触发飞书的规则 ID 列表
+    pub feishu_rule_ids: Vec<String>,
+    /// 飞书 Webhook URL
+    pub feishu_webhook_url: String,
+    /// 弹窗显示时长（秒），0 = 不自动关闭
+    #[serde(default = "default_popup_duration")]
+    pub popup_duration_secs: u32,
+}
+
+fn default_popup_duration() -> u32 {
+    10
+}
+
+impl Default for NotifyConfig {
+    fn default() -> Self {
+        Self {
+            popup_rule_ids: vec![],
+            feishu_rule_ids: vec![],
+            feishu_webhook_url: String::new(),
+            popup_duration_secs: 10,
+        }
+    }
 }
 
 /// 告警记录
@@ -82,6 +111,16 @@ pub struct MonitorConfig {
     pub enable_dns_pcap: bool,
     /// 每次从数据库加载多少条记录（供前端review使用）
     pub load_limit: u32,
+    /// 数据库最大大小（MB），0=不限制
+    #[serde(default = "default_max_size_mb")]
+    pub max_size_mb: u32,
+    /// 通知配置（与告警规则分离）
+    #[serde(default)]
+    pub notify_config: NotifyConfig,
+}
+
+fn default_max_size_mb() -> u32 {
+    512
 }
 
 impl Default for MonitorConfig {
@@ -95,6 +134,15 @@ impl Default for MonitorConfig {
             enable_sni: true,
             enable_dns_pcap: true,
             load_limit: 1000,
+            max_size_mb: 512,
+            notify_config: NotifyConfig::default(),
         }
     }
+}
+
+/// 生成唯一 ID（基于时间戳和名称）
+pub fn generate_rule_id(name: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    format!("{}:{}:{}", duration.as_nanos(), name, std::process::id())
 }

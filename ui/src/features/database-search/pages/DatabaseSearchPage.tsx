@@ -12,7 +12,7 @@ import { useDbSearchStore, type DbSearchEvent } from "../store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
-type EventSource = "sysmon" | "dns_client" | "pcap" | "all";
+type EventSource = "sysmon" | "dns_client" | "pcap" | "net_monitor" | "all";
 
 // --- 独立的事件表格组件 ---
 function DbEventTable({ events }: { events: DbSearchEvent[] }) {
@@ -306,6 +306,7 @@ export default function DatabaseSearchPage() {
               <SelectItem value="sysmon">Sysmon</SelectItem>
               <SelectItem value="dns_client">DNS Client</SelectItem>
               <SelectItem value="pcap">Pcap</SelectItem>
+              <SelectItem value="net_monitor">网络监控</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -320,6 +321,7 @@ export default function DatabaseSearchPage() {
               <SelectItem value="dns">DNS</SelectItem>
               <SelectItem value="dns_client">DNS Client</SelectItem>
               <SelectItem value="network_connect">网络连接</SelectItem>
+              <SelectItem value="network_monitor">网络监控</SelectItem>
               <SelectItem value="create_remote_thread">远程线程</SelectItem>
               <SelectItem value="file_create">文件创建</SelectItem>
               <SelectItem value="tls_sni">TLS SNI</SelectItem>

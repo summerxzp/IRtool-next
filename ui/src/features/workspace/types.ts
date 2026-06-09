@@ -21,6 +21,7 @@ export interface Rule {
   name: string;
   target: RuleTarget;
   conditions: Condition[];
+  logic?: "and" | "or";
   severity: Severity;
   family: string;
   enabled: boolean;

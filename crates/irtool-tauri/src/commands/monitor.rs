@@ -162,29 +162,39 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 static POPUP_COUNT: AtomicU32 = AtomicU32::new(0);
 
+#[derive(serde::Deserialize, specta::Type)]
+pub struct AlertPopupParams {
+    pub rule_name: String,
+    pub key_field: String,
+    pub event_type: String,
+    pub process_name: String,
+    pub protocol: String,
+    pub timestamp: i64,
+    pub source_addr: Option<String>,
+    pub remote_addr: Option<String>,
+    pub process_chain: Option<String>,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_show_alert_popup(
     app: tauri::AppHandle,
-    rule_name: String,
-    key_field: String,
-    event_type: String,
-    process_name: String,
-    protocol: String,
-    timestamp: i64,
-    source_addr: Option<String>,
-    process_chain: Option<String>,
+    state: State<'_, AppState>,
+    params: AlertPopupParams,
 ) -> Result<(), String> {
+    let popup_duration = state.monitor_engine.lock().await.get_config().notify_config.popup_duration_secs;
     show_alert_popup_window(
         &app,
-        &rule_name,
-        &key_field,
-        &event_type,
-        &process_name,
-        &protocol,
-        timestamp,
-        source_addr.as_deref().unwrap_or(""),
-        process_chain.as_deref().unwrap_or(""),
+        &params.rule_name,
+        &params.key_field,
+        &params.event_type,
+        &params.process_name,
+        &params.protocol,
+        params.timestamp,
+        params.source_addr.as_deref().unwrap_or(""),
+        params.remote_addr.as_deref().unwrap_or(""),
+        params.process_chain.as_deref().unwrap_or(""),
+        popup_duration,
     )
     .map_err(|e| e.to_string())
 }
@@ -198,7 +208,9 @@ fn show_alert_popup_window(
     protocol: &str,
     timestamp: i64,
     source_addr: &str,
+    remote_addr: &str,
     process_chain: &str,
+    popup_duration_secs: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -264,6 +276,7 @@ fn show_alert_popup_window(
     let process_name = process_name.to_string();
     let protocol = protocol.to_string();
     let source_addr = source_addr.to_string();
+    let remote_addr = remote_addr.to_string();
     let process_chain = process_chain.to_string();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -279,24 +292,28 @@ fn show_alert_popup_window(
                 "protocol": protocol,
                 "timestamp": timestamp,
                 "source_addr": source_addr,
+                "remote_addr": remote_addr,
                 "process_chain": process_chain,
+                "duration_secs": popup_duration_secs,
             }),
         );
     });
 
-    // Auto-close after 30 seconds
-    let app_clone = app.clone();
-    let label_clone = label.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(30));
-        // Signal the popup to animate out
-        let _ = app_clone.emit_to(&label_clone, "evt_close_alert_popup", ());
-        // Give animation time, then close the window
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        if let Some(win) = app_clone.get_webview_window(&label_clone) {
-            let _ = win.close();
-        }
-    });
+    // Auto-close after configured duration (0 = no auto-close)
+    if popup_duration_secs > 0 {
+        let app_clone = app.clone();
+        let label_clone = label.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(popup_duration_secs as u64));
+            // Signal the popup to animate out
+            let _ = app_clone.emit_to(&label_clone, "evt_close_alert_popup", ());
+            // Give animation time, then close the window
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            if let Some(win) = app_clone.get_webview_window(&label_clone) {
+                let _ = win.close();
+            }
+        });
+    }
 
     Ok(())
 }

@@ -22,9 +22,13 @@
   "status": {
     "admin": "管理员",
     "non-admin": "非管理员",
+    "network-monitoring": "网络监测中",
+    "network-idle": "网络未运行",
+    "sysmon-collecting": "Sysmon 采集中",
     "sysmon-installed": "Sysmon 已安装",
-    "sysmon-running": "Sysmon 运行中",
-    "sysmon-not-installed": "Sysmon 未安装"
+    "sysmon-not-installed": "Sysmon 未安装",
+    "autoruns-scanned": "持久化已扫描",
+    "autoruns-not-scanned": "持久化未扫描"
   },
   "common": {
     "loading": "加载中…",
@@ -339,11 +343,43 @@
   "settings": {
     "title": "设置",
     "tabs": {
+      "alert-rules": "告警规则",
       "notification": "通知配置",
-      "data-source": "数据源"
+      "database": "数据库存储",
+      "data-source": "数据源",
+      "import-export": "导入导出"
+    },
+    "alert-rules": {
+      "title": "告警规则",
+      "add": "添加规则",
+      "empty": "暂无告警规则，点击添加",
+      "rule-name": "规则名称",
+      "targets-placeholder": "如: evil.com, *.malware.net, 10.0.0.0/8",
+      "enabled": "启用",
+      "disabled": "禁用"
     },
     "notification": {
-      "title": "告警通知规则"
+      "title": "通知配置",
+      "popup": "弹窗通知",
+      "feishu": "飞书通知",
+      "select-all": "全选",
+      "deselect-all": "取消全选",
+      "webhook-url": "Webhook URL",
+      "test": "测试",
+      "no-rules": "暂无可用规则",
+      "popup-duration": "弹窗时长",
+      "popup-duration-hint": "秒，0 = 不自动关闭"
+    },
+    "database": {
+      "title": "数据库存储配置",
+      "retention-days": "保留天数",
+      "retention-days-hint": "0 = 永久保留",
+      "max-size": "大小限制",
+      "max-size-hint": "，0 = 不限制",
+      "load-limit": "加载条数",
+      "load-limit-hint": "每次从数据库加载的事件数量",
+      "db-path": "存储路径",
+      "db-path-placeholder": "留空使用默认路径"
     },
     "data-source": {
       "title": "数据源配置",
@@ -358,7 +394,17 @@
       "pcap-stopped": "抓包已停止"
     },
     "save-success": "保存成功",
-    "save-failed": "保存失败"
+    "save-failed": "保存失败",
+    "import-export": {
+      "title": "导入导出",
+      "desc": "导出所有配置（告警规则、通知配置、数据库配置、工作台规则），或从文件导入恢复。",
+      "export": "导出配置",
+      "import": "导入配置",
+      "export-success": "导出成功",
+      "export-failed": "导出失败",
+      "import-success": "导入成功，部分配置需重启生效",
+      "import-failed": "导入失败：文件格式无效"
+    }
   },
   "workspace": {
     "toolbar": {
@@ -451,6 +497,8 @@
       "add-condition": "添加条件",
       "field": "字段",
       "value-placeholder": "匹配值",
+      "ioc-placeholder": "每行一个 IP/域名",
+      "apply": "应用",
       "import-failed": "导入失败：格式无效"
     }
   }

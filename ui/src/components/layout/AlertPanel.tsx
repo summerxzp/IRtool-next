@@ -7,6 +7,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   dns: "DNS查询",
   dns_client: "DNS-Client",
   network_connect: "网络连接",
+  network_monitor: "网络监控",
   tls_sni: "TLS SNI",
   dns_pcap: "DNS抓包",
   create_remote_thread: "远程线程",
@@ -30,8 +31,23 @@ function parseRawJson(raw: string): DetailRow[] {
     const isPcap = "event_kind" in v && ("domain" in v || "src_ip" in v);
     const isDns = !isPcap && "query_name" in v;
     const isNetwork = !isPcap && !isDns && ("source_ip" in v || "protocol" in v);
+    const isNetMonitor = !isPcap && !isDns && !isNetwork && ("local" in v || "remote" in v);
 
-    if (isNetwork) {
+    if (isNetMonitor) {
+      // Network monitor (irtool-net-monitor) event
+      const local = v.local as { addr?: string; port?: number };
+      const remote = v.remote as { addr?: string; port?: number };
+      if (local?.addr)
+        rows.push({ type: "full", cell: { label: "源地址", value: `${local.addr}${local.port ? `:${local.port}` : ""}` } });
+      if (remote?.addr)
+        rows.push({ type: "full", cell: { label: "目标地址", value: `${remote.addr}${remote.port ? `:${remote.port}` : ""}` } });
+      if (v.proto)
+        rows.push({ type: "two-col", left: { label: "协议", value: String(v.proto).toUpperCase() }, right: { label: "状态", value: String(v.state ?? "-") } });
+      if (v.process_name || v.pid)
+        rows.push({ type: "two-col", left: { label: "进程", value: `${v.process_name || "-"}${v.pid ? ` (${v.pid})` : ""}` }, right: { label: "PID", value: String(v.pid ?? "-") } });
+      if (v.process_path)
+        rows.push({ type: "full", cell: { label: "路径", value: String(v.process_path) } });
+    } else if (isNetwork) {
       // Sysmon network_connect
       if (v.source_ip)
         rows.push({
@@ -86,7 +102,7 @@ function parseRawJson(raw: string): DetailRow[] {
     } else {
       // Fallback: show all key-value pairs
       for (const [key, val] of Object.entries(v)) {
-        if (val !== undefined && val !== null && val !== "") {
+        if (val !== undefined && val !== null && val !== "" && typeof val !== "object") {
           rows.push({ type: "full", cell: { label: key, value: String(val) } });
         }
       }
@@ -135,7 +151,9 @@ export function AlertPanel({ onClose }: Props) {
   }, [highlightedAlertKey, setHighlightedAlertKey]);
 
   const formatTime = (ts: number) => {
-    return new Date(ts).toLocaleString();
+    // If timestamp is in seconds (less than year 3000 in ms), convert to ms
+    const ms = ts > 1e12 ? ts : ts * 1000;
+    return new Date(ms).toLocaleString();
   };
 
   const handleClear = () => {
@@ -227,6 +245,7 @@ export function AlertPanel({ onClose }: Props) {
                       try {
                         const raw = JSON.parse(alert.raw_json);
                         if (raw.protocol) return <>{` | ${raw.protocol.toUpperCase()}`}</>;
+                        if (raw.proto) return <>{` | ${raw.proto.toUpperCase()}`}</>;
                         if (raw.event_kind === "tls_sni") return <>{" | TCP"}</>;
                         if (raw.event_kind === "dns_query") return <>{" | UDP"}</>;
                       } catch {}
@@ -236,7 +255,8 @@ export function AlertPanel({ onClose }: Props) {
                       <>{` | ${alert.process_name}${(() => {
                         try {
                           const raw = JSON.parse(alert.raw_json);
-                          return raw.process_id ? ` (${raw.process_id})` : "";
+                          const pid = raw.process_id || raw.pid;
+                          return pid ? ` (${pid})` : "";
                         } catch { return ""; }
                       })()}`}</>
                     )}
