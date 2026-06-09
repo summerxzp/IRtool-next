@@ -397,6 +397,18 @@ async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Execute a system command and return its stdout output.
+ * Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).
+ */
+async cmdWorkspaceRunCommand(program: string, args: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_run_command", { program, args }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdPcapIsAvailable() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_available") };

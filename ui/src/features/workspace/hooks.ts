@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "./api";
 import { useWorkspaceStore } from "./store";
@@ -10,44 +11,64 @@ const QK_WORKSPACE_NETWORK = ["workspace", "network"] as const;
 
 /**
  * Fetch autorun items for workspace.
+ * Uses useEffect to sync query data into store, avoiding render-time side effects.
  */
 export function useWorkspaceAutoruns() {
   const setAutorunItems = useWorkspaceStore((s) => s.setAutorunItems);
-  return useQuery({
+  const query = useQuery({
     queryKey: QK_WORKSPACE_AUTORUNS,
     queryFn: async () => {
       const items = await api.getAutorunItems();
-      setAutorunItems(items);
       return items;
     },
-    staleTime: 0,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (query.data) {
+      setAutorunItems(query.data);
+    }
+  }, [query.data, setAutorunItems]);
+
+  return query;
 }
 
 /**
  * Fetch network snapshot for workspace.
+ * Uses useEffect to sync query data into store, avoiding render-time side effects.
  */
 export function useWorkspaceNetwork() {
   const setNetworkItems = useWorkspaceStore((s) => s.setNetworkItems);
-  return useQuery({
+  const query = useQuery({
     queryKey: QK_WORKSPACE_NETWORK,
     queryFn: async () => {
       const payload = await api.getNetworkSnapshot();
-      const items = payload.items;
-      setNetworkItems(items);
-      return items;
+      return payload.items;
     },
-    staleTime: 0,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (query.data) {
+      setNetworkItems(query.data);
+    }
+  }, [query.data, setNetworkItems]);
+
+  return query;
 }
 
 /**
- * Get log collector events from frontend store (no backend call needed).
+ * Sync log collector events into workspace store.
+ * Uses useEffect to avoid render-time side effects that cause infinite loops.
  */
 export function useWorkspaceEvents() {
   const setEventItems = useWorkspaceStore((s) => s.setEventItems);
   const events = useLogCollectorStore((s) => s.events);
-  setEventItems(events);
+
+  useEffect(() => {
+    setEventItems(events);
+  }, [events, setEventItems]);
+
   return events;
 }
 
@@ -73,28 +94,39 @@ export function useWorkspaceRefresh() {
 
 /**
  * Execute keyword search across all data sources.
- * Updates store with filtered sets.
+ * Uses getState() to avoid subscribing to the entire store.
  */
 export function useWorkspaceSearch() {
-  const store = useWorkspaceStore();
+  const setFilteredAutorunIds = useWorkspaceStore((s) => s.setFilteredAutorunIds);
+  const setFilteredNetworkKeys = useWorkspaceStore((s) => s.setFilteredNetworkKeys);
+  const setFilteredEventKeys = useWorkspaceStore((s) => s.setFilteredEventKeys);
+  const setSearchQuery = useWorkspaceStore((s) => s.setSearchQuery);
+
   return (query: string) => {
     const { autorunItems, networkItems, eventItems } = useWorkspaceStore.getState();
     const filteredAutorunIds = ruleEngine.searchAutoruns(autorunItems, query);
     const filteredNetworkKeys = ruleEngine.searchNetwork(networkItems, query);
     const filteredEventKeys = ruleEngine.searchEvents(eventItems, query);
-    store.setFilteredAutorunIds(filteredAutorunIds);
-    store.setFilteredNetworkKeys(filteredNetworkKeys);
-    store.setFilteredEventKeys(filteredEventKeys);
-    store.setSearchQuery(query);
+    setFilteredAutorunIds(filteredAutorunIds);
+    setFilteredNetworkKeys(filteredNetworkKeys);
+    setFilteredEventKeys(filteredEventKeys);
+    setSearchQuery(query);
   };
 }
 
 /**
  * Execute rule scan across all data sources.
- * Updates store with filtered sets and matched rules.
+ * Uses getState() to avoid subscribing to the entire store.
  */
 export function useWorkspaceRuleScan() {
-  const store = useWorkspaceStore();
+  const setFilteredAutorunIds = useWorkspaceStore((s) => s.setFilteredAutorunIds);
+  const setFilteredNetworkKeys = useWorkspaceStore((s) => s.setFilteredNetworkKeys);
+  const setFilteredEventKeys = useWorkspaceStore((s) => s.setFilteredEventKeys);
+  const setAutorunMatchedRules = useWorkspaceStore((s) => s.setAutorunMatchedRules);
+  const setNetworkMatchedRules = useWorkspaceStore((s) => s.setNetworkMatchedRules);
+  const setEventMatchedRules = useWorkspaceStore((s) => s.setEventMatchedRules);
+  const setSearchQuery = useWorkspaceStore((s) => s.setSearchQuery);
+
   return (rules: Rule[]) => {
     const { autorunItems, networkItems, eventItems } = useWorkspaceStore.getState();
     const autorunMatchedRules = ruleEngine.scanAutoruns(autorunItems, rules);
@@ -105,13 +137,13 @@ export function useWorkspaceRuleScan() {
     const filteredNetworkKeys = new Set(networkMatchedRules.keys());
     const filteredEventKeys = new Set(eventMatchedRules.keys());
 
-    store.setFilteredAutorunIds(filteredAutorunIds);
-    store.setFilteredNetworkKeys(filteredNetworkKeys);
-    store.setFilteredEventKeys(filteredEventKeys);
-    store.setAutorunMatchedRules(autorunMatchedRules);
-    store.setNetworkMatchedRules(networkMatchedRules);
-    store.setEventMatchedRules(eventMatchedRules);
-    store.setSearchQuery(`[规则扫描] ${rules.filter((r) => r.enabled).length} 条规则`);
+    setFilteredAutorunIds(filteredAutorunIds);
+    setFilteredNetworkKeys(filteredNetworkKeys);
+    setFilteredEventKeys(filteredEventKeys);
+    setAutorunMatchedRules(autorunMatchedRules);
+    setNetworkMatchedRules(networkMatchedRules);
+    setEventMatchedRules(eventMatchedRules);
+    setSearchQuery(`[规则扫描] ${rules.filter((r) => r.enabled).length} 条规则`);
   };
 }
 
