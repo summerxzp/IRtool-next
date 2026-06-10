@@ -280,6 +280,24 @@ impl MonitorEngine {
         }
     }
 
+    /// 清除所有事件
+    pub fn clear_events(&self) -> Result<u64, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.clear_events()
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// 获取事件类型统计
+    pub fn get_event_type_counts(&self) -> Result<Vec<(String, u64)>, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.get_event_type_counts()
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
     /// 获取事件总数
     pub fn get_event_count(&self) -> Result<u64, IrError> {
         if let Some(storage) = &self.storage {

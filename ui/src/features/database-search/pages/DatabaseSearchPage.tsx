@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Panel, Group, Separator } from "react-resizable-panels";
-import { Copy, X } from "lucide-react";
+import { Copy, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import * as api from "@/features/log-collector/api";
 import { monitorEventToSysmonEvent } from "@/features/log-collector/pages/LogCollectorPage";
 import { useDbSearchStore, type DbSearchEvent } from "../store";
@@ -227,6 +228,8 @@ export default function DatabaseSearchPage() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [loadLimit, setLoadLimit] = useState(1000);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   const { events, selectedEvent, setEvents, appendEvents, setSelectedEvent, totalCount, setTotalCount, clear } = useDbSearchStore();
 
@@ -244,7 +247,7 @@ export default function DatabaseSearchPage() {
   const doSearch = useCallback(async (newOffset = 0) => {
     setLoading(true);
     try {
-      const [dbEvents, count] = await Promise.all([
+      const [dbEvents, count, countsArr] = await Promise.all([
         api.monitorSearchEvents(
           source === "all" ? undefined : source,
           eventType === "all" ? undefined : eventType,
@@ -255,8 +258,12 @@ export default function DatabaseSearchPage() {
           newOffset,
         ),
         api.monitorGetEventCount(),
+        invoke<[string, number][]>("cmd_monitor_event_type_counts"),
       ]);
       setTotalCount(count);
+      const tc: Record<string, number> = {};
+      for (const [k, v] of countsArr) { tc[k] = v; }
+      setTypeCounts(tc);
       const convertedEvents = dbEvents.map(monitorEventToSysmonEvent);
       if (newOffset === 0) {
         setEvents(convertedEvents);
@@ -290,7 +297,26 @@ export default function DatabaseSearchPage() {
     clear();
     setOffset(0);
     setHasMore(false);
+    setTypeCounts({});
   }, [clear]);
+
+  const handleClear = useCallback(() => {
+    if (confirmClear) {
+      invoke("cmd_monitor_clear_events").then(() => {
+        clear();
+        setOffset(0);
+        setHasMore(false);
+        setConfirmClear(false);
+        setTypeCounts({});
+        toast.success("数据库已清空");
+      }).catch((e) => {
+        toast.error("清空数据库失败", { description: e instanceof Error ? e.message : "未知错误" });
+      });
+    } else {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 3000);
+    }
+  }, [confirmClear, clear]);
 
   return (
     <div className="flex flex-col h-full">
@@ -348,17 +374,16 @@ export default function DatabaseSearchPage() {
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={loading} className="h-7 text-xs">
             重置
           </Button>
+          <Button variant="ghost" size="sm" onClick={handleClear} disabled={loading} className="h-7 text-xs text-red-500 hover:text-red-600">
+            <Trash2 className="h-3 w-3 mr-1" />
+            {confirmClear ? "确认清空？" : "清空"}
+          </Button>
           {hasMore && (
             <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={loading} className="h-7 text-xs">
               加载更多
             </Button>
           )}
         </div>
-        {totalCount > 0 && (
-          <div className="flex items-center ml-auto text-xs text-fg-tertiary">
-            数据库共 {totalCount} 条记录
-          </div>
-        )}
       </div>
       <div className="flex-1 min-h-0">
         <Group orientation="horizontal">
@@ -374,6 +399,15 @@ export default function DatabaseSearchPage() {
             </>
           )}
         </Group>
+      </div>
+      <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-bg-elev-1 text-[10px] text-fg-tertiary">
+        <span>总计 {totalCount} 条</span>
+        {Object.entries(typeCounts).map(([type, count]) => (
+          <span key={type} className="flex items-center gap-0.5">
+            <span className="text-fg-secondary">{EVENT_TYPE_LABELS[type as ExtendedSysmonEventType] || type}</span>
+            <span>{count}</span>
+          </span>
+        ))}
       </div>
     </div>
   );

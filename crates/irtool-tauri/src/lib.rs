@@ -143,6 +143,8 @@ pub fn run() {
             cmd_monitor_get_event_count,
             cmd_monitor_search_events,
             cmd_monitor_test_feishu,
+            cmd_monitor_clear_events,
+            cmd_monitor_event_type_counts,
         // --- P3 工作台 ---
         cmd_workspace_run_command,
         // --- P6 新增 ---

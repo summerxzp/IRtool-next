@@ -54,14 +54,15 @@ export default function AlertPopupWindow() {
     };
   }, []);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (popup) {
-      import("@tauri-apps/api/event").then(({ emit }) => {
-        emit("evt_alert_popup_clicked", {
+      try {
+        const { emit } = await import("@tauri-apps/api/event");
+        await emit("evt_alert_popup_clicked", {
           alert_key: popup.key_field,
-          event_type: (popup as Record<string, unknown>).event_type as string | undefined,
-        }).catch(() => {});
-      });
+          event_type: popup.event_type,
+        });
+      } catch {}
       getCurrentWindow().close().catch(() => {});
     }
   };

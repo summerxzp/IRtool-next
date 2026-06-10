@@ -167,6 +167,30 @@ impl EventStorage {
         Ok(events)
     }
 
+    /// 清除所有事件
+    pub fn clear_events(&self) -> Result<u64, IrError> {
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute("DELETE FROM events", [])
+            .map_err(|e| IrError::Internal(format!("清除事件失败: {}", e)))?;
+        Ok(deleted as u64)
+    }
+
+    /// 查询事件类型统计
+    pub fn get_event_type_counts(&self) -> Result<Vec<(String, u64)>, IrError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT event_type, COUNT(*) as cnt FROM events GROUP BY event_type ORDER BY cnt DESC"
+        ).map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+        }).map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row.map_err(|e| IrError::Internal(format!("读取统计失败: {}", e)))?);
+        }
+        Ok(result)
+    }
+
     /// 查询事件总数
     pub fn get_event_count(&self) -> Result<u64, IrError> {
         let conn = self.conn.lock().unwrap();

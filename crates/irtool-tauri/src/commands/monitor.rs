@@ -72,6 +72,18 @@ pub async fn cmd_monitor_get_event_count(state: State<'_, AppState>) -> Result<u
 
 #[tauri::command]
 #[specta::specta]
+pub async fn cmd_monitor_clear_events(state: State<'_, AppState>) -> Result<u64, IrError> {
+    state.monitor_engine.lock().await.clear_events()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_event_type_counts(state: State<'_, AppState>) -> Result<Vec<(String, u64)>, IrError> {
+    state.monitor_engine.lock().await.get_event_type_counts()
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn cmd_monitor_search_events(
     state: State<'_, AppState>,
     source: Option<String>,

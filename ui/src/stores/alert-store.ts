@@ -114,6 +114,7 @@ export async function setupAlertListener() {
     win.setAlwaysOnTop(true)
       .then(() => win.show())
       .then(() => win.setFocus())
+      .then(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
       .then(() => win.setAlwaysOnTop(false))
       .catch(() => {});
 
