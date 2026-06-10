@@ -103,6 +103,13 @@ export function useAutorunsData() {
     return () => { unlistens.forEach((u) => u()); };
   }, []);
 
+  // Safety: if data is available but scanning is still true, the complete event was missed
+  useEffect(() => {
+    if (query.isSuccess && query.data && useAutorunsStore.getState().scanning) {
+      setScanning(false);
+    }
+  }, [query.isSuccess, query.data, setScanning]);
+
   return query;
 }
 

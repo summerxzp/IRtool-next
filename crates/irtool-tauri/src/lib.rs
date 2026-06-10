@@ -12,8 +12,10 @@ use crate::commands::monitor::*;
 use crate::commands::network::*;
 use crate::commands::process::*;
 use crate::commands::sysmon::*;
+use crate::commands::tools::*;
 use crate::commands::workspace::*;
 use crate::state::AppState;
+use irtool_core::AppDirs;
 use serde::Serialize;
 use specta::Type;
 use specta_typescript::Typescript;
@@ -77,20 +79,15 @@ fn is_running_as_admin() -> bool {
 }
 
 pub fn run() {
-    let log_dir = {
-        // Portable mode: logs next to the executable
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
-        exe_dir.join("logs")
-    };
+    let app_dirs = AppDirs::detect();
 
-    let _logger_guard = logger::init_logger(log_dir.clone());
+    let _logger_guard = logger::init_logger(app_dirs.logs_dir());
 
     info!("============================================");
     info!("IRtool v{} starting", env!("CARGO_PKG_VERSION"));
     info!("Admin: {}", is_running_as_admin());
+    info!("Portable: {}", app_dirs.is_portable());
+    info!("Root: {}", app_dirs.root().display());
     info!("============================================");
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
@@ -154,6 +151,10 @@ pub fn run() {
         cmd_pcap_is_running,
         // --- Alert Popup ---
         cmd_show_alert_popup,
+        // --- Tools Manager ---
+        cmd_tools_check,
+        cmd_tools_download,
+        cmd_tools_import_zip,
     ]);
 
     #[cfg(debug_assertions)]
@@ -168,7 +169,7 @@ pub fn run() {
             .expect("failed to export bindings.ts");
     }
 
-    let app_state = AppState::new();
+    let app_state = AppState::new(app_dirs.clone());
 
     tauri::Builder::default()
         .manage(app_state.clone())
@@ -180,6 +181,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -213,5 +215,8 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            tracing::error!("Application exited with error: {}", e);
+            std::process::exit(1);
+        });
 }

@@ -464,6 +464,30 @@ async cmdShowAlertPopup(params: AlertPopupParams) : Promise<Result<null, string>
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdToolsCheck() : Promise<Result<ToolStatus[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_tools_check") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdToolsDownload(toolIds: string[]) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_tools_download", { toolIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdToolsImportZip(toolId: string, zipPath: string) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_tools_import_zip", { toolId, zipPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -678,6 +702,10 @@ export type SysmonEventType = "process_create" | "file_create_time" | "network_c
  * Sysmon service status info.
  */
 export type SysmonStatus = { installed: boolean; running: boolean; service_name: string | null; sysmon_exe_exists: boolean; config_exists: boolean; sysmon_exe_path: string; config_path: string; started_by_irtool: boolean; config_managed_by_irtool: boolean }
+/**
+ * Status of a single tool
+ */
+export type ToolStatus = { id: string; installed: boolean; version: string | null; files: string[]; missing_files: string[]; optional: boolean }
 
 /** tauri-specta globals **/
 

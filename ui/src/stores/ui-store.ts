@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { tauriStorage } from "@/lib/tauri-storage";
 
 export type DetailPosition = "right" | "bottom";
 
@@ -28,7 +29,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: "irtool-ui",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => tauriStorage),
       partialize: (state) => ({ detailPositions: state.detailPositions }),
     },
   ),

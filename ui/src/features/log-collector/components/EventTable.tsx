@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/data-table/DataTable";
@@ -109,12 +109,18 @@ export function EventTable({ events }: Props) {
     },
   ], [t]);
 
+  const handleDoubleClick = useCallback((event: SysmonEvent) => {
+    const value = getDestination(event);
+    if (value && value !== "-") navigator.clipboard.writeText(value);
+  }, []);
+
   return (
     <DataTable
       columns={columns}
       data={filtered}
       getRowId={(e) => `${e.record_id}-${e.timestamp}`}
       onRowSelect={(row) => row && setSelectedEvent(row)}
+      onRowDoubleClick={handleDoubleClick}
       selectedRowId={selectedEvent ? `${selectedEvent.record_id}-${selectedEvent.timestamp}` : null}
       empty={t("log-collector.table.no-events")}
       persistKey="log-collector"

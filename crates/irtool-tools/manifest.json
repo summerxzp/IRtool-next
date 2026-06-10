@@ -1,0 +1,29 @@
+{
+  "autoruns": {
+    "version": "14.12",
+    "url": "https://download.sysinternals.com/files/Autoruns.zip",
+    "verify": "authenticode",
+    "expected_signer": "Microsoft Corporation",
+    "sha256": null,
+    "files": ["autorunsc64.exe"],
+    "optional": false
+  },
+  "sigcheck": {
+    "version": "2.06",
+    "url": "https://download.sysinternals.com/files/Sigcheck.zip",
+    "verify": "authenticode",
+    "expected_signer": "Microsoft Corporation",
+    "sha256": null,
+    "files": ["sigcheck64.exe"],
+    "optional": true
+  },
+  "sysmon": {
+    "version": "15.15",
+    "url": "https://download.sysinternals.com/files/Sysmon.zip",
+    "verify": "authenticode",
+    "expected_signer": "Microsoft Corporation",
+    "sha256": null,
+    "files": ["Sysmon64.exe"],
+    "optional": false
+  }
+}

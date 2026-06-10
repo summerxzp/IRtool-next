@@ -24,10 +24,7 @@ pub async fn cmd_monitor_update_config(
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_monitor_enter_background(state: State<'_, AppState>) -> Result<(), IrError> {
-    let app_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let app_dir = state.app_dirs.root().to_path_buf();
     state.monitor_engine.lock().await.enter_background_mode(&app_dir)
 }
 

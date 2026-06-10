@@ -13,6 +13,7 @@ tokio-util = { workspace = true }
 tracing = { workspace = true }
 specta = { workspace = true, features = ["derive", "serde"] }
 dashmap = { workspace = true }
+dirs = "6"
 
 [dev-dependencies]
 tokio = { workspace = true }

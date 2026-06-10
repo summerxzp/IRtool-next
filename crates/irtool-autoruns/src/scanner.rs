@@ -293,45 +293,46 @@ impl AutorunsScanner {
 /// Find sigcheck64.exe using the same search strategy as find_autorunsc
 pub fn find_sigcheck() -> Result<PathBuf, IrError> {
     let exe_name = "sigcheck64.exe";
+
     if let Ok(exe_dir) = std::env::current_exe() {
         if let Some(parent) = exe_dir.parent() {
-            let path = parent.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
+            let tools = parent.join("tools");
+            let managed = tools.join("sigcheck").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let path = cwd.join("tools").join(exe_name);
-        if path.exists() {
-            return Ok(path);
-        }
+        let tools = cwd.join("tools");
+        let managed = tools.join("sigcheck").join(exe_name);
+        if managed.exists() { return Ok(managed); }
+        let flat = tools.join(exe_name);
+        if flat.exists() { return Ok(flat); }
     }
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let mut dir = PathBuf::from(&manifest_dir);
         loop {
-            let path = dir.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
-            if !dir.pop() {
-                break;
-            }
+            let tools = dir.join("tools");
+            let managed = tools.join("sigcheck").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
+            if !dir.pop() { break; }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
         let mut dir = cwd;
         loop {
-            let path = dir.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
-            if !dir.pop() {
-                break;
-            }
+            let tools = dir.join("tools");
+            let managed = tools.join("sigcheck").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
+            if !dir.pop() { break; }
         }
     }
-    Err(IrError::Io("sigcheck64.exe not found in tools/ directory".into()))
+    Err(IrError::Io("sigcheck64.exe not found. 请在设置中下载或手动导入工具。".into()))
 }
 
 /// Open file in Windows Explorer (select the file)
@@ -386,53 +387,55 @@ pub fn open_services_msc() -> Result<(), IrError> {
 fn find_autorunsc() -> Result<PathBuf, IrError> {
     let exe_name = "autorunsc64.exe";
 
-    // 1. Next to the running executable: <exe_dir>/tools/autorunsc64.exe
+    // Search paths in priority order:
+    // 1. <exe_dir>/tools/autoruns/autorunsc64.exe  (new managed layout)
+    // 2. <exe_dir>/tools/autorunsc64.exe           (legacy flat layout)
+    // 3. Walk up from CARGO_MANIFEST_DIR
+    // 4. Walk up from CWD
+
     if let Ok(exe_dir) = std::env::current_exe() {
         if let Some(parent) = exe_dir.parent() {
-            let path = parent.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
+            let tools = parent.join("tools");
+            let managed = tools.join("autoruns").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
         }
     }
 
-    // 2. Relative to CWD
     if let Ok(cwd) = std::env::current_dir() {
-        let path = cwd.join("tools").join(exe_name);
-        if path.exists() {
-            return Ok(path);
-        }
+        let tools = cwd.join("tools");
+        let managed = tools.join("autoruns").join(exe_name);
+        if managed.exists() { return Ok(managed); }
+        let flat = tools.join(exe_name);
+        if flat.exists() { return Ok(flat); }
     }
 
-    // 3. Walk up from CARGO_MANIFEST_DIR to find workspace root with tools/
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let mut dir = PathBuf::from(&manifest_dir);
         loop {
-            let path = dir.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
-            if !dir.pop() {
-                break;
-            }
+            let tools = dir.join("tools");
+            let managed = tools.join("autoruns").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
+            if !dir.pop() { break; }
         }
     }
 
-    // 4. Walk up from CWD to find a directory with tools/
     if let Ok(cwd) = std::env::current_dir() {
         let mut dir = cwd;
         loop {
-            let path = dir.join("tools").join(exe_name);
-            if path.exists() {
-                return Ok(path);
-            }
-            if !dir.pop() {
-                break;
-            }
+            let tools = dir.join("tools");
+            let managed = tools.join("autoruns").join(exe_name);
+            if managed.exists() { return Ok(managed); }
+            let flat = tools.join(exe_name);
+            if flat.exists() { return Ok(flat); }
+            if !dir.pop() { break; }
         }
     }
 
-    Err(IrError::Io("autorunsc64.exe not found in tools/ directory".into()))
+    Err(IrError::Io("autorunsc64.exe not found. 请在设置中下载或手动导入工具。".into()))
 }
 
 fn check_files_batch(entries: &[RawEntry]) -> std::collections::HashMap<String, FileInfo> {

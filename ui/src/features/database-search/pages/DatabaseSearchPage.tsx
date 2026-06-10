@@ -312,15 +312,16 @@ export default function DatabaseSearchPage() {
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={loading} className="h-7 text-xs">
             重置
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setClearConfirmOpen(true)} disabled={loading} className="h-7 text-xs">
-            <Trash2 className="h-3 w-3 mr-1" />
-            清空
-          </Button>
           {hasMore && (
             <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={loading} className="h-7 text-xs">
               加载更多
             </Button>
           )}
+          <div className="flex-1" />
+          <Button variant="destructive" size="sm" onClick={() => setClearConfirmOpen(true)} disabled={loading} className="h-7 text-xs">
+            <Trash2 className="h-3 w-3 mr-1" />
+            清空
+          </Button>
         </div>
       </div>
       <div className="flex-1 min-h-0">

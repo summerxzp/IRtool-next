@@ -57,14 +57,16 @@ export const useLogCollectorStore = create<LogCollectorState>()(
             return true;
           });
           if (uniqueNew.length === 0) return s;
-          const combined = [...s.events, ...uniqueNew];
+          // Prepend new events at top, keep newest
+          const combined = [...uniqueNew, ...s.events];
           if (combined.length > MAX_EVENTS) {
-            const removed = combined.slice(0, combined.length - MAX_EVENTS);
+            // Remove oldest events (at the end)
+            const removed = combined.slice(MAX_EVENTS);
             const newSeen = new Set(s.seenKeys);
             for (const e of removed) {
               newSeen.delete(`${e.record_id}-${e.timestamp}-${e.event_id}`);
             }
-            return { events: combined.slice(-MAX_EVENTS), seenKeys: newSeen };
+            return { events: combined.slice(0, MAX_EVENTS), seenKeys: newSeen };
           }
           return { events: combined };
         }),
@@ -99,8 +101,9 @@ export const useLogCollectorStore = create<LogCollectorState>()(
             toStore.state.seenKeys = Array.from(state.seenKeys);
           }
           // Only persist last PERSIST_EVENTS events to avoid bloating sessionStorage
+          // Since newest events are at top, keep first PERSIST_EVENTS
           if (toStore.state?.events?.length > PERSIST_EVENTS) {
-            toStore.state.events = toStore.state.events.slice(-PERSIST_EVENTS);
+            toStore.state.events = toStore.state.events.slice(0, PERSIST_EVENTS);
           }
           sessionStorage.setItem(name, JSON.stringify(toStore));
         },

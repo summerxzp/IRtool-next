@@ -16,7 +16,7 @@ pub struct SysmonConfigManager {
 impl SysmonConfigManager {
     pub fn new(sysmon_exe_path: Option<PathBuf>, config_path: Option<PathBuf>, app_dir: &Path) -> Self {
         let exe = sysmon_exe_path.unwrap_or_else(|| find_sysmon_exe(app_dir));
-        let cfg = config_path.unwrap_or_else(|| app_dir.join("tools").join("sysmon_config.xml"));
+        let cfg = config_path.unwrap_or_else(|| app_dir.join("config").join("sysmon.xml"));
         let marker = app_dir.join(".sysmon_started_by_irtool");
         Self { sysmon_exe_path: exe, config_path: cfg, marker_file: marker }
     }
@@ -73,6 +73,9 @@ impl SysmonConfigManager {
             return Ok((false, format!("找不到配置文件: {}", self.config_path.display())));
         }
 
+        let short_path = to_short_path(&self.config_path);
+        info!("Using short path for sysmon config: {} -> {}", self.config_path.display(), short_path.display());
+
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
         {
@@ -80,7 +83,7 @@ impl SysmonConfigManager {
             cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
         if accept_eula { cmd.arg("-accepteula"); }
-        cmd.arg("-i").arg(&self.config_path);
+        cmd.arg("-i").arg(&short_path);
 
         info!("Installing Sysmon: {:?}", cmd);
 
@@ -114,6 +117,7 @@ impl SysmonConfigManager {
     }
 
     fn run_install_cmd(&self, accept_eula: bool) -> Result<(bool, String), IrError> {
+        let short_path = to_short_path(&self.config_path);
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
         {
@@ -121,7 +125,7 @@ impl SysmonConfigManager {
             cmd.creation_flags(0x08000000);
         }
         if accept_eula { cmd.arg("-accepteula"); }
-        cmd.arg("-i").arg(&self.config_path);
+        cmd.arg("-i").arg(&short_path);
 
         match cmd.output() {
             Ok(output) => {
@@ -184,13 +188,16 @@ impl SysmonConfigManager {
 
         info!("Updating Sysmon config, path: {}", self.config_path.display());
 
+        let short_path = to_short_path(&self.config_path);
+        info!("Using short path for sysmon config: {} -> {}", self.config_path.display(), short_path.display());
+
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        cmd.arg("-c").arg(&self.config_path);
+        cmd.arg("-c").arg(&short_path);
 
         match cmd.output() {
             Ok(output) => {
@@ -364,11 +371,41 @@ impl SysmonConfigManager {
     }
 }
 
+#[cfg(windows)]
+fn to_short_path(path: &Path) -> PathBuf {
+    use windows::Win32::Storage::FileSystem::GetShortPathNameW;
+    use windows::core::PCWSTR;
+    unsafe {
+        let wide: Vec<u16> = path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+        // First call to get required buffer size
+        let len = GetShortPathNameW(PCWSTR(wide.as_ptr()), None);
+        if len == 0 {
+            return path.to_path_buf();
+        }
+        let mut buf = vec![0u16; len as usize];
+        let result = GetShortPathNameW(PCWSTR(wide.as_ptr()), Some(&mut buf));
+        if result == 0 {
+            return path.to_path_buf();
+        }
+        let actual_len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        PathBuf::from(String::from_utf16_lossy(&buf[..actual_len]))
+    }
+}
+
+#[cfg(not(windows))]
+fn to_short_path(path: &Path) -> PathBuf {
+    path.to_path_buf()
+}
+
 fn find_sysmon_exe(app_dir: &Path) -> PathBuf {
     let possible_names = ["sysmon64.exe", "Sysmon64.exe", "sysmon.exe", "Sysmon.exe"];
     for name in &possible_names {
-        let path = app_dir.join("tools").join(name);
-        if path.exists() { return path; }
+        // New managed layout: tools/sysmon/Sysmon64.exe
+        let managed = app_dir.join("tools").join("sysmon").join(name);
+        if managed.exists() { return managed; }
+        // Legacy flat layout: tools/Sysmon64.exe
+        let flat = app_dir.join("tools").join(name);
+        if flat.exists() { return flat; }
     }
     #[cfg(windows)]
     {
@@ -389,7 +426,7 @@ fn find_sysmon_exe(app_dir: &Path) -> PathBuf {
     {
         let _ = &possible_names;
     }
-    app_dir.join("tools").join("sysmon64.exe")
+    app_dir.join("tools").join("sysmon").join("sysmon64.exe")
 }
 
 #[cfg(windows)]

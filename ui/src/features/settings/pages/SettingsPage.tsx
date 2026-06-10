@@ -269,12 +269,14 @@ export default function SettingsPage() {
       const text = await readTextFile(filePath as string);
       const data = JSON.parse(text);
       const configData = data.app_config || data.monitor_config;
-      if (configData) {
-        const currentRules = config.rules;
-        const restoredConfig = { ...configData, rules: currentRules };
-        await invoke("cmd_monitor_update_config", { config: restoredConfig as any });
-        setConfig(restoredConfig as MonitorConfig);
+      if (!configData) {
+        toast.error(t("settings.import-export.import-failed"), { description: "文件格式无效：未找到配置数据" });
+        return;
       }
+      const currentRules = config.rules;
+      const restoredConfig = { ...configData, rules: currentRules };
+      await invoke("cmd_monitor_update_config", { config: restoredConfig as any });
+      setConfig(restoredConfig as MonitorConfig);
       toast.success(t("settings.import-export.import-success"));
     } catch {
       toast.error(t("settings.import-export.import-failed"));

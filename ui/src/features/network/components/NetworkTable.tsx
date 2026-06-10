@@ -42,6 +42,8 @@ export function NetworkTable({ data, onRowSelect, onRowContextMenu, selectedRowI
         return blob.includes(q);
       });
     }
+    // Newest connections first (by last_seen descending)
+    result = [...result].sort((a, b) => b.last_seen - a.last_seen);
     return result;
   }, [data, filters]);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +20,7 @@ interface Props {
   currentEnabledKeys?: string[];
   currentPcapConfig?: { enable_sni: boolean; enable_dns_pcap: boolean };
   pcapAvailable?: boolean;
+  mode?: "install" | "config";
 }
 
 const EVENT_SECTIONS = [
@@ -28,12 +30,12 @@ const EVENT_SECTIONS = [
     extras: ["tls_sni", "dns_pcap"] as const,
   },
   {
-    key: "process",
-    eventKeys: ["process_create", "create_remote_thread", "process_terminate", "process_access", "process_tampering"],
-  },
-  {
     key: "network",
     eventKeys: ["network_connect"],
+  },
+  {
+    key: "process",
+    eventKeys: ["process_create", "create_remote_thread", "process_terminate", "process_access", "process_tampering"],
   },
   {
     key: "file",
@@ -49,7 +51,7 @@ const EVENT_SECTIONS = [
   },
 ];
 
-export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onApply, loading, currentLogSizeMb, currentEnabledKeys, currentPcapConfig, pcapAvailable = true }: Props) {
+export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onApply, loading, currentLogSizeMb, currentEnabledKeys, currentPcapConfig, pcapAvailable = true, mode = "config" }: Props) {
   const { t } = useTranslation();
   const [enabledKeys, setEnabledKeys] = useState<Set<string>>(new Set());
   const [logSizeMb, setLogSizeMb] = useState(64);
@@ -58,15 +60,20 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
 
   useEffect(() => {
     if (open) {
-      const keys = (currentEnabledKeys && currentEnabledKeys.length > 0)
-        ? currentEnabledKeys
-        : eventConfigs.filter((c) => c.default_enabled).map((c) => c.key);
+      let keys: string[];
+      if (mode === "install") {
+        keys = ["dns", "dns_client", "network_connect"];
+      } else {
+        keys = (currentEnabledKeys && currentEnabledKeys.length > 0)
+          ? currentEnabledKeys
+          : eventConfigs.filter((c) => c.default_enabled).map((c) => c.key);
+      }
       setEnabledKeys(new Set(keys));
       setLogSizeMb(currentLogSizeMb > 0 ? currentLogSizeMb : 64);
       setEnableSni(currentPcapConfig?.enable_sni ?? true);
       setEnableDnsPcap(currentPcapConfig?.enable_dns_pcap ?? true);
     }
-  }, [open, eventConfigs, currentLogSizeMb, currentEnabledKeys, currentPcapConfig]);
+  }, [open, eventConfigs, currentLogSizeMb, currentEnabledKeys, currentPcapConfig, mode]);
 
   const toggleKey = (key: string) => {
     setEnabledKeys((prev) => {
@@ -132,7 +139,7 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("log-collector.config-dialog.title")}</DialogTitle>
+          <DialogTitle>{mode === "install" ? t("log-collector.install.title") : t("log-collector.config-dialog.title")}</DialogTitle>
           <div className="flex items-center justify-between">
             <DialogDescription>{t("log-collector.config-dialog.description")}</DialogDescription>
             <div className="flex items-center gap-1">
@@ -141,11 +148,13 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
               <button className="text-[10px] text-accent hover:underline" onClick={deselectAll}>{t("log-collector.config-dialog.deselect-all")}</button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs shrink-0">{t("log-collector.config-dialog.log-size")}</Label>
-            <Input type="number" min={1} max={4096} value={logSizeMb} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) setLogSizeMb(v); }} className="h-7 w-20 text-xs" />
-            <span className="text-xs text-fg-tertiary">{t("log-collector.config-dialog.log-size-unit")}</span>
-          </div>
+          {mode !== "install" && (
+            <div className="flex items-center gap-2">
+              <Label className="text-xs shrink-0">{t("log-collector.config-dialog.log-size")}</Label>
+              <Input type="number" min={1} max={4096} value={logSizeMb} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) setLogSizeMb(v); }} className="h-7 w-20 text-xs" />
+              <span className="text-xs text-fg-tertiary">{t("log-collector.config-dialog.log-size-unit")}</span>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
@@ -223,12 +232,25 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
           </TooltipProvider>
         </div>
 
+        {mode === "install" && (
+          <div className="flex items-start gap-2 mt-3 p-2 bg-yellow-500/10 rounded text-xs text-yellow-500">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <p>{t("log-collector.install.warning-admin")}</p>
+              <p className="mt-1 text-yellow-500/70">{t("log-collector.install.warning-driver")}</p>
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)} disabled={loading}>
             {t("common.cancel")}
           </Button>
           <Button size="sm" onClick={handleApply} disabled={loading || enabledKeys.size === 0}>
-            {loading ? t("log-collector.config-dialog.applying") : t("log-collector.config-dialog.apply")}
+            {loading
+              ? (mode === "install" ? t("log-collector.install.installing") : t("log-collector.config-dialog.applying"))
+              : (mode === "install" ? t("log-collector.install.accept-and-install") : t("log-collector.config-dialog.apply"))
+            }
           </Button>
         </DialogFooter>
       </DialogContent>

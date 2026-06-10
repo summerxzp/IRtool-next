@@ -21,6 +21,7 @@ export interface DataTableProps<T> {
   getRowId: (row: T) => string;
   rowClassName?: (row: T) => string | undefined;
   onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
+  onRowDoubleClick?: (row: T, event: React.MouseEvent) => void;
   persistKey?: string;
   empty?: React.ReactNode;
   density?: "compact" | "normal";
@@ -35,6 +36,7 @@ export function DataTable<T>({
   getRowId,
   rowClassName,
   onRowContextMenu,
+  onRowDoubleClick,
   persistKey,
   empty,
   density = "compact",
@@ -104,15 +106,16 @@ export function DataTable<T>({
     getSortedRowModel: getSortedRowModel(),
   });
 
-  // Track whether selection change is from external sync (not user action)
-  const isExternalSyncRef = React.useRef(false);
+  // Track whether the next rowSelection change is from an external sync.
+  // Uses a counter so we can handle multiple queued syncs.
+  const pendingSyncCountRef = React.useRef(0);
 
   // Sync external selectedRowId to internal rowSelection
   React.useEffect(() => {
-    if (selectedRowId === undefined) return; // uncontrolled
+    if (selectedRowId === undefined) return; // uncontrolled mode
     const currentId = Object.keys(rowSelection)[0] ?? null;
     if (currentId === selectedRowId) return;
-    isExternalSyncRef.current = true;
+    pendingSyncCountRef.current++;
     if (selectedRowId == null) {
       setRowSelection({});
     } else {
@@ -120,26 +123,30 @@ export function DataTable<T>({
     }
   }, [selectedRowId]);
 
-  // Use ref for onRowSelect to avoid effect re-firing on every render
+  // Use refs for callbacks and data to avoid effect re-firing on every render
   const onRowSelectRef = React.useRef(onRowSelect);
   onRowSelectRef.current = onRowSelect;
+  const dataRef = React.useRef(data);
+  dataRef.current = data;
+  const getRowIdRef = React.useRef(getRowId);
+  getRowIdRef.current = getRowId;
 
   React.useEffect(() => {
-    // Skip onRowSelect callback for external syncs to avoid infinite loops
-    if (isExternalSyncRef.current) {
-      isExternalSyncRef.current = false;
-      return;
-    }
     const cb = onRowSelectRef.current;
     if (!cb) return;
+    // If this selection change was caused by external sync, skip callback
+    if (pendingSyncCountRef.current > 0) {
+      pendingSyncCountRef.current--;
+      return;
+    }
     const ids = Object.keys(rowSelection);
     if (ids.length === 0) {
       cb(null);
     } else {
-      const row = data.find((d) => getRowId(d) === ids[0]);
+      const row = dataRef.current.find((d) => getRowIdRef.current(d) === ids[0]);
       cb(row ?? null);
     }
-  }, [rowSelection, data, getRowId]);
+  }, [rowSelection]);
 
   const rows = table.getRowModel().rows;
 
@@ -322,6 +329,7 @@ export function DataTable<T>({
                     )}
                     style={{ height: computedRowHeight }}
                     onClick={() => row.toggleSelected()}
+                    onDoubleClick={(e) => onRowDoubleClick?.(original, e)}
                     onContextMenu={(e) => {
                       if (!isSelected) row.toggleSelected();
                       onRowContextMenu?.(original, e);

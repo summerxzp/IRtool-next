@@ -12,6 +12,7 @@ import {
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useWorkspaceStore } from "../store";
@@ -357,7 +358,8 @@ function MoreOperationsAutorun({
 
   return (
     <DropdownMenu>
-      <Tooltip>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" size="sm">
@@ -371,7 +373,8 @@ function MoreOperationsAutorun({
             <div key={c.label} className="font-mono text-[10px]">{c.program} {c.args}</div>
           ))}
         </TooltipContent>
-      </Tooltip>
+        </Tooltip>
+      </TooltipProvider>
       <DropdownMenuContent>
         {commands.map((c) => (
           <DropdownMenuItem

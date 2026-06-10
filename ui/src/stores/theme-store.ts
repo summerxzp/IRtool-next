@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { tauriStorage } from "@/lib/tauri-storage";
 
 export type Theme = "dark" | "light" | "system";
 
@@ -20,8 +21,8 @@ function resolveSystem(): "dark" | "light" {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      theme: "dark",
-      resolvedTheme: "dark",
+      theme: "light",
+      resolvedTheme: "light",
       setTheme: (theme) => {
         const resolved = theme === "system" ? resolveSystem() : theme;
         set({ theme, resolvedTheme: resolved });
@@ -38,7 +39,7 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: "irtool-theme",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => tauriStorage),
       partialize: (state) => ({ theme: state.theme }),
     },
   ),
