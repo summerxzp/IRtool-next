@@ -95,12 +95,14 @@ export function EventTable({ events }: Props) {
     },
     {
       id: "destination",
+      accessorFn: (row) => getDestination(row),
       header: t("log-collector.table.destination"),
       size: 176,
       cell: ({ row }) => <span className="truncate text-fg-primary" title={getDestination(row.original)}>{getDestination(row.original)}</span>,
     },
     {
       id: "path",
+      accessorFn: (row) => getPath(row),
       header: t("log-collector.table.path"),
       size: 300,
       cell: ({ row }) => <span className="truncate text-fg-secondary" title={getPath(row.original)}>{getPath(row.original)}</span>,

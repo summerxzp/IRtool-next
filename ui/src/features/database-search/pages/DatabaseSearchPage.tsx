@@ -243,6 +243,7 @@ export default function DatabaseSearchPage() {
     },
     {
       id: "destination",
+      accessorFn: (row) => getDestination(row),
       header: "目标",
       size: 176,
       cell: ({ row }) => <span className="truncate text-fg-primary" title={getDestination(row.original)}>{getDestination(row.original)}</span>,

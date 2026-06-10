@@ -104,11 +104,15 @@ export function DataTable<T>({
     getSortedRowModel: getSortedRowModel(),
   });
 
+  // Track whether selection change is from external sync (not user action)
+  const isExternalSyncRef = React.useRef(false);
+
   // Sync external selectedRowId to internal rowSelection
   React.useEffect(() => {
     if (selectedRowId === undefined) return; // uncontrolled
     const currentId = Object.keys(rowSelection)[0] ?? null;
     if (currentId === selectedRowId) return;
+    isExternalSyncRef.current = true;
     if (selectedRowId == null) {
       setRowSelection({});
     } else {
@@ -121,6 +125,11 @@ export function DataTable<T>({
   onRowSelectRef.current = onRowSelect;
 
   React.useEffect(() => {
+    // Skip onRowSelect callback for external syncs to avoid infinite loops
+    if (isExternalSyncRef.current) {
+      isExternalSyncRef.current = false;
+      return;
+    }
     const cb = onRowSelectRef.current;
     if (!cb) return;
     const ids = Object.keys(rowSelection);
