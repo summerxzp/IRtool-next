@@ -397,6 +397,22 @@ async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> 
     else return { status: "error", error: e  as any };
 }
 },
+async cmdMonitorClearEvents() : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_clear_events") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorEventTypeCounts() : Promise<Result<([string, number])[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_event_type_counts") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Execute a system command and return its stdout output.
  * Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).

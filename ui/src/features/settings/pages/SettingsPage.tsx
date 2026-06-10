@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,7 +85,7 @@ export default function SettingsPage() {
   const [feishuWebhookUrl, setFeishuWebhookUrl] = useState("");
   const [revealedFeishuUrl, setRevealedFeishuUrl] = useState(false);
   const [testingFeishu, setTestingFeishu] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     invoke<MonitorConfig>("cmd_monitor_get_config").then((c) => {
@@ -198,6 +198,46 @@ export default function SettingsPage() {
     }
   };
 
+  const handleExportAlertRules = async () => {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = await save({
+        defaultPath: `irtool-alert-rules-${new Date().toISOString().slice(0, 10)}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+      await writeTextFile(filePath, JSON.stringify(config.rules, null, 2));
+      toast.success(t("settings.import-export.export-success"));
+    } catch {
+      toast.error(t("settings.import-export.export-failed"));
+    }
+  };
+
+  const handleImportAlertRules = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = await open({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (!filePath) return;
+      const text = await readTextFile(filePath as string);
+      const imported = JSON.parse(text);
+      if (!Array.isArray(imported)) {
+        toast.error(t("settings.import-export.import-failed"));
+        return;
+      }
+      const existingIds = new Set(config.rules.map((r) => r.id));
+      const newRules = imported.filter((r: any) => r.id && !existingIds.has(r.id));
+      setConfig((prev) => ({ ...prev, rules: [...prev.rules, ...newRules] }));
+      toast.success(t("settings.import-export.import-success"));
+    } catch {
+      toast.error(t("settings.import-export.import-failed"));
+    }
+  };
+
   const handleExport = async () => {
     try {
       const { save } = await import("@tauri-apps/plugin-dialog");
@@ -208,38 +248,37 @@ export default function SettingsPage() {
       });
       if (!filePath) return;
       const monitorConfig = await invoke<MonitorConfig>("cmd_monitor_get_config");
-      const workspaceRulesRaw = localStorage.getItem("irtool-workspace-rules");
-      const workspaceRules = workspaceRulesRaw ? JSON.parse(workspaceRulesRaw) : [];
-      const data = { monitor_config: monitorConfig, workspace_rules: workspaceRules, exported_at: new Date().toISOString() };
+      const { rules, ...appConfig } = monitorConfig;
+      const data = { app_config: appConfig, exported_at: new Date().toISOString() };
       await writeTextFile(filePath, JSON.stringify(data, null, 2));
       toast.success(t("settings.import-export.export-success"));
-    } catch (e) {
+    } catch {
       toast.error(t("settings.import-export.export-failed"));
     }
   };
 
-  const handleImport = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImport = async () => {
     try {
-      const text = await file.text();
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = await open({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (!filePath) return;
+      const text = await readTextFile(filePath as string);
       const data = JSON.parse(text);
-      if (data.monitor_config) {
-        await invoke("cmd_monitor_update_config", { config: data.monitor_config });
-        setConfig(data.monitor_config);
-      }
-      if (Array.isArray(data.workspace_rules)) {
-        localStorage.setItem("irtool-workspace-rules", JSON.stringify(data.workspace_rules));
+      const configData = data.app_config || data.monitor_config;
+      if (configData) {
+        const currentRules = config.rules;
+        const restoredConfig = { ...configData, rules: currentRules };
+        await invoke("cmd_monitor_update_config", { config: restoredConfig as any });
+        setConfig(restoredConfig as MonitorConfig);
       }
       toast.success(t("settings.import-export.import-success"));
     } catch {
       toast.error(t("settings.import-export.import-failed"));
     }
-    e.target.value = "";
   };
 
   const handleSave = async () => {
@@ -316,6 +355,14 @@ export default function SettingsPage() {
                   <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={addRule}>
                     <Plus className="h-3 w-3 mr-1" />
                     {t("settings.alert-rules.add")}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={handleExportAlertRules}>
+                    <Download className="h-3 w-3 mr-1" />
+                    {t("workspace.rules.export")}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={handleImportAlertRules}>
+                    <Upload className="h-3 w-3 mr-1" />
+                    {t("workspace.rules.import")}
                   </Button>
                 </div>
               </div>
@@ -626,13 +673,6 @@ export default function SettingsPage() {
                   {t("settings.import-export.import")}
                 </Button>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleFileChange}
-              />
             </>
           )}
 

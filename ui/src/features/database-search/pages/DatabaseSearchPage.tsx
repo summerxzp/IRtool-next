@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { Copy, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,106 +13,28 @@ import { monitorEventToSysmonEvent } from "@/features/log-collector/pages/LogCol
 import { useDbSearchStore, type DbSearchEvent } from "../store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
+import { DataTable } from "@/components/data-table/DataTable";
+import { type ColumnDef } from "@tanstack/react-table";
 
 type EventSource = "sysmon" | "dns_client" | "pcap" | "net_monitor" | "all";
 
-// --- 独立的事件表格组件 ---
-function DbEventTable({ events }: { events: DbSearchEvent[] }) {
-  const { selectedEvent, setSelectedEvent } = useDbSearchStore();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(600);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const h = entry.contentRect?.height ?? el.clientHeight;
-        if (h > 0) setContainerHeight(h);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const ITEM_HEIGHT = 28;
-  const OVERSCAN = 10;
-  const { startIdx, endIdx, paddingTop, paddingBottom } = useMemo(() => {
-    const total = events.length;
-    const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
-    const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN);
-    return { startIdx: start, endIdx: end, paddingTop: start * ITEM_HEIGHT, paddingBottom: Math.max(0, (total - end) * ITEM_HEIGHT) };
-  }, [events.length, scrollTop, containerHeight]);
-
-  function getDestination(event: DbSearchEvent): string {
-    const et = event.event_type as ExtendedSysmonEventType;
-    switch (et) {
-      case "network_connect":
-        return `${event.destination_ip}:${event.destination_port}`;
-      case "dns":
-      case "dns_client":
-      case "tls_sni":
-      case "dns_pcap":
-        return event.query_name || "-";
-      case "create_remote_thread":
-        return `${event.source_process_name} → ${event.target_process_name}`;
-      case "file_create":
-        return event.target_filename || "-";
-      default:
-        return event.process_name || "-";
-    }
+function getDestination(event: DbSearchEvent): string {
+  const et = event.event_type as ExtendedSysmonEventType;
+  switch (et) {
+    case "network_connect":
+      return `${event.destination_ip}:${event.destination_port}`;
+    case "dns":
+    case "dns_client":
+    case "tls_sni":
+    case "dns_pcap":
+      return event.query_name || "-";
+    case "create_remote_thread":
+      return `${event.source_process_name} → ${event.target_process_name}`;
+    case "file_create":
+      return event.target_filename || "-";
+    default:
+      return event.process_name || "-";
   }
-
-  function getEventKey(event: DbSearchEvent, idx: number): string {
-    return `${event.record_id}-${event.timestamp}-${idx}`;
-  }
-
-  return (
-    <div ref={containerRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="flex-1 overflow-auto">
-      <div className="sticky top-0 z-10 flex bg-bg-elev-2 border-b border-border text-[10px] text-fg-tertiary uppercase tracking-wider select-none">
-        <div className="w-36 px-2 py-1 shrink-0">时间</div>
-        <div className="w-24 px-2 py-1 shrink-0">类型</div>
-        <div className="w-44 px-2 py-1 shrink-0">目标</div>
-        <div className="flex-1 px-2 py-1 min-w-0">路径</div>
-      </div>
-      <div style={{ paddingTop, paddingBottom }}>
-        {events.slice(startIdx, endIdx).map((event, i) => {
-          const actualIdx = startIdx + i;
-          const isSelected = selectedEvent === event;
-          return (
-            <div
-              key={getEventKey(event, actualIdx)}
-              className={`flex items-center text-xs border-b border-border/50 hover:bg-bg-elev-2 cursor-pointer select-none ${isSelected ? "bg-bg-elev-2" : ""}`}
-              style={{ height: ITEM_HEIGHT }}
-              onClick={() => setSelectedEvent(event)}
-              onDoubleClick={() => { const v = getDestination(event); if (v) navigator.clipboard.writeText(v); }}
-            >
-              <div className="w-36 px-2 shrink-0 font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">
-                {event.timestamp || "-"}
-              </div>
-              <div className="w-24 px-2 shrink-0">
-                <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[event.event_type as ExtendedSysmonEventType] || ""}`}>
-                  {EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType] || event.event_type}
-                </span>
-              </div>
-              <div className="w-44 px-2 shrink-0 truncate text-fg-primary" title={getDestination(event)}>
-                {getDestination(event)}
-              </div>
-              <div className="flex-1 px-2 min-w-0 truncate text-fg-secondary" title={event.process_path}>
-                {event.process_path}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {events.length === 0 && (
-        <div className="flex items-center justify-center h-32 text-xs text-fg-tertiary">
-          点击"搜索"加载数据库事件
-        </div>
-      )}
-    </div>
-  );
 }
 
 // --- 独立的事件详情组件 ---
@@ -228,7 +151,7 @@ export default function DatabaseSearchPage() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [loadLimit, setLoadLimit] = useState(1000);
-  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   const { events, selectedEvent, setEvents, appendEvents, setSelectedEvent, totalCount, setTotalCount, clear } = useDbSearchStore();
@@ -300,23 +223,37 @@ export default function DatabaseSearchPage() {
     setTypeCounts({});
   }, [clear]);
 
-  const handleClear = useCallback(() => {
-    if (confirmClear) {
-      invoke("cmd_monitor_clear_events").then(() => {
-        clear();
-        setOffset(0);
-        setHasMore(false);
-        setConfirmClear(false);
-        setTypeCounts({});
-        toast.success("数据库已清空");
-      }).catch((e) => {
-        toast.error("清空数据库失败", { description: e instanceof Error ? e.message : "未知错误" });
-      });
-    } else {
-      setConfirmClear(true);
-      setTimeout(() => setConfirmClear(false), 3000);
-    }
-  }, [confirmClear, clear]);
+  const dbColumns = useMemo<ColumnDef<DbSearchEvent, unknown>[]>(() => [
+    {
+      accessorKey: "timestamp",
+      header: "时间",
+      size: 144,
+      cell: ({ getValue }) => <span className="font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">{getValue() as string || "-"}</span>,
+    },
+    {
+      accessorKey: "event_type",
+      header: "类型",
+      size: 96,
+      cell: ({ getValue }) => {
+        const et = getValue() as string;
+        return <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et as ExtendedSysmonEventType] || ""}`}>
+          {EVENT_TYPE_LABELS[et as ExtendedSysmonEventType] || et}
+        </span>;
+      },
+    },
+    {
+      id: "destination",
+      header: "目标",
+      size: 176,
+      cell: ({ row }) => <span className="truncate text-fg-primary" title={getDestination(row.original)}>{getDestination(row.original)}</span>,
+    },
+    {
+      accessorKey: "process_path",
+      header: "路径",
+      size: 300,
+      cell: ({ getValue }) => <span className="truncate text-fg-secondary" title={getValue() as string}>{getValue() as string}</span>,
+    },
+  ], []);
 
   return (
     <div className="flex flex-col h-full">
@@ -374,9 +311,9 @@ export default function DatabaseSearchPage() {
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={loading} className="h-7 text-xs">
             重置
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleClear} disabled={loading} className="h-7 text-xs text-red-500 hover:text-red-600">
+          <Button variant="ghost" size="sm" onClick={() => setClearConfirmOpen(true)} disabled={loading} className="h-7 text-xs">
             <Trash2 className="h-3 w-3 mr-1" />
-            {confirmClear ? "确认清空？" : "清空"}
+            清空
           </Button>
           {hasMore && (
             <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={loading} className="h-7 text-xs">
@@ -388,7 +325,15 @@ export default function DatabaseSearchPage() {
       <div className="flex-1 min-h-0">
         <Group orientation="horizontal">
           <Panel defaultSize={70} minSize={40}>
-            <DbEventTable events={events} />
+            <DataTable
+              columns={dbColumns}
+              data={events}
+              getRowId={(e) => `${e.record_id}-${e.timestamp}`}
+              onRowSelect={(row) => setSelectedEvent(row)}
+              selectedRowId={selectedEvent ? `${selectedEvent.record_id}-${selectedEvent.timestamp}` : null}
+              empty="点击搜索加载数据库事件"
+              persistKey="db-search"
+            />
           </Panel>
           {selectedEvent != null && (
             <>
@@ -409,6 +354,29 @@ export default function DatabaseSearchPage() {
           </span>
         ))}
       </div>
+      <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认清空数据库</DialogTitle>
+            <DialogDescription>将删除数据库中所有事件记录。此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={() => setClearConfirmOpen(false)}>取消</Button>
+            <Button variant="destructive" size="sm" onClick={async () => {
+              setClearConfirmOpen(false);
+              try {
+                await invoke("cmd_monitor_clear_events");
+                clear();
+                setOffset(0);
+                setHasMore(false);
+                toast.success("数据库已清空");
+              } catch (e) {
+                toast.error("清空失败", { description: e instanceof Error ? e.message : "未知错误" });
+              }
+            }}>清空</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

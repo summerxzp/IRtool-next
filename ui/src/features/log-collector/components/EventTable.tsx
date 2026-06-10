@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+
+import { DataTable } from "@/components/data-table/DataTable";
+import { type ColumnDef } from "@tanstack/react-table";
 
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "../types";
@@ -46,19 +49,10 @@ function getPath(event: SysmonEvent): string {
   }
 }
 
-function getCopyValue(event: SysmonEvent): string {
-  return getDestination(event);
-}
-
-/** Generate a unique stable key for an event row */
-function getEventKey(event: SysmonEvent, idx: number): string {
-  return `${event.event_id}-${event.timestamp}-${event.record_id ?? idx}-${event.process_id}-${event.source_process_id}-${event.target_process_id}`;
-}
 
 export function EventTable({ events }: Props) {
   const { t } = useTranslation();
-  const { filters, selectedEvent, setSelectedEvent, autoScroll, setAutoScroll } = useLogCollectorStore();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { filters, selectedEvent, setSelectedEvent } = useLogCollectorStore();
 
   // Filter events — keep stable reference
   const filtered = useMemo(() => {
@@ -74,127 +68,54 @@ export function EventTable({ events }: Props) {
     });
   }, [events, filters]);
 
-  // Auto-scroll — only when new events arrive AND autoScroll is on
-  const prevLenRef = useRef(filtered.length);
-  useEffect(() => {
-    if (autoScroll && containerRef.current && filtered.length > prevLenRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-    prevLenRef.current = filtered.length;
-  }, [filtered.length, autoScroll]);
-
-  // Detect user scroll
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const atBottom = scrollHeight - scrollTop - clientHeight < 30;
-    if (atBottom !== autoScroll) {
-      setAutoScroll(atBottom);
-    }
-  }, [autoScroll, setAutoScroll]);
-
-  const handleDoubleClick = useCallback((event: SysmonEvent) => {
-    const value = getCopyValue(event);
-    if (value) navigator.clipboard.writeText(value);
-  }, []);
-
-  // Virtual window — only render visible rows for performance
-  const ITEM_HEIGHT = 28; // px, fixed row height
-  const OVERSCAN = 10;
-  const [scrollTop, setScrollTop] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(600);
-
-  // Track actual container height via ResizeObserver
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const h = entry.contentRect?.height ?? el.clientHeight;
-        if (h > 0) setContainerHeight(h);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Reset scroll position when filters change
-  useEffect(() => {
-    setScrollTop(0);
-    if (containerRef.current) containerRef.current.scrollTop = 0;
-  }, [filters]);
-
-  const handleScrollVirtual = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-    handleScroll();
-  }, [handleScroll]);
-
-  const { startIdx, endIdx, paddingTop, paddingBottom } = useMemo(() => {
-    const total = filtered.length;
-    const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN);
-    const end = Math.min(total, Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN);
-    return {
-      startIdx: start,
-      endIdx: end,
-      paddingTop: start * ITEM_HEIGHT,
-      paddingBottom: Math.max(0, (total - end) * ITEM_HEIGHT),
-    };
-  }, [filtered.length, scrollTop, containerHeight]);
+  const columns = useMemo<ColumnDef<SysmonEvent, unknown>[]>(() => [
+    {
+      accessorKey: "timestamp",
+      header: t("log-collector.table.time"),
+      size: 144,
+      cell: ({ getValue }) => <span className="font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">{getValue() as string || "-"}</span>,
+    },
+    {
+      accessorKey: "event_type",
+      header: t("log-collector.table.type"),
+      size: 96,
+      cell: ({ row }) => {
+        const et = row.original.event_type as ExtendedSysmonEventType;
+        return <div className="flex items-center gap-1">
+          <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et] || ""}`}>
+            {EVENT_TYPE_LABELS[et] || et}
+          </span>
+          {row.original.is_external && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap bg-blue-500/15 text-blue-500 border border-blue-500/25">
+              {t("log-collector.table.external")}
+            </span>
+          )}
+        </div>;
+      },
+    },
+    {
+      id: "destination",
+      header: t("log-collector.table.destination"),
+      size: 176,
+      cell: ({ row }) => <span className="truncate text-fg-primary" title={getDestination(row.original)}>{getDestination(row.original)}</span>,
+    },
+    {
+      id: "path",
+      header: t("log-collector.table.path"),
+      size: 300,
+      cell: ({ row }) => <span className="truncate text-fg-secondary" title={getPath(row.original)}>{getPath(row.original)}</span>,
+    },
+  ], [t]);
 
   return (
-    <div ref={containerRef} onScroll={handleScrollVirtual} className="flex-1 overflow-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex bg-bg-elev-2 border-b border-border text-[10px] text-fg-tertiary uppercase tracking-wider select-none">
-        <div className="w-36 px-2 py-1 shrink-0">{t("log-collector.table.time")}</div>
-        <div className="w-24 px-2 py-1 shrink-0">{t("log-collector.table.type")}</div>
-        <div className="w-44 px-2 py-1 shrink-0">{t("log-collector.table.destination")}</div>
-        <div className="flex-1 px-2 py-1 min-w-0">{t("log-collector.table.path")}</div>
-      </div>
-
-      {/* Virtualized rows */}
-      <div style={{ paddingTop, paddingBottom }}>
-        {filtered.slice(startIdx, endIdx).map((event, i) => {
-          const actualIdx = startIdx + i;
-          const isSelected = selectedEvent === event;
-          return (
-            <div
-              key={getEventKey(event, actualIdx)}
-              className={`flex items-center text-xs border-b border-border/50 hover:bg-bg-elev-2 cursor-pointer select-none ${isSelected ? "bg-bg-elev-2" : ""}`}
-              style={{ height: ITEM_HEIGHT }}
-              onClick={() => setSelectedEvent(event)}
-              onDoubleClick={() => handleDoubleClick(event)}
-            >
-              <div className="w-36 px-2 shrink-0 font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">
-                {event.timestamp || "-"}
-              </div>
-              <div className="w-24 px-2 shrink-0">
-                <div className="flex items-center gap-1">
-                  <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[event.event_type as ExtendedSysmonEventType]}`}>
-                    {EVENT_TYPE_LABELS[event.event_type as ExtendedSysmonEventType]}
-                  </span>
-                  {event.is_external && (
-                    <span className="inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap bg-blue-500/15 text-blue-500 border border-blue-500/25">
-                      {t("log-collector.table.external")}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="w-44 px-2 shrink-0 truncate text-fg-primary" title={getDestination(event)}>
-                {getDestination(event)}
-              </div>
-              <div className="flex-1 px-2 min-w-0 truncate text-fg-secondary" title={getPath(event)}>
-                {getPath(event)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="flex items-center justify-center h-32 text-xs text-fg-tertiary">
-          {t("log-collector.table.no-events")}
-        </div>
-      )}
-    </div>
+    <DataTable
+      columns={columns}
+      data={filtered}
+      getRowId={(e) => `${e.record_id}-${e.timestamp}`}
+      onRowSelect={(row) => row && setSelectedEvent(row)}
+      selectedRowId={selectedEvent ? `${selectedEvent.record_id}-${selectedEvent.timestamp}` : null}
+      empty={t("log-collector.table.no-events")}
+      persistKey="log-collector"
+    />
   );
 }

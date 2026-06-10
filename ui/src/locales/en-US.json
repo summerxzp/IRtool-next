@@ -397,7 +397,7 @@
     "save-failed": "Save failed",
     "import-export": {
       "title": "Import / Export",
-      "desc": "Export all configurations (alert rules, notification settings, database config, workspace rules), or import from a file to restore.",
+      "desc": "Export application configuration (notification, database, data source settings), or import from file to restore. Use dedicated import/export for alert rules and workspace rules.",
       "export": "Export Config",
       "import": "Import Config",
       "export-success": "Export successful",
