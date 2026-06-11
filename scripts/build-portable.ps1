@@ -39,11 +39,6 @@ Copy-Item $exePath "$outputDir\IRtool.exe"
 # Create portable.flag
 New-Item -ItemType File -Path "$outputDir\portable.flag" -Force | Out-Null
 
-# Copy LICENSE
-if (Test-Path "$projectRoot\LICENSE") {
-    Copy-Item "$projectRoot\LICENSE" "$outputDir\LICENSE"
-}
-
 # Step 4: Create ZIP
 Write-Host "`n[4/4] Creating ZIP archive..." -ForegroundColor Yellow
 $distDir = "$projectRoot\dist"
