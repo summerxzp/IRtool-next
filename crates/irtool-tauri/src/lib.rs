@@ -78,6 +78,34 @@ fn is_running_as_admin() -> bool {
     false
 }
 
+#[cfg(windows)]
+fn elevate_and_restart() -> Result<(), Box<dyn std::error::Error>> {
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
+    use windows::core::PCWSTR;
+
+    let exe = std::env::current_exe()?;
+    let verb: Vec<u16> = "runas\0".encode_utf16().collect();
+    let file: Vec<u16> = exe.to_string_lossy().as_ref().encode_utf16().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        let result = ShellExecuteW(
+            None,
+            PCWSTR(verb.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_NORMAL,
+        );
+        // ShellExecuteW returns a value > 32 on success
+        if result.0 as isize <= 32 {
+            return Err(format!("ShellExecuteW 'runas' failed with code {}", result.0 as isize).into());
+        }
+    }
+
+    Ok(())
+}
+
 pub fn run() {
     let app_dirs = AppDirs::detect();
 
@@ -89,6 +117,19 @@ pub fn run() {
     info!("Portable: {}", app_dirs.is_portable());
     info!("Root: {}", app_dirs.root().display());
     info!("============================================");
+
+    if !is_running_as_admin() {
+        info!("Not running as admin, requesting elevation...");
+        match elevate_and_restart() {
+            Ok(()) => {
+                info!("Elevated instance launched, exiting current instance");
+                std::process::exit(0);
+            }
+            Err(e) => {
+                tracing::warn!("Elevation failed: {}, continuing in limited mode", e);
+            }
+        }
+    }
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         cmd_app_info,
