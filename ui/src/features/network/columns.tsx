@@ -39,7 +39,7 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     id: "pid",
     accessorFn: (r) => r.pid,
     header: "PID",
-    size: 70,
+    size: 55,
     cell: ({ row }) => (
       <span className="font-mono text-xs">{row.original.pid}</span>
     ),

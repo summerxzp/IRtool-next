@@ -66,15 +66,6 @@ export function NetworkDetail({ conn, onClose }: Props) {
 
       <Separator />
 
-      <div>
-        <div className="text-xs text-fg-tertiary mb-1">{t("network.detail.command-line")}</div>
-        <div className="text-xs font-mono text-fg-secondary break-all">
-          {conn.process_cmdline || t("network.detail.command-line-pending")}
-        </div>
-      </div>
-
-      <Separator />
-
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         <div>
           <div className="text-fg-tertiary">{t("network.detail.first-seen")}</div>
@@ -83,6 +74,15 @@ export function NetworkDetail({ conn, onClose }: Props) {
         <div>
           <div className="text-fg-tertiary">{t("network.detail.last-seen")}</div>
           <div className="font-mono text-fg-secondary">{fmtTime(conn.last_seen)}</div>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div>
+        <div className="text-xs text-fg-tertiary mb-1">{t("network.detail.command-line")}</div>
+        <div className="text-xs font-mono text-fg-secondary break-all">
+          {conn.process_cmdline || t("network.detail.command-line-pending")}
         </div>
       </div>
     </div>

@@ -89,7 +89,7 @@
       "title": "Connection Detail",
       "process": "Process Info",
       "command-line": "Command Line",
-      "command-line-pending": "Command line not yet implemented (P4 process capability)",
+      "command-line-pending": "Unavailable",
       "first-seen": "First Seen",
       "last-seen": "Last Seen",
       "select-row": "Select a connection to view details"
