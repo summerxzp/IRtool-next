@@ -18,6 +18,7 @@ use crate::state::AppState;
 use irtool_core::AppDirs;
 use serde::Serialize;
 use specta::Type;
+use specta_typescript::Typescript;
 use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 use tracing::info;
