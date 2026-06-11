@@ -14,6 +14,7 @@ import { AssociationPanel } from "../components/AssociationPanel";
 import { WorkspaceStatsBar } from "../components/WorkspaceStatsBar";
 import { RuleManagerDialog } from "../components/RuleManagerDialog";
 import { Button } from "@/components/ui/button";
+import { exportCsv } from "@/lib/csv";
 
 export function WorkspacePage() {
   const { t } = useTranslation();
@@ -86,6 +87,40 @@ export function WorkspacePage() {
     clearResults();
   }, [clearResults]);
 
+  const handleExport = useCallback(async () => {
+    if (activeTab === "autoruns" && autorunItems.length > 0) {
+      const rows = autorunItems.map((a) => ({
+        entry: a.entry,
+        category: a.category,
+        image_path: a.image_path || "",
+        publisher: a.signature.kind === "valid" ? a.signature.detail.signer : a.signature.kind,
+        enabled: a.enabled ? "是" : "否",
+      }));
+      await exportCsv(rows, ["entry", "category", "image_path", "publisher", "enabled"], `workspace-autoruns-${Date.now()}.csv`);
+    } else if (activeTab === "network" && networkItems.length > 0) {
+      const rows = networkItems.map((n) => ({
+        protocol: n.proto,
+        local: `${n.local.addr}:${n.local.port}`,
+        remote: `${n.remote.addr}:${n.remote.port}`,
+        state: n.state,
+        pid: n.pid,
+        process: n.process_name || "",
+        path: n.process_path || "",
+      }));
+      await exportCsv(rows, ["protocol", "local", "remote", "state", "pid", "process", "path"], `workspace-network-${Date.now()}.csv`);
+    } else if (activeTab === "events" && eventItems.length > 0) {
+      const rows = eventItems.map((e) => ({
+        timestamp: e.timestamp,
+        event_type: e.event_type,
+        process: e.process_name,
+        source: `${e.source_ip}:${e.source_port}`,
+        destination: `${e.destination_ip}:${e.destination_port}`,
+        protocol: e.protocol,
+      }));
+      await exportCsv(rows, ["timestamp", "event_type", "process", "source", "destination", "protocol"], `workspace-events-${Date.now()}.csv`);
+    }
+  }, [activeTab, autorunItems, networkItems, eventItems]);
+
   // Get the currently selected item for association
   const selectedSourceItem = useMemo(() => {
     switch (activeTab) {
@@ -124,6 +159,7 @@ export function WorkspacePage() {
         onRuleManager={() => setRuleManagerOpen(true)}
         onRefresh={handleRefresh}
         onReset={handleReset}
+        onExport={handleExport}
         scanning={scanning || refreshMutation.isPending}
       />
 

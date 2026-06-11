@@ -119,7 +119,7 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
         {t("log-collector.toolbar.config")}
       </Button>
       {sysmonInstalled && (
-        <Button variant="secondary" size="sm" onClick={onUninstall} disabled={loading || collecting} title={t("log-collector.toolbar.uninstall")} className="hover:shadow-sm transition-shadow">
+        <Button variant="secondary" size="sm" onClick={onUninstall} disabled={loading} title={t("log-collector.toolbar.uninstall")} className="hover:shadow-sm transition-shadow">
           <Unplug className="h-3.5 w-3.5 mr-1" />
           {t("log-collector.toolbar.uninstall")}
         </Button>

@@ -343,7 +343,7 @@ export default function DatabaseSearchPage() {
             </Button>
           )}
           <div className="flex-1" />
-          <Button variant="secondary" size="sm" onClick={handleExportCsv} disabled={loading || events.length === 0} className="h-7 text-xs">
+          <Button variant="secondary" size="sm" onClick={handleExportCsv} disabled={loading || events.length === 0} className="h-7 text-xs hover:shadow-sm transition-shadow">
             <Download className="h-3 w-3 mr-1" />
             {t("database-search.export-csv")}
           </Button>

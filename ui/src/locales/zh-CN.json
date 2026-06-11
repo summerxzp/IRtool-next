@@ -416,7 +416,8 @@
       "reset": "重置",
       "scan": "规则扫描",
       "refresh": "刷新",
-      "rules": "规则管理"
+      "rules": "规则管理",
+      "export-csv": "导出 CSV"
     },
     "tabs": {
       "autoruns": "持久化项",

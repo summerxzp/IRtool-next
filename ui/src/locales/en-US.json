@@ -416,7 +416,8 @@
       "reset": "Reset",
       "scan": "Rule Scan",
       "refresh": "Refresh",
-      "rules": "Rule Manager"
+      "rules": "Rule Manager",
+      "export-csv": "Export CSV"
     },
     "tabs": {
       "autoruns": "Autoruns",

@@ -14,6 +14,8 @@ import { LogCollectorStatsBar } from "../components/LogCollectorStatsBar";
 import { LogCollectorConfigDialog } from "../components/LogCollectorConfigDialog";
 import { toast } from "sonner";
 import * as api from "../api";
+import { formatEventTimestamp } from "@/lib/utils";
+import { exportCsv } from "@/lib/csv";
 
 /**
  * 将 MonitorEvent 转换为 SysmonEvent 格式，从 raw_json 解析出所有字段
@@ -33,7 +35,7 @@ export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
     return {
       event_id: 0,
       event_type: eventKind,
-      timestamp: new Date(me.timestamp).toISOString(),
+      timestamp: formatEventTimestamp(me.timestamp),
       timestamp_epoch: me.timestamp / 1000,
       timestamp_valid: true,
       record_id: me.id,
@@ -74,7 +76,7 @@ export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
     return {
       event_id: 0,
       event_type: "network_monitor",
-      timestamp: new Date(me.timestamp).toISOString(),
+      timestamp: formatEventTimestamp(me.timestamp),
       timestamp_epoch: me.timestamp / 1000,
       timestamp_valid: true,
       record_id: me.id,
@@ -116,7 +118,7 @@ export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
   return {
     event_id: raw.event_id || 0,
     event_type: me.event_type,
-    timestamp: raw.timestamp || new Date(me.timestamp).toISOString(),
+    timestamp: raw.timestamp || formatEventTimestamp(me.timestamp),
     timestamp_epoch: raw.timestamp_epoch || me.timestamp / 1000,
     timestamp_valid: raw.timestamp_valid ?? true,
     record_id: me.id,
@@ -223,15 +225,26 @@ export default function LogCollectorPage() {
     setClearConfirmOpen(true);
   }, []);
 
-  const handleExport = useCallback(() => {
-    const json = JSON.stringify(events, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sysmon-events-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = useCallback(async () => {
+    const rows = events.map((e) => ({
+      timestamp: e.timestamp,
+      event_type: e.event_type,
+      process_id: e.process_id,
+      process_name: e.process_name,
+      process_path: e.process_path,
+      source_ip: e.source_ip,
+      source_port: e.source_port,
+      destination_ip: e.destination_ip,
+      destination_port: e.destination_port,
+      protocol: e.protocol,
+      query_name: e.query_name,
+      user: e.user,
+    }));
+    await exportCsv(rows, [
+      "timestamp", "event_type", "process_id", "process_name", "process_path",
+      "source_ip", "source_port", "destination_ip", "destination_port",
+      "protocol", "query_name", "user",
+    ], `sysmon-events-${Date.now()}.csv`);
   }, [events]);
 
   const handleUninstall = useCallback(() => {
@@ -240,6 +253,10 @@ export default function LogCollectorPage() {
 
   const doUninstall = useCallback(async () => {
     try {
+      // Stop collection if running before uninstalling
+      if (collecting) {
+        await stopMutation.mutateAsync();
+      }
       const [ok, msg] = await uninstallMutation.mutateAsync();
       if (!ok) {
         toast.error("卸载失败", { description: msg });
@@ -248,7 +265,7 @@ export default function LogCollectorPage() {
     } catch (e) {
       toast.error("卸载异常", { description: e instanceof Error ? e.message : "未知错误" });
     }
-  }, [uninstallMutation, refetchStatus]);
+  }, [collecting, stopMutation, uninstallMutation, refetchStatus]);
 
   const handleOpenConfigDialog = useCallback(() => {
     setDialogMode("config");

@@ -179,6 +179,7 @@ export function NetworkToolbar({
         size="sm"
         onClick={onKillSelected}
         disabled={!hasSelection}
+        className="hover:shadow-sm transition-shadow"
       >
         <X className="h-3.5 w-3.5 mr-1" />
         {t("network.toolbar.kill-process")}

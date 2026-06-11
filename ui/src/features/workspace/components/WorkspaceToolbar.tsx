@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, RefreshCw, Shield, Settings, RotateCcw } from "lucide-react";
+import { Search, RefreshCw, Shield, Settings, RotateCcw, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -10,10 +10,11 @@ interface Props {
   onRuleManager: () => void;
   onRefresh: () => void;
   onReset: () => void;
+  onExport: () => void;
   scanning: boolean;
 }
 
-export function WorkspaceToolbar({ onSearch, onRuleScan, onRuleManager, onRefresh, onReset, scanning }: Props) {
+export function WorkspaceToolbar({ onSearch, onRuleScan, onRuleManager, onRefresh, onReset, onExport, scanning }: Props) {
   const { t } = useTranslation();
   const [searchInput, setSearchInput] = useState("");
 
@@ -61,6 +62,10 @@ export function WorkspaceToolbar({ onSearch, onRuleScan, onRuleManager, onRefres
       <Button variant="secondary" size="sm" onClick={onRuleManager} className="hover:shadow-sm transition-shadow">
         <Settings className="h-3.5 w-3.5 mr-1" />
         {t("workspace.toolbar.rules")}
+      </Button>
+      <Button variant="secondary" size="sm" onClick={onExport} className="hover:shadow-sm transition-shadow">
+        <Download className="h-3.5 w-3.5 mr-1" />
+        {t("workspace.toolbar.export-csv")}
       </Button>
       <Button variant="secondary" size="sm" onClick={onRefresh} disabled={scanning} className="hover:shadow-sm transition-shadow">
         <RefreshCw className={`h-3.5 w-3.5 mr-1 ${scanning ? "animate-spin" : ""}`} />
