@@ -73,6 +73,7 @@
       "pid": "PID",
       "process": "Process",
       "path": "Path",
+      "cmdline": "Cmdline",
       "first-seen": "First Seen",
       "last-seen": "Last Seen"
     },

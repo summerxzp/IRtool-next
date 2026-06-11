@@ -25,3 +25,4 @@ windows = { workspace = true, features = [
     "Win32_System_ProcessStatus",
     "Win32_Security",
 ] }
+wmi = { version = "0.18", default-features = false }

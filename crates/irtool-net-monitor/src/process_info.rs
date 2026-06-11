@@ -73,6 +73,26 @@ impl ProcessInfoCache {
 }
 
 #[cfg(windows)]
+fn query_process_cmdline(pid: u32) -> Option<String> {
+    use serde::Deserialize;
+    use wmi::WMIConnection;
+
+    #[derive(Deserialize)]
+    #[allow(non_snake_case)]
+    struct Win32Process {
+        CommandLine: Option<String>,
+    }
+
+    let wmi = WMIConnection::new().ok()?;
+    let query = format!(
+        "SELECT CommandLine FROM Win32_Process WHERE ProcessId = {}",
+        pid
+    );
+    let results: Vec<Win32Process> = wmi.raw_query(&query).ok()?;
+    results.into_iter().next()?.CommandLine
+}
+
+#[cfg(windows)]
 fn lookup_process(pid: u32) -> ProcessInfo {
     if pid == 0 {
         return ProcessInfo {
@@ -133,10 +153,12 @@ fn lookup_process(pid: u32) -> ProcessInfo {
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("PID {}", pid));
 
+        let cmdline = query_process_cmdline(pid);
+
         ProcessInfo {
             name,
             path,
-            cmdline: None,
+            cmdline,
             cached_at: Instant::now(),
         }
     }

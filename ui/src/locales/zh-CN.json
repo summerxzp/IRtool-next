@@ -73,6 +73,7 @@
       "pid": "PID",
       "process": "进程名",
       "path": "路径",
+      "cmdline": "命令行",
       "first-seen": "首次出现",
       "last-seen": "最近出现"
     },
