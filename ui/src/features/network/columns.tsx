@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { NetConn, ConnState } from "./types";
 
 const STATE_VARIANT: Partial<Record<ConnState, "default" | "success" | "warning" | "danger" | "info">> = {
@@ -113,16 +113,18 @@ export const networkColumns: ColumnDef<NetConn>[] = [
       const val = row.original.process_cmdline;
       if (!val) return <span className="text-fg-tertiary">-</span>;
       return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="truncate max-w-[200px] block cursor-default font-mono text-xs">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="truncate max-w-[200px] block cursor-default font-mono text-xs">
+                {val}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-md break-all font-mono text-xs">
               {val}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-md break-all font-mono text-xs">
-            {val}
-          </TooltipContent>
-        </Tooltip>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     },
   },
