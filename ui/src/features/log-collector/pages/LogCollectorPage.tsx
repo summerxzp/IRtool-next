@@ -232,18 +232,29 @@ export default function LogCollectorPage() {
       process_id: e.process_id,
       process_name: e.process_name,
       process_path: e.process_path,
+      user: e.user,
       source_ip: e.source_ip,
       source_port: e.source_port,
       destination_ip: e.destination_ip,
       destination_port: e.destination_port,
       protocol: e.protocol,
+      initiated: e.initiated ? "是" : "否",
+      is_external: e.is_external ? "是" : "否",
       query_name: e.query_name,
-      user: e.user,
+      query_results: e.query_results,
+      source_process_name: e.source_process_name,
+      source_process_path: e.source_process_path,
+      target_process_name: e.target_process_name,
+      target_process_path: e.target_process_path,
+      start_address: e.start_address,
+      target_filename: e.target_filename,
     }));
     await exportCsv(rows, [
       "timestamp", "event_type", "process_id", "process_name", "process_path",
-      "source_ip", "source_port", "destination_ip", "destination_port",
-      "protocol", "query_name", "user",
+      "user", "source_ip", "source_port", "destination_ip", "destination_port",
+      "protocol", "initiated", "is_external", "query_name", "query_results",
+      "source_process_name", "source_process_path", "target_process_name",
+      "target_process_path", "start_address", "target_filename",
     ], `sysmon-events-${Date.now()}.csv`);
   }, [events]);
 

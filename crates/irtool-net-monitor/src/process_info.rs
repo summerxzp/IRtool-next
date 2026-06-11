@@ -70,6 +70,39 @@ impl ProcessInfoCache {
         self.inner
             .retain(|_, info| now.duration_since(info.cached_at) < CACHE_TTL * 4);
     }
+
+    /// Asynchronously fetch cmdline for cached entries that don't have it yet.
+    /// Spawns a background thread so it doesn't block the caller.
+    #[cfg(windows)]
+    pub fn fetch_cmdlines(&self, pids: &[u32]) {
+        let inner = self.inner.clone();
+        let pids: Vec<u32> = pids
+            .iter()
+            .filter(|pid| {
+                inner
+                    .get(pid)
+                    .map_or(false, |e| e.cmdline.is_none())
+            })
+            .copied()
+            .collect();
+
+        if pids.is_empty() {
+            return;
+        }
+
+        std::thread::spawn(move || {
+            for pid in pids {
+                if let Some(cmdline) = query_process_cmdline(pid) {
+                    if let Some(mut entry) = inner.get_mut(&pid) {
+                        entry.cmdline = Some(cmdline);
+                    }
+                }
+            }
+        });
+    }
+
+    #[cfg(not(windows))]
+    pub fn fetch_cmdlines(&self, _pids: &[u32]) {}
 }
 
 #[cfg(windows)]
@@ -83,6 +116,8 @@ fn query_process_cmdline(pid: u32) -> Option<String> {
         CommandLine: Option<String>,
     }
 
+    // Each call creates a new WMI connection.
+    // This is called from a background thread (via fetch_cmdlines), so it won't block the UI.
     let wmi = WMIConnection::new().ok()?;
     let query = format!(
         "SELECT CommandLine FROM Win32_Process WHERE ProcessId = {}",
@@ -153,12 +188,11 @@ fn lookup_process(pid: u32) -> ProcessInfo {
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("PID {}", pid));
 
-        let cmdline = query_process_cmdline(pid);
-
+        // cmdline is filled asynchronously via fetch_cmdlines()
         ProcessInfo {
             name,
             path,
-            cmdline,
+            cmdline: None,
             cached_at: Instant::now(),
         }
     }
@@ -207,9 +241,18 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn current_process_has_cmdline() {
-        let info = lookup_process(std::process::id());
-        assert!(info.cmdline.is_some(), "cmdline should be populated via WMI for current process");
-        let cmdline = info.cmdline.unwrap();
+        let cache = ProcessInfoCache::new();
+        let pid = std::process::id();
+        // First lookup returns cmdline=None (async fill)
+        let info = lookup_process(pid);
+        assert!(info.cmdline.is_none(), "cmdline should be None on first lookup");
+        // fetch_cmdlines fills it asynchronously
+        cache.get(pid); // insert into cache
+        cache.fetch_cmdlines(&[pid]);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let cached = cache.get(pid);
+        assert!(cached.cmdline.is_some(), "cmdline should be populated after fetch_cmdlines");
+        let cmdline = cached.cmdline.unwrap();
         assert!(!cmdline.is_empty(), "cmdline should not be empty");
         eprintln!("Current process cmdline: {}", cmdline);
     }

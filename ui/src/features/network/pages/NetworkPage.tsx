@@ -43,6 +43,7 @@ export function NetworkPage() {
         pid: c.pid,
         process_name: c.process_name,
         process_path: c.process_path,
+        process_cmdline: c.process_cmdline,
         first_seen: new Date(c.first_seen * 1000).toISOString(),
         last_seen: new Date(c.last_seen * 1000).toISOString(),
         is_current: c.is_current,
@@ -50,7 +51,7 @@ export function NetworkPage() {
       [
         "proto", "family", "local_addr", "local_port", "remote_addr",
         "remote_port", "state", "pid", "process_name", "process_path",
-        "first_seen", "last_seen", "is_current",
+        "process_cmdline", "first_seen", "last_seen", "is_current",
       ],
       `irtool-network-${Date.now()}.csv`,
     );

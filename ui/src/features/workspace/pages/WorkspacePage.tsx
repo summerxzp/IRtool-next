@@ -93,31 +93,50 @@ export function WorkspacePage() {
         entry: a.entry,
         category: a.category,
         image_path: a.image_path || "",
-        publisher: a.signature.kind === "valid" ? a.signature.detail.signer : a.signature.kind,
+        launch_string: a.launch_string || "",
+        location: a.location,
+        description: a.description,
+        publisher: a.publisher,
         enabled: a.enabled ? "是" : "否",
+        file_exists: a.file_exists ? "是" : "否",
+        file_version: a.file_version || "",
+        md5: a.md5 || "",
+        sha256: a.sha256 || "",
+        risk: a.risk,
+        signature: a.signature.kind === "valid" ? a.signature.detail.signer : a.signature.kind,
       }));
-      await exportCsv(rows, ["entry", "category", "image_path", "publisher", "enabled"], `workspace-autoruns-${Date.now()}.csv`);
+      await exportCsv(rows, ["entry", "category", "image_path", "launch_string", "location", "description", "publisher", "enabled", "file_exists", "file_version", "md5", "sha256", "risk", "signature"], `workspace-autoruns-${Date.now()}.csv`);
     } else if (activeTab === "network" && networkItems.length > 0) {
       const rows = networkItems.map((n) => ({
         protocol: n.proto,
+        family: n.family,
         local: `${n.local.addr}:${n.local.port}`,
         remote: `${n.remote.addr}:${n.remote.port}`,
         state: n.state,
         pid: n.pid,
         process: n.process_name || "",
         path: n.process_path || "",
+        cmdline: n.process_cmdline || "",
+        first_seen: n.first_seen ? new Date(n.first_seen * 1000).toISOString() : "",
+        last_seen: n.last_seen ? new Date(n.last_seen * 1000).toISOString() : "",
       }));
-      await exportCsv(rows, ["protocol", "local", "remote", "state", "pid", "process", "path"], `workspace-network-${Date.now()}.csv`);
+      await exportCsv(rows, ["protocol", "family", "local", "remote", "state", "pid", "process", "path", "cmdline", "first_seen", "last_seen"], `workspace-network-${Date.now()}.csv`);
     } else if (activeTab === "events" && eventItems.length > 0) {
       const rows = eventItems.map((e) => ({
         timestamp: e.timestamp,
         event_type: e.event_type,
-        process: e.process_name,
+        process_id: e.process_id,
+        process_name: e.process_name,
+        process_path: e.process_path,
         source: `${e.source_ip}:${e.source_port}`,
         destination: `${e.destination_ip}:${e.destination_port}`,
         protocol: e.protocol,
+        query_name: e.query_name,
+        user: e.user,
+        initiated: e.initiated ? "是" : "否",
+        is_external: e.is_external ? "是" : "否",
       }));
-      await exportCsv(rows, ["timestamp", "event_type", "process", "source", "destination", "protocol"], `workspace-events-${Date.now()}.csv`);
+      await exportCsv(rows, ["timestamp", "event_type", "process_id", "process_name", "process_path", "source", "destination", "protocol", "query_name", "user", "initiated", "is_external"], `workspace-events-${Date.now()}.csv`);
     }
   }, [activeTab, autorunItems, networkItems, eventItems]);
 

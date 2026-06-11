@@ -25,13 +25,21 @@ impl WindowsNetCollector {
     }
 
     fn enrich(&self, mut conns: Vec<NetConn>) -> Vec<NetConn> {
+        let mut pids: Vec<u32> = Vec::new();
         for c in &mut conns {
             let info = self.process_cache.get(c.pid);
             c.process_name = Some(info.name);
             c.process_path = info.path.map(|p| p.to_string_lossy().into_owned());
+            if info.cmdline.is_none() {
+                pids.push(c.pid);
+            }
             c.process_cmdline = info.cmdline;
         }
         self.process_cache.cleanup_expired();
+        // Asynchronously fetch cmdlines for entries that don't have it yet
+        if !pids.is_empty() {
+            self.process_cache.fetch_cmdlines(&pids);
+        }
         conns
     }
 }

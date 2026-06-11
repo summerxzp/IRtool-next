@@ -96,7 +96,7 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
     let console_layer = if cfg!(debug_assertions) {
         Some(
             fmt::layer().with_target(true).with_ansi(true).compact().with_filter(
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info")),
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
             ),
         )
     } else {
