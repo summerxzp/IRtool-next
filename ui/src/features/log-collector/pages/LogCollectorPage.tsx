@@ -225,7 +225,7 @@ export default function LogCollectorPage() {
           return;
         }
         // Auto-start collection after successful install
-        refetchStatus();
+        await refetchStatus();
         try {
           await startMutation.mutateAsync();
         } catch (e) {
@@ -255,8 +255,7 @@ export default function LogCollectorPage() {
           } else {
             try { await invoke("cmd_pcap_stop"); } catch {}
           }
-        } catch (e) {
-          console.warn("pcap config update failed:", e);
+        } catch {
         }
 
         // If currently collecting, restart subscription with new event IDs

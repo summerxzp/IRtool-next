@@ -23,7 +23,10 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .filename_suffix("log")
         .max_log_files(7)
         .build(&log_dir)
-        .expect("failed to create app rolling file appender");
+        .unwrap_or_else(|e| {
+            eprintln!("FATAL: failed to create app log appender at {}: {}", log_dir.display(), e);
+            std::process::exit(1);
+        });
 
     let (app_nb, app_guard) = tracing_appender::non_blocking(app_appender);
 
@@ -46,7 +49,10 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .filename_suffix("log")
         .max_log_files(7)
         .build(&log_dir)
-        .expect("failed to create monitor rolling file appender");
+        .unwrap_or_else(|e| {
+            eprintln!("FATAL: failed to create monitor log appender at {}: {}", log_dir.display(), e);
+            std::process::exit(1);
+        });
 
     let (monitor_nb, monitor_guard) = tracing_appender::non_blocking(monitor_appender);
 
@@ -68,7 +74,10 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .filename_suffix("log")
         .max_log_files(7)
         .build(&log_dir)
-        .expect("failed to create tools rolling file appender");
+        .unwrap_or_else(|e| {
+            eprintln!("FATAL: failed to create tools log appender at {}: {}", log_dir.display(), e);
+            std::process::exit(1);
+        });
 
     let (tools_nb, tools_guard) = tracing_appender::non_blocking(tools_appender);
 

@@ -103,3 +103,26 @@
 ### 各专题页面（网络监控/持久化检测/日志采集）
 - 负责数据采集和扫描触发
 - 工作台消费这些页面产生的数据
+
+## 架构决策
+
+### 权限模型：默认请求管理员
+Manifest 声明 `requireAdministrator`，启动即提权。原因：Sysmon 安装、Autoruns 删除条目等核心操作均需管理员权限，运行中弹 UAC 或重启应用会丢失内存数据（事件、网络历史等），打断工作流。非管理员环境下各模块降级运行，功能受限但不崩溃。
+
+### 运行时依赖：系统 WebView2
+依赖用户系统已安装的 WebView2 Runtime（Win10/11 通常预装），不嵌入 Fixed Runtime（+150MB）也不做 Bootstrapper 自动安装。便携版体积优先，缺失时弹错误提示并退出。NSIS 安装包同理，不在安装流程中捆绑 WebView2。
+
+### 便携版设计：portable.flag 双模式
+`portable.flag` 文件存在于 exe 同目录 → 便携模式，所有数据（config/data/logs/tools）存放在 exe 目录下；不存在 → 安装模式，数据存 `%APPDATA%/IRtool/`。首次启动自动创建子目录。设置存储用 `tauri-plugin-store`（JSON 文件）而非 localStorage，确保便携版数据随 exe 移动。
+
+### 外部工具：Bootstrap Installer 模式
+不内置/二次分发 Sysinternals 二进制（合规），首次启动检测缺失工具并引导下载。下载后做 Authenticode 签名验证（WinVerifyTrust + CertFindCertificateInStore），验证失败则删除已解压文件。EULA 自动接受（`-accepteula`）。支持离线 ZIP 导入。工具版本由内嵌 `manifest.json` 定义，`tools/manifest.json` 仅记录已安装版本。
+
+### Sysmon 中文路径：8.3 短路径 + TEMP 回退
+Sysmon64.exe 的 `-i`/`-c` 参数不支持中文路径。先用 `GetShortPathNameW` 转 8.3 短路径；若短路径仍含非 ASCII（如 8.3 被禁用），则复制 sysmon.xml 到 `%TEMP%\irtool-sysmon.xml` 再安装。
+
+### 日志拆分
+三个独立滚动日志：`irtool-app.log`（全局）、`irtool-monitor.log`（监测引擎）、`irtool-tools.log`（工具管理）。每日轮转，保留 7 天。Release 构建无控制台输出。
+
+### 主题默认浅色
+新用户默认浅色主题。深色主题可选。持久化到 `tauri-plugin-store`。

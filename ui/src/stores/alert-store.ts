@@ -187,9 +187,8 @@ export async function setupAlertListener() {
           remote_addr: remoteAddr || null,
           process_chain: processChain || null,
         },
-      }).catch((e) => console.warn("Alert popup failed:", e));
-    } catch (e) {
-      console.warn("Alert popup failed:", e);
+      }).catch(() => {});
+    } catch {
     }
   });
 }

@@ -59,6 +59,35 @@ impl SysmonConfigManager {
         Ok(())
     }
 
+    /// Get a safe path for passing to Sysmon64.exe.
+    /// Tries 8.3 short path first; if that fails or still contains non-ASCII,
+    /// copies the config to %TEMP% and returns the temp path.
+    fn safe_config_path_for_sysmon(&self) -> PathBuf {
+        let short = to_short_path(&self.config_path);
+
+        // Check if the short path is pure ASCII
+        let is_ascii = short.to_string_lossy().chars().all(|c| c.is_ascii());
+
+        if is_ascii {
+            return short;
+        }
+
+        // Fallback: copy config to temp directory with ASCII-only path
+        let temp_dir = std::env::temp_dir();
+        let temp_config = temp_dir.join("irtool-sysmon.xml");
+
+        if self.config_path.exists() {
+            if let Err(e) = std::fs::copy(&self.config_path, &temp_config) {
+                warn!("Failed to copy config to temp: {}, using original path", e);
+                return short;
+            }
+            info!("Copied sysmon config to temp path: {} -> {}", self.config_path.display(), temp_config.display());
+            return temp_config;
+        }
+
+        short
+    }
+
     /// Install Sysmon. If already installed, falls back to update_config.
     pub fn install(&self, accept_eula: bool) -> Result<(bool, String), IrError> {
         if self.is_installed() {
@@ -73,8 +102,8 @@ impl SysmonConfigManager {
             return Ok((false, format!("找不到配置文件: {}", self.config_path.display())));
         }
 
-        let short_path = to_short_path(&self.config_path);
-        info!("Using short path for sysmon config: {} -> {}", self.config_path.display(), short_path.display());
+        let config_path_for_sysmon = self.safe_config_path_for_sysmon();
+        info!("Using path for sysmon config: {} -> {}", self.config_path.display(), config_path_for_sysmon.display());
 
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
@@ -83,7 +112,7 @@ impl SysmonConfigManager {
             cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
         if accept_eula { cmd.arg("-accepteula"); }
-        cmd.arg("-i").arg(&short_path);
+        cmd.arg("-i").arg(&config_path_for_sysmon);
 
         info!("Installing Sysmon: {:?}", cmd);
 
@@ -117,7 +146,7 @@ impl SysmonConfigManager {
     }
 
     fn run_install_cmd(&self, accept_eula: bool) -> Result<(bool, String), IrError> {
-        let short_path = to_short_path(&self.config_path);
+        let config_path_for_sysmon = self.safe_config_path_for_sysmon();
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
         {
@@ -125,7 +154,7 @@ impl SysmonConfigManager {
             cmd.creation_flags(0x08000000);
         }
         if accept_eula { cmd.arg("-accepteula"); }
-        cmd.arg("-i").arg(&short_path);
+        cmd.arg("-i").arg(&config_path_for_sysmon);
 
         match cmd.output() {
             Ok(output) => {
@@ -188,8 +217,8 @@ impl SysmonConfigManager {
 
         info!("Updating Sysmon config, path: {}", self.config_path.display());
 
-        let short_path = to_short_path(&self.config_path);
-        info!("Using short path for sysmon config: {} -> {}", self.config_path.display(), short_path.display());
+        let config_path_for_sysmon = self.safe_config_path_for_sysmon();
+        info!("Using path for sysmon config: {} -> {}", self.config_path.display(), config_path_for_sysmon.display());
 
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
@@ -197,7 +226,7 @@ impl SysmonConfigManager {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        cmd.arg("-c").arg(&short_path);
+        cmd.arg("-c").arg(&config_path_for_sysmon);
 
         match cmd.output() {
             Ok(output) => {

@@ -9,8 +9,16 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
+    let icon = match app.default_window_icon() {
+        Some(icon) => icon.clone(),
+        None => {
+            tracing::warn!("No default window icon found, skipping tray icon creation");
+            return Ok(());
+        }
+    };
+
     TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .tooltip("IRtool")
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id.as_ref() {
