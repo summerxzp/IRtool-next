@@ -72,7 +72,7 @@ impl ProcessInfoCache {
     }
 
     /// Asynchronously fetch cmdline for cached entries that don't have it yet.
-    /// Spawns a background thread so it doesn't block the caller.
+    /// Uses a single batch WMI query for all PIDs instead of per-PID queries.
     #[cfg(windows)]
     pub fn fetch_cmdlines(&self, pids: &[u32]) {
         let inner = self.inner.clone();
@@ -91,8 +91,8 @@ impl ProcessInfoCache {
         }
 
         std::thread::spawn(move || {
-            for pid in pids {
-                if let Some(cmdline) = query_process_cmdline(pid) {
+            if let Some(cmdline_map) = batch_query_cmdlines(&pids) {
+                for (pid, cmdline) in cmdline_map {
                     if let Some(mut entry) = inner.get_mut(&pid) {
                         entry.cmdline = Some(cmdline);
                     }
@@ -106,25 +106,38 @@ impl ProcessInfoCache {
 }
 
 #[cfg(windows)]
-fn query_process_cmdline(pid: u32) -> Option<String> {
+use std::collections::HashMap;
+
+/// Batch query WMI for CommandLine of all given PIDs in a single WMI connection.
+/// Returns a map of PID -> CommandLine.
+#[cfg(windows)]
+fn batch_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
     use serde::Deserialize;
     use wmi::WMIConnection;
 
     #[derive(Deserialize)]
     #[allow(non_snake_case)]
     struct Win32Process {
+        ProcessId: u32,
         CommandLine: Option<String>,
     }
 
-    // Each call creates a new WMI connection.
-    // This is called from a background thread (via fetch_cmdlines), so it won't block the UI.
     let wmi = WMIConnection::new().ok()?;
-    let query = format!(
-        "SELECT CommandLine FROM Win32_Process WHERE ProcessId = {}",
-        pid
-    );
-    let results: Vec<Win32Process> = wmi.raw_query(&query).ok()?;
-    results.into_iter().next()?.CommandLine
+    // Single query for all processes, then filter by PID
+    let results: Vec<Win32Process> = wmi
+        .raw_query("SELECT ProcessId, CommandLine FROM Win32_Process")
+        .ok()?;
+
+    let pid_set: std::collections::HashSet<u32> = pids.iter().copied().collect();
+    let mut map = HashMap::new();
+    for proc in results {
+        if pid_set.contains(&proc.ProcessId) {
+            if let Some(cmdline) = proc.CommandLine {
+                map.insert(proc.ProcessId, cmdline);
+            }
+        }
+    }
+    Some(map)
 }
 
 #[cfg(windows)]
@@ -246,10 +259,10 @@ mod tests {
         // First lookup returns cmdline=None (async fill)
         let info = lookup_process(pid);
         assert!(info.cmdline.is_none(), "cmdline should be None on first lookup");
-        // fetch_cmdlines fills it asynchronously
+        // fetch_cmdlines fills it asynchronously via batch WMI query
         cache.get(pid); // insert into cache
         cache.fetch_cmdlines(&[pid]);
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         let cached = cache.get(pid);
         assert!(cached.cmdline.is_some(), "cmdline should be populated after fetch_cmdlines");
         let cmdline = cached.cmdline.unwrap();
