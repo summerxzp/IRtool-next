@@ -203,4 +203,14 @@ mod tests {
         assert!(!info.name.is_empty());
         assert!(!info.name.starts_with('['));
     }
+
+    #[cfg(windows)]
+    #[test]
+    fn current_process_has_cmdline() {
+        let info = lookup_process(std::process::id());
+        assert!(info.cmdline.is_some(), "cmdline should be populated via WMI for current process");
+        let cmdline = info.cmdline.unwrap();
+        assert!(!cmdline.is_empty(), "cmdline should not be empty");
+        eprintln!("Current process cmdline: {}", cmdline);
+    }
 }

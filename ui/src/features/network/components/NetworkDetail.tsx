@@ -68,8 +68,8 @@ export function NetworkDetail({ conn, onClose }: Props) {
 
       <div>
         <div className="text-xs text-fg-tertiary mb-1">{t("network.detail.command-line")}</div>
-        <div className="text-xs font-mono text-fg-tertiary italic">
-          {t("network.detail.command-line-pending")}
+        <div className="text-xs font-mono text-fg-secondary break-all">
+          {conn.process_cmdline || t("network.detail.command-line-pending")}
         </div>
       </div>
 
