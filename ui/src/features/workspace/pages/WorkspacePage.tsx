@@ -39,6 +39,7 @@ export function WorkspacePage() {
   const selectedAutorunId = useWorkspaceStore((s) => s.selectedAutorunId);
   const selectedNetworkKey = useWorkspaceStore((s) => s.selectedNetworkKey);
   const selectedEventKey = useWorkspaceStore((s) => s.selectedEventKey);
+  const clearResults = useWorkspaceStore((s) => s.clearResults);
 
   const [ruleManagerOpen, setRuleManagerOpen] = useState(false);
   const [showAssociation, setShowAssociation] = useState(false);
@@ -81,6 +82,10 @@ export function WorkspacePage() {
     }
   }, [rules, doRuleScan, setScanning]);
 
+  const handleReset = useCallback(() => {
+    clearResults();
+  }, [clearResults]);
+
   // Get the currently selected item for association
   const selectedSourceItem = useMemo(() => {
     switch (activeTab) {
@@ -118,6 +123,7 @@ export function WorkspacePage() {
         onRuleScan={handleRuleScan}
         onRuleManager={() => setRuleManagerOpen(true)}
         onRefresh={handleRefresh}
+        onReset={handleReset}
         scanning={scanning || refreshMutation.isPending}
       />
 

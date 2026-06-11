@@ -26,6 +26,7 @@ export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
   } catch {}
 
   const isPcap = me.source === "pcap";
+  const isNetMonitor = me.source === "net_monitor";
 
   if (isPcap) {
     const eventKind = raw.event_kind === "tls_sni" ? "tls_sni" : "dns_pcap";
@@ -66,6 +67,48 @@ export function monitorEventToSysmonEvent(me: api.MonitorEvent): any {
       creation_utc_time: "",
       _rawJson: me.raw_json,
       _source: me.source,
+    };
+  }
+
+  if (isNetMonitor) {
+    return {
+      event_id: 0,
+      event_type: "network_monitor",
+      timestamp: new Date(me.timestamp).toISOString(),
+      timestamp_epoch: me.timestamp / 1000,
+      timestamp_valid: true,
+      record_id: me.id,
+      raw_data: {},
+      process_id: raw.pid || 0,
+      process_name: raw.process_name || me.process_name,
+      process_path: raw.process_path || "",
+      user: "",
+      rule_name: "",
+      query_name: "",
+      query_results: "",
+      query_status: 0,
+      source_ip: raw.local?.addr || "",
+      source_port: raw.local?.port || 0,
+      destination_ip: raw.remote?.addr || "",
+      destination_port: raw.remote?.port || 0,
+      protocol: raw.proto ? String(raw.proto).toUpperCase() : "",
+      initiated: true,
+      is_external: false,
+      source_process_id: 0,
+      source_process_name: "",
+      source_process_path: "",
+      target_process_id: 0,
+      target_process_name: "",
+      target_process_path: "",
+      start_address: "",
+      start_module: "",
+      start_function: "",
+      is_suspicious: false,
+      target_filename: "",
+      creation_utc_time: "",
+      _rawJson: me.raw_json,
+      _source: me.source,
+      _state: raw.state || "",
     };
   }
 

@@ -37,11 +37,11 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
   return (
     <div className="flex items-center gap-2 p-2 bg-bg-elev-1 border-b border-border">
       {scanning ? (
-        <Button variant="secondary" size="sm" onClick={onCancel}>
+        <Button variant="secondary" size="sm" onClick={onCancel} className="hover:shadow-sm transition-shadow">
           <X className="h-3.5 w-3.5 mr-1" />{t("autoruns.toolbar.cancel")}
         </Button>
       ) : (
-        <Button variant="default" size="sm" onClick={onScan}>
+        <Button variant="default" size="sm" onClick={onScan} className="hover:shadow-sm transition-shadow">
           <Play className="h-3.5 w-3.5 mr-1" />{t("autoruns.toolbar.scan")}
         </Button>
       )}
@@ -91,11 +91,11 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
 
       <div className="flex-1" />
 
-      <Button variant="secondary" size="sm" onClick={onBatchCalculateHash} disabled={!hasData || calculatingHash}>
+      <Button variant="secondary" size="sm" onClick={onBatchCalculateHash} disabled={!hasData || calculatingHash} className="hover:shadow-sm transition-shadow">
         <Hash className="h-3.5 w-3.5 mr-1" />{calculatingHash ? t("autoruns.toolbar.calculating-hash") : t("autoruns.toolbar.batch-hash")}
       </Button>
 
-      <Button variant="secondary" size="sm" onClick={onExport} disabled={!hasData}>
+      <Button variant="secondary" size="sm" onClick={onExport} disabled={!hasData} className="hover:shadow-sm transition-shadow">
         <Download className="h-3.5 w-3.5 mr-1" />{t("autoruns.toolbar.export-csv")}
       </Button>
     </div>

@@ -1,16 +1,18 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Panel, Group, Separator } from "react-resizable-panels";
-import { Copy, X, Trash2 } from "lucide-react";
+import { Copy, X, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
 import * as api from "@/features/log-collector/api";
 import { monitorEventToSysmonEvent } from "@/features/log-collector/pages/LogCollectorPage";
 import { useDbSearchStore, type DbSearchEvent } from "../store";
+import { exportCsv } from "@/lib/csv";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 import { DataTable } from "@/components/data-table/DataTable";
@@ -114,6 +116,16 @@ function DbEventDetail({ event, onClose }: { event: DbSearchEvent | null; onClos
         </>
       )}
 
+      {et === "network_monitor" && (
+        <>
+          <Separator />
+          <FieldRow label="协议" value={event.protocol} />
+          <FieldRow label="状态" value={(event as any)._state || ""} />
+          <FieldRow label="来源" value={`${event.source_ip}:${event.source_port}`} />
+          <FieldRow label="目标" value={`${event.destination_ip}:${event.destination_port}`} copyable />
+        </>
+      )}
+
       {et === "create_remote_thread" && (
         <>
           <Separator />
@@ -142,6 +154,7 @@ function DbEventDetail({ event, onClose }: { event: DbSearchEvent | null; onClos
 
 // --- 主页面 ---
 export default function DatabaseSearchPage() {
+  const { t } = useTranslation();
   const [source, setSource] = useState<EventSource>("all");
   const [eventType, setEventType] = useState<string>("all");
   const [processName, setProcessName] = useState<string>("");
@@ -222,6 +235,18 @@ export default function DatabaseSearchPage() {
     setHasMore(false);
     setTypeCounts({});
   }, [clear]);
+
+  const handleExportCsv = useCallback(async () => {
+    const rows = events.map((e) => ({
+      timestamp: e.timestamp,
+      source: e._source,
+      event_type: e.event_type,
+      process_name: e.process_name,
+      key_field: getDestination(e),
+      raw_json: e._rawJson,
+    }));
+    await exportCsv(rows, ["timestamp", "source", "event_type", "process_name", "key_field", "raw_json"], "database-search.csv");
+  }, [events]);
 
   const dbColumns = useMemo<ColumnDef<DbSearchEvent, unknown>[]>(() => [
     {
@@ -306,18 +331,22 @@ export default function DatabaseSearchPage() {
           <Input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="搜索 raw_json" className="h-7 w-48 text-xs" />
         </div>
         <div className="flex items-end gap-2">
-          <Button variant="default" size="sm" onClick={handleSearch} disabled={loading} className="h-7 text-xs">
+          <Button variant="default" size="sm" onClick={handleSearch} disabled={loading} className="h-7 text-xs hover:shadow-sm transition-shadow">
             {loading ? "搜索中..." : "搜索"}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={loading} className="h-7 text-xs">
             重置
           </Button>
           {hasMore && (
-            <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={loading} className="h-7 text-xs">
+            <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={loading} className="h-7 text-xs hover:shadow-sm transition-shadow">
               加载更多
             </Button>
           )}
           <div className="flex-1" />
+          <Button variant="secondary" size="sm" onClick={handleExportCsv} disabled={loading || events.length === 0} className="h-7 text-xs">
+            <Download className="h-3 w-3 mr-1" />
+            {t("database-search.export-csv")}
+          </Button>
           <Button variant="destructive" size="sm" onClick={() => setClearConfirmOpen(true)} disabled={loading} className="h-7 text-xs">
             <Trash2 className="h-3 w-3 mr-1" />
             清空

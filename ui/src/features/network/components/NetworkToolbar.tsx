@@ -19,6 +19,7 @@ import type { ConnState, Proto, RetentionPolicyDto } from "../types";
 interface Props {
   onExport: () => void;
   onClearHistory: () => void;
+  onRefresh: () => void;
   onKillSelected: () => void;
   hasSelection: boolean;
   loading: boolean;
@@ -80,6 +81,7 @@ export function NetworkToolbar({
         variant={paused ? "secondary" : "default"}
         size="sm"
         onClick={() => setPaused(!paused)}
+        className="hover:shadow-sm transition-shadow"
       >
         {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
         <span className="ml-1">
@@ -181,11 +183,11 @@ export function NetworkToolbar({
         <X className="h-3.5 w-3.5 mr-1" />
         {t("network.toolbar.kill-process")}
       </Button>
-      <Button variant="secondary" size="sm" onClick={onExport}>
+      <Button variant="secondary" size="sm" onClick={onExport} className="hover:shadow-sm transition-shadow">
         <Download className="h-3.5 w-3.5 mr-1" />
         {t("network.toolbar.export-csv")}
       </Button>
-      <Button variant="secondary" size="sm" onClick={onClearHistory}>
+      <Button variant="secondary" size="sm" onClick={onClearHistory} className="hover:shadow-sm transition-shadow">
         <Trash2 className="h-3.5 w-3.5 mr-1" />
         {t("network.toolbar.clear-history")}
       </Button>

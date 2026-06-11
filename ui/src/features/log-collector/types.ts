@@ -2,7 +2,7 @@ import type { SysmonEventType } from "@/lib/bindings";
 export type { SysmonEvent, SysmonEventType, SysmonStatus, EventConfigEntry } from "@/lib/bindings";
 
 /** Extended event type including pcap-derived events not in the auto-generated SysmonEventType. */
-export type ExtendedSysmonEventType = SysmonEventType | "tls_sni" | "dns_pcap";
+export type ExtendedSysmonEventType = SysmonEventType | "tls_sni" | "dns_pcap" | "network_monitor";
 
 export interface LogCollectorFilters {
   eventTypes: ExtendedSysmonEventType[];
@@ -34,6 +34,7 @@ export const EVENT_TYPE_LABELS: Record<ExtendedSysmonEventType, string> = {
   unknown: "未知",
   tls_sni: "TLS SNI",
   dns_pcap: "DNS抓包",
+  network_monitor: "网络监控",
 };
 
 export const EVENT_TYPE_COLORS: Record<ExtendedSysmonEventType, string> = {
@@ -60,6 +61,7 @@ export const EVENT_TYPE_COLORS: Record<ExtendedSysmonEventType, string> = {
   unknown: "bg-gray-500/15 text-gray-500 border-gray-500/25",
   tls_sni: "bg-sky-500/15 text-sky-500 border-sky-500/25",
   dns_pcap: "bg-lime-500/15 text-lime-500 border-lime-500/25",
+  network_monitor: "bg-green-500/15 text-green-500 border-green-500/25",
 };
 
 export const DEFAULT_ENABLED_EVENT_IDS = [3008, 22, 3]; // DNS Client + DNS + Network

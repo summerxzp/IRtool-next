@@ -91,7 +91,9 @@ export const useAutorunsStore = create<AutorunsState>()(
     }),
     {
       name: "irtool-autoruns",
-      partialize: () => ({}),
+      partialize: (state) => ({
+        lastScanDuration: state.lastScanDuration,
+      } as AutorunsState),
     }
   )
 );

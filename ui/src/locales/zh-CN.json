@@ -37,6 +37,9 @@
     "cancel": "取消",
     "confirm": "确认"
   },
+  "database-search": {
+    "export-csv": "导出 CSV"
+  },
   "network": {
     "title": "网络监控",
     "toolbar": {
@@ -410,6 +413,7 @@
     "toolbar": {
       "search-placeholder": "关键词 / 路径 / IP / 进程名",
       "search": "搜索",
+      "reset": "重置",
       "scan": "规则扫描",
       "refresh": "刷新",
       "rules": "规则管理"

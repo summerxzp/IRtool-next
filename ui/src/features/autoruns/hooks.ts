@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useEffect, useRef } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useEffect } from "react";
 import * as api from "./api";
 import { useAutorunsStore } from "./store";
 import { clearIconCache, preloadIcons } from "./columns";
@@ -8,13 +8,11 @@ import type { AutorunItem, ScanProgress, SignatureProgress } from "./types";
 
 const QK_AUTORUNS = ["autoruns", "items"] as const;
 
+// Module-level flag to prevent duplicate listener registration
+let listenersInitialized = false;
+
 export function useAutorunsData() {
   const qc = useQueryClient();
-  const setScanProgress = useAutorunsStore((s) => s.setScanProgress);
-  const setSignatureProgress = useAutorunsStore((s) => s.setSignatureProgress);
-  const setScanning = useAutorunsStore((s) => s.setScanning);
-  const setVerifyingSignatures = useAutorunsStore((s) => s.setVerifyingSignatures);
-  const setError = useAutorunsStore((s) => s.setError);
 
   const query = useQuery({
     queryKey: QK_AUTORUNS,
@@ -23,92 +21,76 @@ export function useAutorunsData() {
     refetchOnWindowFocus: false,
   });
 
-  const settersRef = useRef({ setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration, setCalculatingHash: useAutorunsStore.getState().setCalculatingHash, setHashProgress: useAutorunsStore.getState().setHashProgress });
-  settersRef.current = { setScanProgress, setSignatureProgress, setScanning, setVerifyingSignatures, setError, setLastScanDuration: useAutorunsStore.getState().setLastScanDuration, setCalculatingHash: useAutorunsStore.getState().setCalculatingHash, setHashProgress: useAutorunsStore.getState().setHashProgress };
-
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined;
+    if (listenersInitialized) return;
+    listenersInitialized = true;
+
+    // Autoruns scan progress - persistent listener (no cleanup on unmount)
     listen<ScanProgress>("evt_autoruns_progress", (e) => {
-      const { setScanProgress, setScanning, setLastScanDuration } = settersRef.current;
-      setScanProgress(e.payload);
+      const store = useAutorunsStore.getState();
+      store.setScanProgress(e.payload);
       if (e.payload.phase === "complete") {
         clearIconCache();
         qc.invalidateQueries({ queryKey: QK_AUTORUNS }).then(() => {
-          // After data is refreshed, batch preload all icons
           const data = qc.getQueryData<AutorunItem[]>(QK_AUTORUNS);
           if (data && data.length > 0) preloadIcons(data);
         });
-        setScanning(false);
-        // Extract duration from message like "扫描完成，共 287 项，耗时 12.3s"
+        store.setScanning(false);
         const match = e.payload.message.match(/耗时\s+([\d.]+)s/);
-        if (match) setLastScanDuration(parseFloat(match[1]));
+        if (match) store.setLastScanDuration(parseFloat(match[1]));
       }
-    }).then((u) => { unlisten = u; });
-    return () => { unlisten?.(); };
-  }, [qc]);
+    });
 
-  useEffect(() => {
-    let unlisten: UnlistenFn | undefined;
+    // Signature verification progress - persistent listener
     listen<SignatureProgress>("evt_autoruns_signature_progress", (e) => {
-      const { setSignatureProgress, setVerifyingSignatures } = settersRef.current;
-      setSignatureProgress(e.payload);
-      // Refresh data periodically during verification (every 100 items)
+      const store = useAutorunsStore.getState();
+      store.setSignatureProgress(e.payload);
       if (e.payload.current % 200 === 0) {
         qc.invalidateQueries({ queryKey: QK_AUTORUNS });
       }
       if (e.payload.current >= e.payload.total) {
         qc.invalidateQueries({ queryKey: QK_AUTORUNS });
-        setVerifyingSignatures(false);
+        store.setVerifyingSignatures(false);
       }
-    }).then((u) => { unlisten = u; });
-    return () => { unlisten?.(); };
-  }, [qc]);
+    });
 
-  // Listen for hash progress events
-  useEffect(() => {
-    let unlisten: UnlistenFn | undefined;
+    // Hash progress - persistent listener
     listen<SignatureProgress>("evt_autoruns_hash_progress", (e) => {
-      const { setHashProgress, setCalculatingHash } = settersRef.current;
-      setHashProgress(e.payload);
+      const store = useAutorunsStore.getState();
+      store.setHashProgress(e.payload);
       if (e.payload.current % 200 === 0) {
         qc.invalidateQueries({ queryKey: QK_AUTORUNS });
       }
       if (e.payload.current >= e.payload.total) {
         qc.invalidateQueries({ queryKey: QK_AUTORUNS });
-        setCalculatingHash(false);
-        setHashProgress(null);
+        store.setCalculatingHash(false);
+        store.setHashProgress(null);
       }
-    }).then((u) => { unlisten = u; });
-    return () => { unlisten?.(); };
-  }, [qc]);
+    });
 
-  // Listen for task cancelled/failed events
-  useEffect(() => {
-    const unlistens: UnlistenFn[] = [];
+    // Task failed/cancelled - persistent listeners
     listen<{ task_id: number; error: unknown }>("evt_task_failed", (e) => {
-      const { setScanning, setVerifyingSignatures, setError } = settersRef.current;
-      setScanning(false);
-      setVerifyingSignatures(false);
+      const store = useAutorunsStore.getState();
+      store.setScanning(false);
+      store.setVerifyingSignatures(false);
       const errObj = e.payload.error as Record<string, unknown>;
       const msg = errObj?.message ? String(errObj.message) : JSON.stringify(e.payload.error);
-      setError(msg);
-    }).then((u) => { unlistens.push(u); });
+      store.setError(msg);
+    });
 
     listen<number>("evt_task_cancelled", () => {
-      const { setScanning, setVerifyingSignatures } = settersRef.current;
-      setScanning(false);
-      setVerifyingSignatures(false);
-    }).then((u) => { unlistens.push(u); });
-
-    return () => { unlistens.forEach((u) => u()); };
-  }, []);
+      const store = useAutorunsStore.getState();
+      store.setScanning(false);
+      store.setVerifyingSignatures(false);
+    });
+  }, [qc]);
 
   // Safety: if data is available but scanning is still true, the complete event was missed
   useEffect(() => {
     if (query.isSuccess && query.data && useAutorunsStore.getState().scanning) {
-      setScanning(false);
+      useAutorunsStore.getState().setScanning(false);
     }
-  }, [query.isSuccess, query.data, setScanning]);
+  }, [query.isSuccess, query.data]);
 
   return query;
 }

@@ -351,7 +351,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">{t("settings.alert-rules.title")}</h2>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={handleSave} disabled={loading}>
+                  <Button size="sm" onClick={handleSave} disabled={loading} className="hover:shadow-sm transition-shadow">
                     {loading ? t("log-collector.monitor.saving") : t("log-collector.monitor.save")}
                   </Button>
                   <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={addRule}>
@@ -419,7 +419,7 @@ export default function SettingsPage() {
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">{t("settings.notification.title")}</h2>
-                <Button size="sm" onClick={handleSave} disabled={loading}>
+                <Button size="sm" onClick={handleSave} disabled={loading} className="hover:shadow-sm transition-shadow">
                   {loading ? t("log-collector.monitor.saving") : t("log-collector.monitor.save")}
                 </Button>
               </div>
@@ -556,7 +556,7 @@ export default function SettingsPage() {
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">{t("settings.database.title")}</h2>
-                <Button size="sm" onClick={handleSave} disabled={loading}>
+                <Button size="sm" onClick={handleSave} disabled={loading} className="hover:shadow-sm transition-shadow">
                   {loading ? t("log-collector.monitor.saving") : t("log-collector.monitor.save")}
                 </Button>
               </div>
@@ -622,7 +622,7 @@ export default function SettingsPage() {
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">{t("settings.data-source.title")}</h2>
-                <Button size="sm" onClick={handleSave} disabled={loading}>
+                <Button size="sm" onClick={handleSave} disabled={loading} className="hover:shadow-sm transition-shadow">
                   {loading ? t("log-collector.monitor.saving") : t("log-collector.monitor.save")}
                 </Button>
               </div>
@@ -666,11 +666,11 @@ export default function SettingsPage() {
               <h2 className="text-sm font-medium">{t("settings.import-export.title")}</h2>
               <p className="text-xs text-fg-tertiary">{t("settings.import-export.desc")}</p>
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" size="sm" onClick={handleExport}>
+                <Button variant="secondary" size="sm" onClick={handleExport} className="hover:shadow-sm transition-shadow">
                   <Download className="h-3.5 w-3.5 mr-1" />
                   {t("settings.import-export.export")}
                 </Button>
-                <Button variant="secondary" size="sm" onClick={handleImport}>
+                <Button variant="secondary" size="sm" onClick={handleImport} className="hover:shadow-sm transition-shadow">
                   <Upload className="h-3.5 w-3.5 mr-1" />
                   {t("settings.import-export.import")}
                 </Button>

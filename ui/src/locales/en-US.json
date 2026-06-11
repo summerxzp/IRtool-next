@@ -37,6 +37,9 @@
     "cancel": "Cancel",
     "confirm": "Confirm"
   },
+  "database-search": {
+    "export-csv": "Export CSV"
+  },
   "network": {
     "title": "Network Monitor",
     "toolbar": {
@@ -410,6 +413,7 @@
     "toolbar": {
       "search-placeholder": "Keyword / Path / IP / Process",
       "search": "Search",
+      "reset": "Reset",
       "scan": "Rule Scan",
       "refresh": "Refresh",
       "rules": "Rule Manager"

@@ -71,6 +71,7 @@ export function NetworkPage() {
       <NetworkToolbar
         onExport={handleExport}
         onClearHistory={() => clearMutation.mutate()}
+        onRefresh={() => query.refetch()}
         onKillSelected={() => {
           if (selected) setKillDialogOpen(true);
         }}

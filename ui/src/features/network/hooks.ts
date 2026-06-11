@@ -59,6 +59,7 @@ export function useClearHistory() {
   return useMutation({
     mutationFn: api.clearHistory,
     onSuccess: () => {
+      qc.setQueryData(QK_NETWORK, { items: [], timestamp: 0 });
       qc.invalidateQueries({ queryKey: QK_NETWORK });
     },
   });

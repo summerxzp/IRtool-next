@@ -139,6 +139,7 @@ async fn run_polling_loop(
     let mut ticker = tokio::time::interval(Duration::from_millis(interval_ms));
     loop {
         tokio::select! {
+            biased;
             _ = cancel.cancelled() => {
                 info!("network polling loop cancelled");
                 break;
@@ -146,6 +147,11 @@ async fn run_polling_loop(
             _ = ticker.tick() => {
                 let collector_clone = collector.clone();
                 let snap = tokio::task::spawn_blocking(move || collector_clone.snapshot()).await;
+                // 如果在 snapshot 期间已取消，跳过处理直接退出
+                if cancel.is_cancelled() {
+                    info!("network polling loop cancelled during snapshot");
+                    break;
+                }
                 match snap {
                     Ok(Ok(items)) => {
                         let ret = *retention.lock();
@@ -188,11 +194,15 @@ async fn run_polling_loop(
 
 pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     let token = CancellationToken::new();
-    let (retention, interval) = {
+    let (retention, interval, paused) = {
         let mut polling = state.net_polling.lock();
         polling.cancel = Some(token.clone());
-        (polling.retention, polling.interval_ms)
+        (polling.retention, polling.interval_ms, polling.paused)
     };
+    if paused {
+        token.cancel();
+        return;
+    }
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
     let shared_retention = Arc::new(Mutex::new(retention));
@@ -210,7 +220,7 @@ fn netconn_to_monitor_event(conn: &NetConn) -> MonitorEvent {
         timestamp: (conn.first_seen as i64) * 1000,
         source: EventSource::NetMonitor,
         event_type: "network_monitor".to_string(),
-        process_name: conn.process_name.clone().unwrap_or_default(),
+        process_name: format!("{} ({})", conn.process_name.clone().unwrap_or_default(), conn.pid),
         key_field: format!("{}:{}", conn.remote.addr, conn.remote.port),
         raw_json: serde_json::to_string(&conn).unwrap_or_default(),
     }

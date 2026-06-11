@@ -26,18 +26,29 @@ function fmtTime(epoch: number) {
 
 export const networkColumns: ColumnDef<NetConn>[] = [
   {
-    id: "proto",
-    accessorFn: (r) => r.proto,
-    header: "Proto",
-    size: 60,
-    cell: ({ row }) => row.original.proto.toUpperCase(),
+    id: "first_seen",
+    accessorFn: (r) => r.first_seen,
+    header: "First Seen",
+    size: 160,
+    cell: ({ row }) => (
+      <span className="font-mono text-xs">{fmtTime(row.original.first_seen)}</span>
+    ),
   },
   {
-    id: "family",
-    accessorFn: (r) => r.family,
-    header: "Fam",
-    size: 50,
-    cell: ({ row }) => row.original.family.toUpperCase(),
+    id: "pid",
+    accessorFn: (r) => r.pid,
+    header: "PID",
+    size: 70,
+    cell: ({ row }) => (
+      <span className="font-mono text-xs">{row.original.pid}</span>
+    ),
+  },
+  {
+    id: "process",
+    accessorFn: (r) => r.process_name ?? "",
+    header: "Process",
+    size: 160,
+    cell: ({ row }) => row.original.process_name ?? "",
   },
   {
     id: "local",
@@ -68,20 +79,18 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     },
   },
   {
-    id: "pid",
-    accessorFn: (r) => r.pid,
-    header: "PID",
-    size: 70,
-    cell: ({ row }) => (
-      <span className="font-mono text-xs">{row.original.pid}</span>
-    ),
+    id: "proto",
+    accessorFn: (r) => r.proto,
+    header: "Proto",
+    size: 60,
+    cell: ({ row }) => row.original.proto.toUpperCase(),
   },
   {
-    id: "process",
-    accessorFn: (r) => r.process_name ?? "",
-    header: "Process",
-    size: 160,
-    cell: ({ row }) => row.original.process_name ?? "",
+    id: "family",
+    accessorFn: (r) => r.family,
+    header: "Fam",
+    size: 50,
+    cell: ({ row }) => row.original.family.toUpperCase(),
   },
   {
     id: "path",
@@ -92,15 +101,6 @@ export const networkColumns: ColumnDef<NetConn>[] = [
       <span className="font-mono text-xs text-fg-secondary">
         {row.original.process_path ?? ""}
       </span>
-    ),
-  },
-  {
-    id: "first_seen",
-    accessorFn: (r) => r.first_seen,
-    header: "First Seen",
-    size: 160,
-    cell: ({ row }) => (
-      <span className="font-mono text-xs">{fmtTime(row.original.first_seen)}</span>
     ),
   },
   {
