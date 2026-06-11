@@ -44,8 +44,12 @@ impl ProcessInfoCache {
                 if e.get().cached_at.elapsed() < CACHE_TTL {
                     return e.get().clone();
                 }
-                // TTL expired - update in place
-                let info = lookup_process(pid);
+                // TTL expired - update in place, but preserve cmdline if already fetched
+                let old_cmdline = e.get().cmdline.clone();
+                let mut info = lookup_process(pid);
+                if info.cmdline.is_none() && old_cmdline.is_some() {
+                    info.cmdline = old_cmdline;
+                }
                 e.insert(info.clone());
                 info
             }
@@ -71,38 +75,12 @@ impl ProcessInfoCache {
             .retain(|_, info| now.duration_since(info.cached_at) < CACHE_TTL * 4);
     }
 
-    /// Asynchronously fetch cmdline for cached entries that don't have it yet.
-    /// Uses a single batch WMI query for all PIDs instead of per-PID queries.
-    #[cfg(windows)]
-    pub fn fetch_cmdlines(&self, pids: &[u32]) {
-        let inner = self.inner.clone();
-        let pids: Vec<u32> = pids
-            .iter()
-            .filter(|pid| {
-                inner
-                    .get(pid)
-                    .map_or(false, |e| e.cmdline.is_none())
-            })
-            .copied()
-            .collect();
-
-        if pids.is_empty() {
-            return;
+    /// Update cmdline for a cached entry (called after batch WMI fetch).
+    pub fn set_cmdline(&self, pid: u32, cmdline: String) {
+        if let Some(mut entry) = self.inner.get_mut(&pid) {
+            entry.cmdline = Some(cmdline);
         }
-
-        std::thread::spawn(move || {
-            if let Some(cmdline_map) = batch_query_cmdlines(&pids) {
-                for (pid, cmdline) in cmdline_map {
-                    if let Some(mut entry) = inner.get_mut(&pid) {
-                        entry.cmdline = Some(cmdline);
-                    }
-                }
-            }
-        });
     }
-
-    #[cfg(not(windows))]
-    pub fn fetch_cmdlines(&self, _pids: &[u32]) {}
 }
 
 #[cfg(windows)]
@@ -111,7 +89,7 @@ use std::collections::HashMap;
 /// Batch query WMI for CommandLine of all given PIDs in a single WMI connection.
 /// Returns a map of PID -> CommandLine.
 #[cfg(windows)]
-fn batch_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
+pub(crate) fn batch_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
     use serde::Deserialize;
     use wmi::WMIConnection;
 
@@ -256,17 +234,16 @@ mod tests {
     fn current_process_has_cmdline() {
         let cache = ProcessInfoCache::new();
         let pid = std::process::id();
-        // First lookup returns cmdline=None (async fill)
+        // First lookup returns cmdline=None
         let info = lookup_process(pid);
         assert!(info.cmdline.is_none(), "cmdline should be None on first lookup");
-        // fetch_cmdlines fills it asynchronously via batch WMI query
+        // Batch WMI query fills it
         cache.get(pid); // insert into cache
-        cache.fetch_cmdlines(&[pid]);
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-        let cached = cache.get(pid);
-        assert!(cached.cmdline.is_some(), "cmdline should be populated after fetch_cmdlines");
-        let cmdline = cached.cmdline.unwrap();
-        assert!(!cmdline.is_empty(), "cmdline should not be empty");
-        eprintln!("Current process cmdline: {}", cmdline);
+        let cmdlines = batch_query_cmdlines(&[pid]);
+        assert!(cmdlines.is_some(), "batch WMI query should succeed");
+        let cmdline = cmdlines.unwrap().get(&pid).cloned();
+        assert!(cmdline.is_some(), "cmdline should be found for current process");
+        assert!(!cmdline.as_ref().unwrap().is_empty(), "cmdline should not be empty");
+        eprintln!("Current process cmdline: {}", cmdline.unwrap());
     }
 }

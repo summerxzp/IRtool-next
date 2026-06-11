@@ -24,22 +24,45 @@ impl WindowsNetCollector {
         &self.process_cache
     }
 
+    #[cfg(windows)]
+    fn batch_fetch_cmdlines(pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
+        crate::process_info::batch_query_cmdlines(pids)
+    }
+
+    #[cfg(not(windows))]
+    fn batch_fetch_cmdlines(_pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
+        None
+    }
+
     fn enrich(&self, mut conns: Vec<NetConn>) -> Vec<NetConn> {
-        let mut pids: Vec<u32> = Vec::new();
+        // Collect unique PIDs that need cmdline
+        let mut pids_needing_cmdline: Vec<u32> = Vec::new();
         for c in &mut conns {
             let info = self.process_cache.get(c.pid);
             c.process_name = Some(info.name);
             c.process_path = info.path.map(|p| p.to_string_lossy().into_owned());
             if info.cmdline.is_none() {
-                pids.push(c.pid);
+                pids_needing_cmdline.push(c.pid);
             }
             c.process_cmdline = info.cmdline;
         }
-        self.process_cache.cleanup_expired();
-        // Asynchronously fetch cmdlines for entries that don't have it yet
-        if !pids.is_empty() {
-            self.process_cache.fetch_cmdlines(&pids);
+
+        // Synchronously batch-fetch cmdlines via WMI (runs in spawn_blocking already)
+        if !pids_needing_cmdline.is_empty() {
+            if let Some(cmdline_map) = Self::batch_fetch_cmdlines(&pids_needing_cmdline) {
+                for c in &mut conns {
+                    if c.process_cmdline.is_none() {
+                        if let Some(cmdline) = cmdline_map.get(&c.pid) {
+                            c.process_cmdline = Some(cmdline.clone());
+                            // Also update cache so next poll doesn't need WMI again
+                            self.process_cache.set_cmdline(c.pid, cmdline.clone());
+                        }
+                    }
+                }
+            }
         }
+
+        self.process_cache.cleanup_expired();
         conns
     }
 }
