@@ -43,6 +43,9 @@ ui/dist-node/
 # External tools (binaries, not tracked)
 tools/
 
+# Test results
+ui/test-results/
+
 # Temp files
 tmp_*.csv
 
