@@ -17,7 +17,8 @@
     "autoruns": "持久化检测",
     "workspace": "工作台",
     "settings": "设置",
-    "background-detection": "后台监测"
+    "background-detection": "后台监测",
+    "background-monitoring": "后台监控"
   },
   "status": {
     "admin": "管理员",
@@ -222,6 +223,7 @@
       "start": "启动采集",
       "stop": "停止",
       "load-history": "加载历史",
+      "query-history": "查询历史",
       "all-events": "全部事件",
       "event-type-label": "事件类型",
       "external-only": "仅外连",
@@ -306,6 +308,44 @@
       "message": "确定要清空所有事件记录吗？此操作不可撤销。",
       "confirm": "清空"
     },
+    "history": {
+      "source": "来源",
+      "event-type": "事件类型",
+      "process-name": "进程名",
+      "domain": "域名",
+      "fulltext": "全文搜索",
+      "fuzzy-match": "模糊匹配",
+      "all": "全部",
+      "net-monitor": "网络监控",
+      "network-connect": "网络连接",
+      "search": "搜索",
+      "searching": "搜索中...",
+      "search-failed": "搜索事件失败",
+      "load-more": "加载更多",
+      "back-to-live": "返回实时",
+      "no-results": "点击搜索查询历史事件",
+      "total": "总计",
+      "loaded": "已加载"
+    },
+    "background-mode": {
+      "active": "后台监测模式运行中，实时事件已暂停",
+      "written": "已写入",
+      "dropped": "已丢弃",
+      "last-event": "最后事件",
+      "view-history": "查看历史"
+    },
+    "start-failed": "启动失败",
+    "stop-failed": "停止失败",
+    "history-loaded": "已加载 {{count}} 条历史事件",
+    "no-history": "未找到历史事件",
+    "load-history-failed": "加载历史失败",
+    "uninstall-failed": "卸载失败",
+    "uninstall-error": "卸载异常",
+    "install-failed": "安装失败",
+    "start-collect-failed": "启动采集失败",
+    "config-update-failed": "配置更新失败",
+    "config-apply-failed": "配置应用失败",
+    "install-error": "安装异常",
     "monitor": {
       "title": "后台监测模式",
       "config": "通知配置",

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import * as api from "./api";
 import { useLogCollectorStore } from "./store";
 import { DEFAULT_ENABLED_EVENT_IDS } from "./types";
-import type { SysmonEvent, ExtendedSysmonEventType } from "./types";
+import type { SysmonEvent, ExtendedSysmonEventType, EventPage } from "./types";
 
 const EVT_SYSMON_EVENT = "evt_sysmon_event";
 const EVT_PCAP_EVENT = "evt_pcap_event";
@@ -202,9 +203,19 @@ export function useStartCollection(enabledEventIds: number[] = DEFAULT_ENABLED_E
       try {
         const config = await api.monitorGetConfig();
         if (config.enable_sni || config.enable_dns_pcap) {
+          // 后台模式下 PCAP 开销较大，给出警告
+          const isBackground = await api.monitorIsBackground();
+          if (isBackground) {
+            toast.warning("PCAP 在后台模式下开销较大，建议仅在深度捕获模式下启用");
+          }
           const { invoke } = await import("@tauri-apps/api/core");
           await invoke("cmd_pcap_start", {
-            config: { enable_sni: config.enable_sni, enable_dns_pcap: config.enable_dns_pcap },
+            config: {
+              enable_sni: config.enable_sni,
+              enable_dns_pcap: config.enable_dns_pcap,
+              adapter_ip: config.adapter_ip ?? null,
+              max_duration_secs: config.max_duration_secs ?? 0,
+            },
           });
         }
       } catch {
@@ -269,6 +280,24 @@ export function useSyncCollectingState() {
       }
     })();
   }, [setCollecting]);
+}
+
+/** Paginated history query via backend cmd_monitor_search_event_page. */
+export function useSearchEventPage() {
+  return useMutation({
+    mutationFn: async (params: {
+      source?: string | null;
+      event_type?: string | null;
+      process_name?: string | null;
+      key_field?: string | null;
+      is_external?: boolean | null;
+      search_text?: string | null;
+      limit?: number;
+      offset?: number;
+    }): Promise<EventPage> => {
+      return api.searchEventPage(params);
+    },
+  });
 }
 
 

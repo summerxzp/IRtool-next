@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as LogCollectorRouteImport } from './routes/log-collector'
 import { Route as DatabaseSearchRouteImport } from './routes/database-search'
+import { Route as BackgroundMonitoringRouteImport } from './routes/background-monitoring'
 import { Route as AutorunsRouteImport } from './routes/autoruns'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -42,6 +43,11 @@ const DatabaseSearchRoute = DatabaseSearchRouteImport.update({
   path: '/database-search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BackgroundMonitoringRoute = BackgroundMonitoringRouteImport.update({
+  id: '/background-monitoring',
+  path: '/background-monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AutorunsRoute = AutorunsRouteImport.update({
   id: '/autoruns',
   path: '/autoruns',
@@ -56,6 +62,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/background-monitoring': typeof BackgroundMonitoringRoute
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/background-monitoring': typeof BackgroundMonitoringRoute
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/autoruns': typeof AutorunsRoute
+  '/background-monitoring': typeof BackgroundMonitoringRoute
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/autoruns'
+    | '/background-monitoring'
     | '/database-search'
     | '/log-collector'
     | '/network'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/autoruns'
+    | '/background-monitoring'
     | '/database-search'
     | '/log-collector'
     | '/network'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/autoruns'
+    | '/background-monitoring'
     | '/database-search'
     | '/log-collector'
     | '/network'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AutorunsRoute: typeof AutorunsRoute
+  BackgroundMonitoringRoute: typeof BackgroundMonitoringRoute
   DatabaseSearchRoute: typeof DatabaseSearchRoute
   LogCollectorRoute: typeof LogCollectorRoute
   NetworkRoute: typeof NetworkRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DatabaseSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/background-monitoring': {
+      id: '/background-monitoring'
+      path: '/background-monitoring'
+      fullPath: '/background-monitoring'
+      preLoaderRoute: typeof BackgroundMonitoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/autoruns': {
       id: '/autoruns'
       path: '/autoruns'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AutorunsRoute: AutorunsRoute,
+  BackgroundMonitoringRoute: BackgroundMonitoringRoute,
   DatabaseSearchRoute: DatabaseSearchRoute,
   LogCollectorRoute: LogCollectorRoute,
   NetworkRoute: NetworkRoute,

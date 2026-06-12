@@ -148,11 +148,38 @@ export function useWorkspaceRuleScan() {
 }
 
 /**
- * Run a command template (attrib, takeown, 7z).
+ * Unhide a file or directory (remove hidden attribute).
  */
-export function useRunCommand() {
+export function useUnhidePath() {
   return useMutation({
-    mutationFn: ({ program, args }: { program: string; args: string }) =>
-      api.runCommand(program, args),
+    mutationFn: (path: string) => api.unhidePath(path),
+  });
+}
+
+/**
+ * Take ownership of a file or directory.
+ */
+export function useTakeOwnership() {
+  return useMutation({
+    mutationFn: (path: string) => api.takeOwnership(path),
+  });
+}
+
+/**
+ * Sample a file (zip with password protection).
+ */
+export function useSamplePath() {
+  return useMutation({
+    mutationFn: ({ path, outputDir, password }: { path: string; outputDir: string; password: string }) =>
+      api.samplePath(path, outputDir, password),
+  });
+}
+
+/**
+ * Open a path in explorer.
+ */
+export function useOpenPath() {
+  return useMutation({
+    mutationFn: (path: string) => api.openPath(path),
   });
 }

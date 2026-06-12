@@ -3,7 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import * as api from "./api";
 import { useNetworkStore } from "./store";
-import type { NetworkSnapshotPayload } from "./types";
+import type { CmdlineStatus, NetworkEnrichmentPayload, NetworkSnapshotPayload } from "./types";
 
 const QK_NETWORK = ["network", "snapshot"] as const;
 
@@ -20,6 +20,30 @@ export function useNetwork() {
     let unlisten: UnlistenFn | undefined;
     listen<NetworkSnapshotPayload>("evt_network_snapshot", (e) => {
       qc.setQueryData(QK_NETWORK, e.payload);
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [qc]);
+
+  // Listen for cmdline enrichment events and patch cached data
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    listen<NetworkEnrichmentPayload>("evt_network_enrichment", (e) => {
+      const { pid, cmdline_status, process_cmdline } = e.payload;
+      qc.setQueryData<NetworkSnapshotPayload>(QK_NETWORK, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((conn) =>
+            conn.pid === pid
+              ? { ...conn, cmdline_status: cmdline_status as CmdlineStatus, process_cmdline: process_cmdline ?? conn.process_cmdline }
+              : conn
+          ),
+        };
+      });
     }).then((u) => {
       unlisten = u;
     });

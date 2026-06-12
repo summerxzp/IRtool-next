@@ -65,3 +65,22 @@ export const EVENT_TYPE_COLORS: Record<ExtendedSysmonEventType, string> = {
 };
 
 export const DEFAULT_ENABLED_EVENT_IDS = [3008, 22, 3]; // DNS Client + DNS + Network
+
+/** Event record from the monitor database (backend MonitorEvent). */
+export interface MonitorEvent {
+  id: number;
+  timestamp: number;
+  source: "Sysmon" | "DnsClient" | "NetMonitor" | "Pcap";
+  event_type: string;
+  process_name: string;
+  key_field: string;
+  raw_json: string;
+}
+
+/** Paginated result from cmd_monitor_search_event_page. */
+export interface EventPage {
+  items: MonitorEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}

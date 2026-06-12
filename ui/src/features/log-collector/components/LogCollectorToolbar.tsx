@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Square, History, Trash2, Download, X, Settings, Unplug, ChevronDown } from "lucide-react";
+import { Play, Square, Trash2, Download, X, Settings, Unplug, ChevronDown, Database, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +13,7 @@ import type { ExtendedSysmonEventType, SysmonEvent } from "../types";
 interface Props {
   onStart: () => void;
   onStop: () => void;
+  onOpenHistory: () => void;
   onLoadHistory: () => void;
   onClear: () => void;
   onExport: () => void;
@@ -24,7 +25,7 @@ interface Props {
   events: SysmonEvent[];
 }
 
-export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, onExport, onUninstall, onOpenConfigDialog, collecting, loading, sysmonInstalled, events }: Props) {
+export function LogCollectorToolbar({ onStart, onStop, onOpenHistory, onLoadHistory, onClear, onExport, onUninstall, onOpenConfigDialog, collecting, loading, sysmonInstalled, events }: Props) {
   const { t } = useTranslation();
   const { filters, setFilter } = useLogCollectorStore();
   const [searchInput, setSearchInput] = useState(filters.search);
@@ -60,6 +61,11 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
       <Button variant="secondary" size="sm" onClick={onLoadHistory} disabled={loading} className="hover:shadow-sm transition-shadow">
         <History className="h-3.5 w-3.5 mr-1" />
         {t("log-collector.toolbar.load-history")}
+      </Button>
+
+      <Button variant="secondary" size="sm" onClick={onOpenHistory} disabled={loading} className="hover:shadow-sm transition-shadow">
+        <Database className="h-3.5 w-3.5 mr-1" />
+        {t("log-collector.toolbar.query-history")}
       </Button>
 
       <Popover>

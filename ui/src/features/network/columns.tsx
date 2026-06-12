@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { NetConn, ConnState } from "./types";
+import type { NetConn, ConnState, CmdlineStatus } from "./types";
 
 const STATE_VARIANT: Partial<Record<ConnState, "default" | "success" | "warning" | "danger" | "info">> = {
   ESTABLISHED: "success",
@@ -23,6 +23,33 @@ function fmtTime(epoch: number) {
   if (!epoch) return "-";
   const d = new Date(epoch * 1000);
   return d.toLocaleString("en-GB", { hour12: false });
+}
+
+function CmdlineStatusIcon({ status }: { status: CmdlineStatus }) {
+  switch (status) {
+    case "pending":
+      return (
+        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-fg-tertiary border-t-transparent" title="Pending" />
+      );
+    case "ready":
+      return (
+        <span className="inline-block h-3 w-3 text-green-500" title="Ready">✓</span>
+      );
+    case "denied":
+      return (
+        <span className="inline-block h-3 w-3 text-orange-500" title="Access Denied">⊘</span>
+      );
+    case "exited":
+      return (
+        <span className="inline-block h-3 w-3 text-fg-tertiary" title="Process Exited">✗</span>
+      );
+    case "failed":
+      return (
+        <span className="inline-block h-3 w-3 text-red-500" title="Failed">✗</span>
+      );
+    default:
+      return null;
+  }
 }
 
 export const networkColumns: ColumnDef<NetConn>[] = [
@@ -111,20 +138,29 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     size: 200,
     cell: ({ row }) => {
       const val = row.original.process_cmdline;
-      if (!val) return <span className="text-fg-tertiary">-</span>;
+      const status = row.original.cmdline_status;
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="truncate max-w-[200px] block cursor-default font-mono text-xs">
-                {val}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-md break-all font-mono text-xs">
-              {val}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <span className="flex items-center gap-1">
+          <CmdlineStatusIcon status={status} />
+          {!val && status !== "pending" ? (
+            <span className="text-fg-tertiary">-</span>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="truncate max-w-[180px] block cursor-default font-mono text-xs">
+                    {val ?? ""}
+                  </span>
+                </TooltipTrigger>
+                {val && (
+                  <TooltipContent side="bottom" className="max-w-md break-all font-mono text-xs">
+                    {val}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </span>
       );
     },
   },

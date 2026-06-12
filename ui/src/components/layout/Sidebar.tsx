@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, ScrollText, Repeat, Briefcase, Settings, Eye, Database } from "lucide-react";
+import { Activity, ScrollText, Repeat, Briefcase, Settings, Database, Radar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
@@ -8,17 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 
 interface NavItem {
   to: string;
@@ -36,36 +25,6 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const [isBackground, setIsBackground] = useState(false);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const bg = await invoke<boolean>("cmd_monitor_is_background");
-        setIsBackground(bg);
-      } catch {}
-    })();
-  }, []);
-
-  const toggleBackground = useCallback(async () => {
-    try {
-      if (isBackground) {
-        await invoke("cmd_monitor_exit_background");
-        setIsBackground(false);
-      } else {
-        setConfirmDialogOpen(true);
-      }
-    } catch {}
-  }, [isBackground]);
-
-  const confirmEnterBackground = useCallback(async () => {
-    try {
-      await invoke("cmd_monitor_enter_background");
-      setIsBackground(true);
-      setConfirmDialogOpen(false);
-    } catch {}
-  }, []);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -102,19 +61,22 @@ export function Sidebar() {
         <div className="pb-3 flex flex-col items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                onClick={toggleBackground}
+              <Link
+                to="/background-monitoring"
                 className={cn(
-                  "h-10 w-10 rounded-md flex items-center justify-center transition-colors",
-                  isBackground
-                    ? "text-accent bg-accent/10"
+                  "h-10 w-10 rounded-md flex items-center justify-center transition-colors relative",
+                  path.startsWith("/background-monitoring")
+                    ? "text-accent"
                     : "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2",
                 )}
               >
-                <Eye className="h-5 w-5" />
-              </button>
+                {path.startsWith("/background-monitoring") && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r" />
+                )}
+                <Radar className="h-5 w-5" />
+              </Link>
             </TooltipTrigger>
-            <TooltipContent side="right">{t("nav.background-detection")}</TooltipContent>
+            <TooltipContent side="right">{t("nav.background-monitoring")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -156,23 +118,6 @@ export function Sidebar() {
           </Tooltip>
         </div>
       </aside>
-
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>进入后台监控模式</DialogTitle>
-            <DialogDescription>
-              进入后台模式后，主窗口将隐藏到托盘，前端不会实时显示新事件，但数据采集和告警功能会继续运行，事件会持久化到 SQLite 数据库中。
-              <br /><br />
-              点击托盘图标可以恢复窗口查看数据。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setConfirmDialogOpen(false)}>取消</Button>
-            <Button onClick={confirmEnterBackground}>确认进入</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </TooltipProvider>
   );
 }

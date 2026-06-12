@@ -16,7 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useWorkspaceStore } from "../store";
-import { useRunCommand } from "../hooks";
+import { useUnhidePath, useTakeOwnership, useSamplePath } from "../hooks";
 import * as api from "../api";
 import type { AutorunItem } from "@/features/autoruns/types";
 import type { NetConn } from "@/features/network/types";
@@ -31,7 +31,9 @@ interface Props {
 
 export function WorkspaceDetail({ onAssociation }: Props) {
   const { t } = useTranslation();
-  const runCommandMutation = useRunCommand();
+  const unhideMutation = useUnhidePath();
+  const takeOwnershipMutation = useTakeOwnership();
+  const sampleMutation = useSamplePath();
 
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const autorunItems = useWorkspaceStore((s) => s.autorunItems);
@@ -116,10 +118,28 @@ export function WorkspaceDetail({ onAssociation }: Props) {
     }
   };
 
-  const handleRunCommand = async (program: string, args: string, label: string) => {
+  const handleUnhide = async (path: string) => {
     try {
-      await runCommandMutation.mutateAsync({ program, args });
-      toast.success(t("workspace.detail.command-success", { command: label }));
+      await unhideMutation.mutateAsync(path);
+      toast.success(t("workspace.detail.command-success", { command: t("workspace.detail.remove-hidden") }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleTakeOwnership = async (path: string) => {
+    try {
+      await takeOwnershipMutation.mutateAsync(path);
+      toast.success(t("workspace.detail.command-success", { command: t("workspace.detail.take-ownership") }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleSample = async (path: string) => {
+    try {
+      await sampleMutation.mutateAsync({ path, outputDir: ".", password: "infected" });
+      toast.success(t("workspace.detail.command-success", { command: t("workspace.detail.sample") }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -165,7 +185,9 @@ export function WorkspaceDetail({ onAssociation }: Props) {
         onJumpRegistry={handleJumpRegistry}
         onOpenExplorer={handleOpenExplorer}
         onKill={handleKill}
-        onRunCommand={handleRunCommand}
+        onUnhide={handleUnhide}
+        onTakeOwnership={handleTakeOwnership}
+        onSample={handleSample}
         onAssociation={onAssociation}
       />
     </div>
@@ -271,7 +293,9 @@ function DetailActions({
   onJumpRegistry,
   onOpenExplorer,
   onKill,
-  onRunCommand,
+  onUnhide,
+  onTakeOwnership,
+  onSample,
   onAssociation,
 }: {
   item: AutorunItem | NetConn | SysmonEvent;
@@ -280,7 +304,9 @@ function DetailActions({
   onJumpRegistry: () => void;
   onOpenExplorer: (path: string | null) => void;
   onKill: () => void;
-  onRunCommand: (program: string, args: string, label: string) => void;
+  onUnhide: (path: string) => void;
+  onTakeOwnership: (path: string) => void;
+  onSample: (path: string) => void;
   onAssociation: () => void;
 }) {
   const { t } = useTranslation();
@@ -303,7 +329,7 @@ function DetailActions({
             <FolderOpen className="h-3.5 w-3.5 mr-1" />
             {t("workspace.detail.open-explorer")}
           </Button>
-          <MoreOperationsAutorun item={item as AutorunItem} onRunCommand={onRunCommand} />
+          <MoreOperationsAutorun item={item as AutorunItem} onUnhide={onUnhide} onTakeOwnership={onTakeOwnership} onSample={onSample} />
         </>
       )}
       {tab === "network" && (
@@ -328,31 +354,35 @@ function DetailActions({
 
 function MoreOperationsAutorun({
   item,
-  onRunCommand,
+  onUnhide,
+  onTakeOwnership,
+  onSample,
 }: {
   item: AutorunItem;
-  onRunCommand: (program: string, args: string, label: string) => void;
+  onUnhide: (path: string) => void;
+  onTakeOwnership: (path: string) => void;
+  onSample: (path: string) => void;
 }) {
   const { t } = useTranslation();
 
-  const commands = [
+  const actions = [
     {
       label: t("workspace.detail.remove-hidden"),
-      program: "attrib",
-      args: `-s -h "${item.image_path ?? ""}"`,
+      onClick: () => item.image_path && onUnhide(item.image_path),
       disabled: !item.image_path,
+      command: `attrib -s -h "${item.image_path ?? ""}"`,
     },
     {
       label: t("workspace.detail.take-ownership"),
-      program: "takeown",
-      args: `/f "${item.image_path ?? ""}"`,
+      onClick: () => item.image_path && onTakeOwnership(item.image_path),
       disabled: !item.image_path,
+      command: `takeown /f "${item.image_path ?? ""}"`,
     },
     {
       label: t("workspace.detail.sample"),
-      program: "7z",
-      args: `a -p "sample.7z" "${item.image_path ?? ""}"`,
+      onClick: () => item.image_path && onSample(item.image_path),
       disabled: !item.image_path,
+      command: `7z a -p "sample.7z" "${item.image_path ?? ""}"`,
     },
   ];
 
@@ -369,20 +399,20 @@ function MoreOperationsAutorun({
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent>
-          {commands.map((c) => !c.disabled && (
-            <div key={c.label} className="font-mono text-[10px]">{c.program} {c.args}</div>
+          {actions.map((a) => !a.disabled && (
+            <div key={a.label} className="font-mono text-[10px]">{a.command}</div>
           ))}
         </TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <DropdownMenuContent>
-        {commands.map((c) => (
+        {actions.map((a) => (
           <DropdownMenuItem
-            key={c.label}
-            disabled={c.disabled}
-            onClick={() => onRunCommand(c.program, c.args, c.label)}
+            key={a.label}
+            disabled={a.disabled}
+            onClick={a.onClick}
           >
-            {c.label}
+            {a.label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

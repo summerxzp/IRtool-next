@@ -13,12 +13,12 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventConfigs: EventConfigEntry[];
-  onApply: (enabledEvents: string[], logSizeMb: number, pcapConfig: { enable_sni: boolean; enable_dns_pcap: boolean }) => void;
+  onApply: (enabledEvents: string[], logSizeMb: number, pcapConfig: { enable_sni: boolean; enable_dns_pcap: boolean; adapter_ip: string | null; max_duration_secs: number }) => void;
   loading: boolean;
   currentLogSizeMb: number;
   /** Currently enabled event keys from the active config. If empty, falls back to defaults. */
   currentEnabledKeys?: string[];
-  currentPcapConfig?: { enable_sni: boolean; enable_dns_pcap: boolean };
+  currentPcapConfig?: { enable_sni: boolean; enable_dns_pcap: boolean; adapter_ip: string | null; max_duration_secs: number };
   pcapAvailable?: boolean;
   mode?: "install" | "config";
 }
@@ -55,8 +55,10 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
   const { t } = useTranslation();
   const [enabledKeys, setEnabledKeys] = useState<Set<string>>(new Set());
   const [logSizeMb, setLogSizeMb] = useState(64);
-  const [enableSni, setEnableSni] = useState(true);
-  const [enableDnsPcap, setEnableDnsPcap] = useState(true);
+  const [enableSni, setEnableSni] = useState(false);
+  const [enableDnsPcap, setEnableDnsPcap] = useState(false);
+  const [adapterIp, setAdapterIp] = useState<string | null>(null);
+  const [maxDurationSecs, setMaxDurationSecs] = useState(0);
 
   useEffect(() => {
     if (open) {
@@ -70,8 +72,10 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
       }
       setEnabledKeys(new Set(keys));
       setLogSizeMb(currentLogSizeMb > 0 ? currentLogSizeMb : 64);
-      setEnableSni(currentPcapConfig?.enable_sni ?? true);
-      setEnableDnsPcap(currentPcapConfig?.enable_dns_pcap ?? true);
+      setEnableSni(currentPcapConfig?.enable_sni ?? false);
+      setEnableDnsPcap(currentPcapConfig?.enable_dns_pcap ?? false);
+      setAdapterIp(currentPcapConfig?.adapter_ip ?? null);
+      setMaxDurationSecs(currentPcapConfig?.max_duration_secs ?? 0);
     }
   }, [open, eventConfigs, currentLogSizeMb, currentEnabledKeys, currentPcapConfig, mode]);
 
@@ -132,7 +136,7 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
   };
 
   const handleApply = () => {
-    onApply(Array.from(enabledKeys), logSizeMb, { enable_sni: enableSni, enable_dns_pcap: enableDnsPcap });
+    onApply(Array.from(enabledKeys), logSizeMb, { enable_sni: enableSni, enable_dns_pcap: enableDnsPcap, adapter_ip: adapterIp, max_duration_secs: maxDurationSecs });
   };
 
   return (

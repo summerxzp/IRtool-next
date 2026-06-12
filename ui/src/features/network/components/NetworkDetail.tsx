@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { NetConn } from "../types";
+import type { NetConn, CmdlineStatus } from "../types";
 
 interface Props {
   conn: NetConn | null;
@@ -12,6 +12,28 @@ interface Props {
 function fmtTime(epoch: number) {
   if (!epoch) return "-";
   return new Date(epoch * 1000).toLocaleString("en-GB", { hour12: false });
+}
+
+function cmdlineStatusLabel(status: CmdlineStatus): string {
+  switch (status) {
+    case "unknown": return "Unknown";
+    case "pending": return "Loading...";
+    case "ready": return "Ready";
+    case "denied": return "Access Denied";
+    case "exited": return "Process Exited";
+    case "failed": return "Query Failed";
+  }
+}
+
+function cmdlineStatusVariant(status: CmdlineStatus): "default" | "success" | "warning" | "danger" | "info" {
+  switch (status) {
+    case "ready": return "success";
+    case "pending": return "info";
+    case "denied": return "warning";
+    case "exited": return "default";
+    case "failed": return "danger";
+    default: return "default";
+  }
 }
 
 export function NetworkDetail({ conn, onClose }: Props) {
@@ -81,6 +103,11 @@ export function NetworkDetail({ conn, onClose }: Props) {
 
       <div>
         <div className="text-xs text-fg-tertiary mb-1">{t("network.detail.command-line")}</div>
+        <div className="flex items-center gap-2 mb-1">
+          <Badge variant={cmdlineStatusVariant(conn.cmdline_status)}>
+            {cmdlineStatusLabel(conn.cmdline_status)}
+          </Badge>
+        </div>
         <div className="text-xs font-mono text-fg-secondary break-all">
           {conn.process_cmdline || t("network.detail.command-line-pending")}
         </div>

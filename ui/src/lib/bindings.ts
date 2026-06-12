@@ -389,6 +389,22 @@ async cmdMonitorSearchEvents(source: string | null, eventType: string | null, pr
     else return { status: "error", error: e  as any };
 }
 },
+async cmdMonitorSearchEventPage(query: EventQuery) : Promise<Result<EventPage, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_search_event_page", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorGetTelemetry() : Promise<Result<RuntimeTelemetry, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_telemetry") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdMonitorTestFeishu(webhookUrl: string) : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_test_feishu", { webhookUrl }) };
@@ -425,6 +441,50 @@ async cmdWorkspaceRunCommand(program: string, args: string) : Promise<Result<str
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Unhide a file or directory (remove hidden attribute)
+ */
+async cmdWorkspaceUnhidePath(path: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_unhide_path", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Take ownership of a file or directory
+ */
+async cmdWorkspaceTakeOwnership(path: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_take_ownership", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sample a file (zip with password protection)
+ */
+async cmdWorkspaceSamplePath(path: string, outputDir: string, password: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_sample_path", { path, outputDir, password }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Open a path in explorer
+ */
+async cmdWorkspaceOpenPath(path: string) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_open_path", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdPcapIsAvailable() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_available") };
@@ -452,6 +512,22 @@ async cmdPcapStop() : Promise<Result<null, IrError>> {
 async cmdPcapIsRunning() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_is_running") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapListAdapters() : Promise<Result<AdapterInfo[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_list_adapters") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdPcapGetCounters() : Promise<Result<PcapCountersSnapshot, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_pcap_get_counters") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -502,18 +578,31 @@ async cmdToolsImportZip(toolId: string, zipPath: string) : Promise<Result<null, 
 /** user-defined types **/
 
 /**
+ * 适配器信息
+ */
+export type AdapterInfo = { name: string; ip: string; description: string }
+/**
  * 告警记录
  */
 export type Alert = { id: number; timestamp: number; rule_name: string; event_type: string; process_name: string; key_field: string; action_taken: string; raw_json: string }
 export type AlertPopupParams = { rule_name: string; key_field: string; event_type: string; process_name: string; protocol: string; timestamp: number; source_addr: string | null; remote_addr: string | null; process_chain: string | null }
 export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
+export type CmdlineStatus = "unknown" | "pending" | "ready" | "denied" | "exited" | "failed"
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
 export type DeleteResult = { success: boolean; message: string }
 /**
  * Event configuration entry.
  */
 export type EventConfigEntry = { key: string; name: string; event_id: number; xml_tag: string; default_enabled: boolean }
+/**
+ * 事件分页结果
+ */
+export type EventPage = { items: MonitorEvent[]; total: number; limit: number; offset: number }
+/**
+ * 事件分页查询参数
+ */
+export type EventQuery = { source: string | null; event_type: string | null; process_name: string | null; key_field: string | null; is_external: boolean | null; search_text: string | null; limit: number; offset: number }
 export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
 export type Family = "v4" | "v6"
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
@@ -549,6 +638,14 @@ enable_sni: boolean;
  * 启用网络层 DNS 抓包（UDP:53）
  */
 enable_dns_pcap: boolean; 
+/**
+ * 指定绑定的适配器 IP，None = 自动检测
+ */
+adapter_ip?: string | null; 
+/**
+ * 抓包自动停止时长（秒），0 = 不限制
+ */
+max_duration_secs?: number; 
 /**
  * 每次从数据库加载多少条记录（供前端review使用）
  */
@@ -613,7 +710,7 @@ event_types: string[];
  * 是否启用
  */
 enabled: boolean }
-export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; first_seen: number; last_seen: number; is_current: boolean }
+export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; cmdline_status: CmdlineStatus; first_seen: number; last_seen: number; is_current: boolean }
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
 export type NetworkSnapshotPayload = { items: NetConn[]; timestamp: number }
@@ -640,7 +737,19 @@ popup_duration_secs?: number }
 /**
  * pcap 配置
  */
-export type PcapConfig = { enable_sni: boolean; enable_dns_pcap: boolean }
+export type PcapConfig = { enable_sni: boolean; enable_dns_pcap: boolean; 
+/**
+ * Optional specific adapter IP to bind to. None = auto-detect.
+ */
+adapter_ip: string | null; 
+/**
+ * Auto-stop after this many seconds. 0 = no limit.
+ */
+max_duration_secs?: number }
+/**
+ * 捕获计数器快照
+ */
+export type PcapCountersSnapshot = { packets_seen: number; events_extracted: number; parse_errors: number; dropped_events: number }
 /**
  * A chain from a target process up to the root (PID 0 or 4).
  */
@@ -688,6 +797,14 @@ export type ProcessSnapshot = { processes: ProcessEntry[]; timestamp: number }
 export type Proto = "tcp" | "udp"
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"
+/**
+ * 运行模式
+ */
+export type RuntimeMode = "Foreground" | "Background"
+/**
+ * 运行时遥测信息
+ */
+export type RuntimeTelemetry = { mode: RuntimeMode; started_at: number | null; events_written: number; events_dropped: number; last_event_at: number | null; last_error: string | null }
 export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
 export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { message: string } } | { kind: "unsigned" } | { kind: "not_verified" }
 /**

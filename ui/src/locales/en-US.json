@@ -17,7 +17,8 @@
     "autoruns": "Autoruns",
     "workspace": "Workspace",
     "settings": "Settings",
-    "background-detection": "Background Detection"
+    "background-detection": "Background Detection",
+    "background-monitoring": "Background Monitoring"
   },
   "status": {
     "admin": "Admin",
@@ -222,6 +223,7 @@
       "start": "Start Collection",
       "stop": "Stop",
       "load-history": "Load History",
+      "query-history": "Query History",
       "all-events": "All Events",
       "event-type-label": "Event Type",
       "external-only": "External Only",
@@ -306,6 +308,44 @@
       "message": "Are you sure you want to clear all event records? This action cannot be undone.",
       "confirm": "Clear"
     },
+    "history": {
+      "source": "Source",
+      "event-type": "Event Type",
+      "process-name": "Process Name",
+      "domain": "Domain",
+      "fulltext": "Fulltext",
+      "fuzzy-match": "Fuzzy match",
+      "all": "All",
+      "net-monitor": "Net Monitor",
+      "network-connect": "Network Connect",
+      "search": "Search",
+      "searching": "Searching...",
+      "search-failed": "Search events failed",
+      "load-more": "Load More",
+      "back-to-live": "Back to Live",
+      "no-results": "Click search to query historical events",
+      "total": "Total",
+      "loaded": "Loaded"
+    },
+    "background-mode": {
+      "active": "Background detection mode active, live events paused",
+      "written": "Written",
+      "dropped": "Dropped",
+      "last-event": "Last event",
+      "view-history": "View History"
+    },
+    "start-failed": "Start failed",
+    "stop-failed": "Stop failed",
+    "history-loaded": "{{count}} historical events loaded",
+    "no-history": "No historical events found",
+    "load-history-failed": "Load history failed",
+    "uninstall-failed": "Uninstall failed",
+    "uninstall-error": "Uninstall error",
+    "install-failed": "Install failed",
+    "start-collect-failed": "Start collection failed",
+    "config-update-failed": "Config update failed",
+    "config-apply-failed": "Config apply failed",
+    "install-error": "Install error",
     "monitor": {
       "title": "Background Detection",
       "config": "Notification Config",

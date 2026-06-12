@@ -33,6 +33,8 @@ interface MonitorConfig {
   db_path: string;
   enable_sni: boolean;
   enable_dns_pcap: boolean;
+  adapter_ip: string | null;
+  max_duration_secs: number;
   load_limit: number;
   max_size_mb: number;
 }
@@ -75,8 +77,10 @@ export default function SettingsPage() {
       popup_duration_secs: 10,
     },
     db_path: "",
-    enable_sni: true,
-    enable_dns_pcap: true,
+    enable_sni: false,
+    enable_dns_pcap: false,
+    adapter_ip: null,
+    max_duration_secs: 0,
     load_limit: 1000,
     max_size_mb: 512,
   });
