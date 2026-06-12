@@ -1,8 +1,11 @@
-use crate::events::{EVT_MONITOR_ALERT, EVT_NETWORK_ERROR, EVT_NETWORK_SNAPSHOT};
+use crate::events::{EVT_MONITOR_ALERT, EVT_NETWORK_ENRICHMENT, EVT_NETWORK_ERROR, EVT_NETWORK_SNAPSHOT};
 use crate::state::AppState;
 use irtool_core::IrError;
 use irtool_monitor::{EventSource, MonitorEvent};
-use irtool_net_monitor::{kill_process, NetCollector, NetConn, RetentionPolicy};
+use irtool_net_monitor::{
+    kill_process, CmdlineEnricher, CmdlineResult, CmdlineStatus, NetCollector, NetConn,
+    RetentionPolicy,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -43,16 +46,27 @@ pub struct NetworkPollingControl {
     pub retention: Option<RetentionPolicyDto>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct NetworkEnrichmentPayload {
+    pub pid: u32,
+    pub cmdline_status: CmdlineStatus,
+    pub process_cmdline: Option<String>,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_network_snapshot(state: State<'_, AppState>) -> Result<NetworkSnapshotPayload, IrError> {
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
+    let enricher = state.net_enricher.clone();
     let retention = state.net_polling.lock().retention;
+    let collector_for_enrich = collector.clone();
     let snap = tokio::task::spawn_blocking(move || collector.snapshot())
         .await
         .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
-    let merged = history.merge(snap, retention);
+    let mut merged = history.merge(snap, retention);
+    // Apply cached cmdline results
+    collector_for_enrich.enrich_cmdlines(&mut merged, &enricher);
     Ok(NetworkSnapshotPayload {
         items: merged,
         timestamp: irtool_net_monitor::types::now_epoch_secs(),
@@ -110,9 +124,20 @@ pub async fn cmd_network_set_polling(
 
         let collector = state.net_collector.clone();
         let history = state.net_history.clone();
+        let enricher = state.net_enricher.clone();
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
-            run_polling_loop(collector, history, shared_retention, app_clone, new_interval, token, monitor_engine).await;
+            run_polling_loop(
+                collector,
+                history,
+                enricher,
+                shared_retention,
+                app_clone,
+                new_interval,
+                token,
+                monitor_engine,
+            )
+            .await;
         });
     }
     Ok(())
@@ -126,9 +151,11 @@ pub async fn cmd_network_clear_history(state: State<'_, AppState>) -> Result<(),
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_polling_loop(
     collector: std::sync::Arc<irtool_net_monitor::WindowsNetCollector>,
     history: std::sync::Arc<irtool_net_monitor::HistoryStore>,
+    enricher: std::sync::Arc<CmdlineEnricher>,
     retention: Arc<Mutex<RetentionPolicy>>,
     app: tauri::AppHandle,
     interval_ms: u64,
@@ -146,7 +173,13 @@ async fn run_polling_loop(
             }
             _ = ticker.tick() => {
                 let collector_clone = collector.clone();
-                let snap = tokio::task::spawn_blocking(move || collector_clone.snapshot()).await;
+                let enricher_clone = enricher.clone();
+                let snap = tokio::task::spawn_blocking(move || {
+                    let mut conns = collector_clone.snapshot()?;
+                    // Apply cached cmdline results and enqueue PIDs needing enrichment
+                    collector_clone.enrich_cmdlines(&mut conns, &enricher_clone);
+                    Ok::<Vec<NetConn>, IrError>(conns)
+                }).await;
                 // 如果在 snapshot 期间已取消，跳过处理直接退出
                 if cancel.is_cancelled() {
                     info!("network polling loop cancelled during snapshot");
@@ -157,6 +190,68 @@ async fn run_polling_loop(
                         let ret = *retention.lock();
                         let now_secs = irtool_net_monitor::types::now_epoch_secs();
                         let merged = history.merge(items, ret);
+
+                        // Background cmdline enrichment: drain pending PIDs, query WMI, update cache
+                        let pending = enricher.drain_pending(100);
+                        if !pending.is_empty() {
+                            let enricher_clone = enricher.clone();
+                            let app_clone = app.clone();
+                            let pids = pending.clone();
+                            tokio::task::spawn_blocking(move || {
+                                let results = irtool_net_monitor::process_info::targeted_query_cmdlines(&pids);
+                                let now = std::time::Instant::now();
+                                let mut enrichment_events: Vec<NetworkEnrichmentPayload> = Vec::new();
+
+                                if let Some(cmdline_map) = results {
+                                    for &pid in &pids {
+                                        if let Some(cmdline) = cmdline_map.get(&pid) {
+                                            enricher_clone.update(pid, CmdlineResult {
+                                                cmdline: Some(cmdline.clone()),
+                                                status: CmdlineStatus::Ready,
+                                                cached_at: now,
+                                            });
+                                            enrichment_events.push(NetworkEnrichmentPayload {
+                                                pid,
+                                                cmdline_status: CmdlineStatus::Ready,
+                                                process_cmdline: Some(cmdline.clone()),
+                                            });
+                                        } else {
+                                            // PID not in WMI results — process likely exited
+                                            enricher_clone.update(pid, CmdlineResult {
+                                                cmdline: None,
+                                                status: CmdlineStatus::Exited,
+                                                cached_at: now,
+                                            });
+                                            enrichment_events.push(NetworkEnrichmentPayload {
+                                                pid,
+                                                cmdline_status: CmdlineStatus::Exited,
+                                                process_cmdline: None,
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    // WMI query failed
+                                    for &pid in &pids {
+                                        enricher_clone.update(pid, CmdlineResult {
+                                            cmdline: None,
+                                            status: CmdlineStatus::Failed,
+                                            cached_at: now,
+                                        });
+                                        enrichment_events.push(NetworkEnrichmentPayload {
+                                            pid,
+                                            cmdline_status: CmdlineStatus::Failed,
+                                            process_cmdline: None,
+                                        });
+                                    }
+                                }
+
+                                // Emit enrichment events
+                                for payload in enrichment_events {
+                                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                                }
+                            });
+                        }
+
                         // 将新增连接（first_seen == now）转发到告警引擎
                         for conn in &merged {
                             if conn.first_seen == now_secs {
@@ -205,11 +300,22 @@ pub fn start_default_polling(state: &AppState, app: &tauri::AppHandle) {
     }
     let collector = state.net_collector.clone();
     let history = state.net_history.clone();
+    let enricher = state.net_enricher.clone();
     let shared_retention = Arc::new(Mutex::new(retention));
     let monitor_engine = state.monitor_engine.clone();
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
-        run_polling_loop(collector, history, shared_retention, app_clone, interval, token, monitor_engine).await;
+        run_polling_loop(
+            collector,
+            history,
+            enricher,
+            shared_retention,
+            app_clone,
+            interval,
+            token,
+            monitor_engine,
+        )
+        .await;
     });
 }
 

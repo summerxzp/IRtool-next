@@ -10,11 +10,13 @@ use tokio::sync::mpsc;
 const SYSMON_CHANNEL: &str = "Microsoft-Windows-Sysmon/Operational";
 const DNS_CLIENT_CHANNEL: &str = "Microsoft-Windows-DNS-Client/Operational";
 const BATCH_SIZE: usize = 64;
+const MAX_EVENTS_PER_POLL: usize = 500;
 
 pub struct SysmonReader {
     last_record_id: Arc<AtomicU64>,
     last_dns_record_id: Arc<AtomicU64>,
     running: Arc<AtomicBool>,
+    backlog: Arc<AtomicU64>,
 }
 
 impl Default for SysmonReader {
@@ -29,6 +31,7 @@ impl SysmonReader {
             last_record_id: Arc::new(AtomicU64::new(0)),
             last_dns_record_id: Arc::new(AtomicU64::new(0)),
             running: Arc::new(AtomicBool::new(false)),
+            backlog: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -143,11 +146,15 @@ impl SysmonReader {
         match get_events_from_channel(
             SYSMON_CHANNEL, 
             enabled_event_ids, 
-            if last_id > 0 { Some(last_id) } else { None }, 
-            usize::MAX, 
+            if last_id > 0 { Some(last_id) } else { None },
+            MAX_EVENTS_PER_POLL,
             false
         ) {
             Ok(mut events) => {
+                if events.len() >= MAX_EVENTS_PER_POLL {
+                    self.backlog.fetch_add(1, Ordering::SeqCst);
+                    warn!("Sysmon poll hit batch limit of {}, backlog may exist", MAX_EVENTS_PER_POLL);
+                }
                 if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
                     self.last_record_id.store(max_id, Ordering::SeqCst);
                 }
@@ -164,11 +171,15 @@ impl SysmonReader {
             match get_events_from_channel(
                 DNS_CLIENT_CHANNEL, 
                 &[3008], 
-                if last_dns_id > 0 { Some(last_dns_id) } else { None }, 
-                usize::MAX, 
+                if last_dns_id > 0 { Some(last_dns_id) } else { None },
+                MAX_EVENTS_PER_POLL,
                 false
             ) {
                 Ok(events) => {
+                    if events.len() >= MAX_EVENTS_PER_POLL {
+                        self.backlog.fetch_add(1, Ordering::SeqCst);
+                        warn!("DNS Client poll hit batch limit of {}, backlog may exist", MAX_EVENTS_PER_POLL);
+                    }
                     if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
                         self.last_dns_record_id.store(max_id, Ordering::SeqCst);
                     }
@@ -207,11 +218,14 @@ impl SysmonReader {
         let running = self.running.clone();
         let last_record_id = self.last_record_id.clone();
         let last_dns_record_id = self.last_dns_record_id.clone();
+        let backlog = self.backlog.clone();
+        let effective_interval = poll_interval_ms.max(1000); // 最小 1 秒，防止过于激进的轮询
         std::thread::spawn(move || {
             let reader = SysmonReader {
                 last_record_id: last_record_id.clone(),
                 last_dns_record_id: last_dns_record_id.clone(),
                 running: running.clone(),
+                backlog,
             };
             while running.load(Ordering::SeqCst) {
                 match reader.poll_new_events(&enabled_event_ids) {
@@ -224,7 +238,7 @@ impl SysmonReader {
                     }
                     Err(e) => warn!("Poll error: {}", e),
                 }
-                std::thread::sleep(std::time::Duration::from_millis(poll_interval_ms));
+                std::thread::sleep(std::time::Duration::from_millis(effective_interval));
             }
         });
     }
@@ -235,6 +249,14 @@ impl SysmonReader {
 
     pub fn is_polling(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+
+    pub fn backlog_count(&self) -> u64 {
+        self.backlog.load(Ordering::SeqCst)
+    }
+
+    pub fn reset_backlog(&self) {
+        self.backlog.store(0, Ordering::SeqCst);
     }
 }
 
@@ -282,7 +304,12 @@ fn get_events_from_channel(
     };
 
     let mut events = read_events_from_result_set(&result_set, max_events)?;
-    
+
+    // 关闭结果集句柄，避免资源泄漏
+    unsafe {
+        let _ = windows::Win32::System::EventLog::EvtClose(result_set);
+    }
+
     if reverse {
         events.reverse();
     }
@@ -337,7 +364,7 @@ fn read_events_from_result_set(
                 }
             }
 
-            // Close the event handle explicitly
+            // 关闭单个事件句柄（每个 handle 在使用后必须关闭以释放系统资源）
             unsafe {
                 let _ = windows::Win32::System::EventLog::EvtClose(handle);
             }
@@ -451,5 +478,28 @@ mod tests {
         assert!(!reader.is_polling());
         assert_eq!(reader.last_record_id.load(Ordering::SeqCst), 0);
         assert_eq!(reader.last_dns_record_id.load(Ordering::SeqCst), 0);
+        assert_eq!(reader.backlog_count(), 0);
+    }
+
+    #[test]
+    fn test_max_events_per_poll_value() {
+        assert_eq!(MAX_EVENTS_PER_POLL, 500);
+    }
+
+    #[test]
+    fn test_backlog_counter_increment_and_reset() {
+        let reader = SysmonReader::new();
+        assert_eq!(reader.backlog_count(), 0);
+
+        // 模拟 backlog 递增
+        reader.backlog.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(reader.backlog_count(), 1);
+
+        reader.backlog.fetch_add(3, Ordering::SeqCst);
+        assert_eq!(reader.backlog_count(), 4);
+
+        // 重置
+        reader.reset_backlog();
+        assert_eq!(reader.backlog_count(), 0);
     }
 }

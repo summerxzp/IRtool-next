@@ -1,6 +1,6 @@
 use irtool_autoruns::{AutorunsScanner, AutorunsStore};
 use irtool_core::{AppDirs, TaskRegistry};
-use irtool_net_monitor::{HistoryStore, RetentionPolicy, WindowsNetCollector};
+use irtool_net_monitor::{CmdlineEnricher, HistoryStore, RetentionPolicy, WindowsNetCollector};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::sync;
@@ -13,6 +13,7 @@ pub struct AppState {
     pub net_collector: Arc<WindowsNetCollector>,
     pub net_history: Arc<HistoryStore>,
     pub net_polling: Arc<Mutex<NetworkPollingState>>,
+    pub net_enricher: Arc<CmdlineEnricher>,
     // --- P2 新增 ---
     pub autoruns_scanner: Arc<Option<AutorunsScanner>>,
     pub autoruns_store: Arc<AutorunsStore>,
@@ -62,6 +63,7 @@ impl AppState {
             net_collector: Arc::new(WindowsNetCollector::new()),
             net_history: Arc::new(HistoryStore::new()),
             net_polling: Arc::new(Mutex::new(NetworkPollingState::default())),
+            net_enricher: Arc::new(CmdlineEnricher::new()),
             autoruns_scanner: Arc::new(autoruns_scanner),
             autoruns_store: Arc::new(AutorunsStore::new()),
             // --- P4 新增 ---

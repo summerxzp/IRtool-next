@@ -4,7 +4,7 @@ use irtool_process::{get_process_chain, take_snapshot, ProcessChain, ProcessSnap
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_process_snapshot() -> Result<ProcessSnapshot, IrError> {
-    tokio::task::spawn_blocking(|| take_snapshot())
+    tokio::task::spawn_blocking(take_snapshot)
         .await
         .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
 }

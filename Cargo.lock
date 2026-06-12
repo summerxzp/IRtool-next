@@ -2077,6 +2077,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "toml 0.8.2",
@@ -2159,6 +2160,7 @@ dependencies = [
 name = "irtool-tauri"
 version = "2.0.0"
 dependencies = [
+ "chrono",
  "embed-resource 2.5.2",
  "irtool-autoruns",
  "irtool-core",

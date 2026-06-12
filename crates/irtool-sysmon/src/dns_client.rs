@@ -23,7 +23,7 @@ impl DnsClientLogManager {
         info!("Checking DNS Client event log state...");
         
         let check_result = Command::new("wevtutil")
-            .args(&["get-log", DNS_CLIENT_CHANNEL])
+            .args(["get-log", DNS_CLIENT_CHANNEL])
             .output();
         
         match check_result {
@@ -44,7 +44,7 @@ impl DnsClientLogManager {
         info!("Enabling DNS Client event log...");
         
         let result = Command::new("wevtutil")
-            .args(&["sl", DNS_CLIENT_CHANNEL, "/e:true"])
+            .args(["sl", DNS_CLIENT_CHANNEL, "/e:true"])
             .output();
         
         match result {
@@ -79,7 +79,7 @@ impl DnsClientLogManager {
         info!("Restoring DNS Client event log state...");
         
         let result = Command::new("wevtutil")
-            .args(&["sl", DNS_CLIENT_CHANNEL, "/e:false"])
+            .args(["sl", DNS_CLIENT_CHANNEL, "/e:false"])
             .output();
         
         match result {

@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use irtool_core::IrError;
-use irtool_monitor::{Alert, MonitorConfig};
+use irtool_monitor::{Alert, EventQuery, EventPage, MonitorConfig, RuntimeTelemetry};
 use irtool_pcap::PcapConfig;
 use tauri::Emitter;
 use tauri::Manager;
@@ -25,13 +25,22 @@ pub async fn cmd_monitor_update_config(
 #[specta::specta]
 pub async fn cmd_monitor_enter_background(state: State<'_, AppState>) -> Result<(), IrError> {
     let app_dir = state.app_dirs.root().to_path_buf();
-    state.monitor_engine.lock().await.enter_background_mode(&app_dir)
+    tracing::info!("cmd_monitor_enter_background: app_dir={}", app_dir.display());
+    let result = state.monitor_engine.lock().await.enter_background_mode(&app_dir);
+    if let Err(ref e) = result {
+        tracing::error!("cmd_monitor_enter_background failed: {}", e);
+    }
+    result
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_monitor_exit_background(state: State<'_, AppState>) -> Result<(), IrError> {
-    state.monitor_engine.lock().await.exit_background_mode()
+    let result = state.monitor_engine.lock().await.exit_background_mode();
+    if let Err(ref e) = result {
+        tracing::error!("cmd_monitor_exit_background failed: {}", e);
+    }
+    result
 }
 
 #[tauri::command]
@@ -81,6 +90,7 @@ pub async fn cmd_monitor_event_type_counts(state: State<'_, AppState>) -> Result
 
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn cmd_monitor_search_events(
     state: State<'_, AppState>,
     source: Option<String>,
@@ -91,15 +101,32 @@ pub async fn cmd_monitor_search_events(
     limit: u32,
     offset: u32,
 ) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
-    state.monitor_engine.lock().await.search_events(
-        source.as_deref(),
-        event_type.as_deref(),
-        process_name.as_deref(),
-        key_field.as_deref(),
-        search_text.as_deref(),
+    let query = irtool_monitor::EventQuery {
+        source,
+        event_type,
+        process_name,
+        key_field,
+        is_external: None,
+        search_text,
         limit,
         offset,
-    )
+    };
+    state.monitor_engine.lock().await.search_events(&query)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_search_event_page(
+    state: State<'_, AppState>,
+    query: EventQuery,
+) -> Result<EventPage, IrError> {
+    state.monitor_engine.lock().await.search_events_page(&query)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_monitor_get_telemetry(state: State<'_, AppState>) -> Result<RuntimeTelemetry, IrError> {
+    Ok(state.monitor_engine.lock().await.get_telemetry())
 }
 
 // --- P6 新增 ---
@@ -165,6 +192,19 @@ pub async fn cmd_pcap_is_running(state: State<'_, AppState>) -> Result<bool, IrE
     Ok(collector.is_running())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_pcap_list_adapters() -> Result<Vec<irtool_pcap::AdapterInfo>, IrError> {
+    Ok(irtool_pcap::PcapCollector::list_adapters())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_pcap_get_counters(state: State<'_, AppState>) -> Result<irtool_pcap::PcapCountersSnapshot, IrError> {
+    let collector = state.pcap_collector.lock().await;
+    Ok(collector.counters().snapshot())
+}
+
 // --- Alert Popup Window ---
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -208,6 +248,7 @@ pub async fn cmd_show_alert_popup(
     .map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn show_alert_popup_window(
     app: &tauri::AppHandle,
     rule_name: &str,

@@ -1,5 +1,12 @@
 # IRTool Portable Build Script
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1
+#   -IncludeWebView2Bootstrapper  Include WebView2 bootstrapper in package
+#   -IncludeOfflineInstallers     Include WebView2 offline installer in package
+
+param(
+    [switch]$IncludeWebView2Bootstrapper,
+    [switch]$IncludeOfflineInstallers
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -39,6 +46,34 @@ Copy-Item $exePath "$outputDir\IRtool.exe"
 # Create portable.flag
 New-Item -ItemType File -Path "$outputDir\portable.flag" -Force | Out-Null
 
+# Create empty directories for portable mode
+New-Item -ItemType Directory -Path "$outputDir\config" -Force | Out-Null
+New-Item -ItemType Directory -Path "$outputDir\data" -Force | Out-Null
+New-Item -ItemType Directory -Path "$outputDir\logs" -Force | Out-Null
+New-Item -ItemType Directory -Path "$outputDir\tools" -Force | Out-Null
+
+# WebView2 bootstrapper variant
+if ($IncludeWebView2Bootstrapper) {
+    $bootstrapperPath = "$projectRoot\assets\MicrosoftEdgeWebview2Setup.exe"
+    if (Test-Path $bootstrapperPath) {
+        Copy-Item $bootstrapperPath "$outputDir\MicrosoftEdgeWebview2Setup.exe"
+        Write-Host "  Included WebView2 bootstrapper" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: WebView2 bootstrapper not found at $bootstrapperPath" -ForegroundColor Yellow
+    }
+}
+
+# Offline installer variant
+if ($IncludeOfflineInstallers) {
+    $offlineInstallerPath = "$projectRoot\assets\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+    if (Test-Path $offlineInstallerPath) {
+        Copy-Item $offlineInstallerPath "$outputDir\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+        Write-Host "  Included WebView2 offline installer" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: WebView2 offline installer not found at $offlineInstallerPath" -ForegroundColor Yellow
+    }
+}
+
 # Step 4: Create ZIP
 Write-Host "`n[4/4] Creating ZIP archive..." -ForegroundColor Yellow
 $distDir = "$projectRoot\dist"
@@ -62,3 +97,8 @@ Write-Host "========================================" -ForegroundColor Green
 
 Write-Host "`nPackage contents:" -ForegroundColor Cyan
 Get-ChildItem $outputDir | ForEach-Object { Write-Host "  $($_.Name)" }
+
+Write-Host "`nPackage variants:" -ForegroundColor Cyan
+Write-Host "  Primary:           powershell -File scripts/build-portable.ps1"
+Write-Host "  With bootstrapper: powershell -File scripts/build-portable.ps1 -IncludeWebView2Bootstrapper"
+Write-Host "  Offline rescue:    powershell -File scripts/build-portable.ps1 -IncludeOfflineInstallers"

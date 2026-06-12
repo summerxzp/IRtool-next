@@ -2,21 +2,16 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// Verification method for downloaded tools.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum VerifyMethod {
     /// No verification (for tools from unversioned URLs or dev use)
+    #[default]
     None,
     /// Verify Authenticode signature + publisher via WinVerifyTrust
     Authenticode,
     /// Verify exact SHA256 hash (for version-pinned tools)
     Sha256,
-}
-
-impl Default for VerifyMethod {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// Manifest for a single external tool.

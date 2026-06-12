@@ -66,7 +66,7 @@ impl SysmonConfigManager {
         let short = to_short_path(&self.config_path);
 
         // Check if the short path is pure ASCII
-        let is_ascii = short.to_string_lossy().chars().all(|c| c.is_ascii());
+        let is_ascii = short.to_string_lossy().is_ascii();
 
         if is_ascii {
             return short;

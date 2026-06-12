@@ -180,16 +180,24 @@ pub fn run() {
         cmd_monitor_get_events,
             cmd_monitor_get_event_count,
             cmd_monitor_search_events,
+            cmd_monitor_search_event_page,
+            cmd_monitor_get_telemetry,
             cmd_monitor_test_feishu,
             cmd_monitor_clear_events,
             cmd_monitor_event_type_counts,
         // --- P3 工作台 ---
         cmd_workspace_run_command,
+        cmd_workspace_unhide_path,
+        cmd_workspace_take_ownership,
+        cmd_workspace_sample_path,
+        cmd_workspace_open_path,
         // --- P6 新增 ---
         cmd_pcap_is_available,
         cmd_pcap_start,
         cmd_pcap_stop,
         cmd_pcap_is_running,
+        cmd_pcap_list_adapters,
+        cmd_pcap_get_counters,
         // --- Alert Popup ---
         cmd_show_alert_popup,
         // --- Tools Manager ---

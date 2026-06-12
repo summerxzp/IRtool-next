@@ -14,3 +14,5 @@ pub const EVT_SYSMON_EVENT: &str = "evt_sysmon_event";
 pub const EVT_MONITOR_ALERT: &str = "evt_monitor_alert";
 // --- P6 新增 ---
 pub const EVT_PCAP_EVENT: &str = "evt_pcap_event";
+// --- 网络富化 ---
+pub const EVT_NETWORK_ENRICHMENT: &str = "evt_network_enrichment";
