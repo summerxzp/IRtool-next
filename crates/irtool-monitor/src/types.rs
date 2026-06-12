@@ -109,6 +109,12 @@ pub struct MonitorConfig {
     pub enable_sni: bool,
     /// 启用网络层 DNS 抓包（UDP:53）
     pub enable_dns_pcap: bool,
+    /// 指定绑定的适配器 IP，None = 自动检测
+    #[serde(default)]
+    pub adapter_ip: Option<String>,
+    /// 抓包自动停止时长（秒），0 = 不限制
+    #[serde(default)]
+    pub max_duration_secs: u32,
     /// 每次从数据库加载多少条记录（供前端review使用）
     pub load_limit: u32,
     /// 数据库最大大小（MB），0=不限制
@@ -131,13 +137,55 @@ impl Default for MonitorConfig {
             retention_days: 7,
             rules: vec![],
             db_path: String::new(),
-            enable_sni: true,
-            enable_dns_pcap: true,
+            enable_sni: false,
+            enable_dns_pcap: false,
+            adapter_ip: None,
+            max_duration_secs: 0,
             load_limit: 1000,
             max_size_mb: 512,
             notify_config: NotifyConfig::default(),
         }
     }
+}
+
+/// 事件分页查询参数
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EventQuery {
+    pub source: Option<String>,
+    pub event_type: Option<String>,
+    pub process_name: Option<String>,
+    pub key_field: Option<String>,
+    pub is_external: Option<bool>,
+    pub search_text: Option<String>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+/// 事件分页结果
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EventPage {
+    pub items: Vec<MonitorEvent>,
+    pub total: u64,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+/// 运行模式
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum RuntimeMode {
+    Foreground,
+    Background,
+}
+
+/// 运行时遥测信息
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RuntimeTelemetry {
+    pub mode: RuntimeMode,
+    pub started_at: Option<i64>,
+    pub events_written: u64,
+    pub events_dropped: u64,
+    pub last_event_at: Option<i64>,
+    pub last_error: Option<String>,
 }
 
 /// 生成唯一 ID（基于时间戳和名称）

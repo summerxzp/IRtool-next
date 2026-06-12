@@ -97,6 +97,8 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
                 db_path: old_config.db_path,
                 enable_sni: old_config.enable_sni,
                 enable_dns_pcap: old_config.enable_dns_pcap,
+                adapter_ip: None,
+                max_duration_secs: 0,
                 load_limit: old_config.load_limit,
                 max_size_mb: old_config.max_size_mb,
                 notify_config: NotifyConfig {

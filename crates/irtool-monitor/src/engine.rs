@@ -1,4 +1,5 @@
 use crate::config;
+use crate::ingest::EventIngestQueue;
 use crate::matcher;
 use crate::notify;
 use crate::storage::EventStorage;
@@ -8,16 +9,27 @@ use irtool_sysmon::SysmonEvent;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use tracing::{info, warn};
+
+type AlertDedupKey = (String, String, String, i64);
 
 pub struct MonitorEngine {
     config: Arc<parking_lot::Mutex<MonitorConfig>>,
     storage: Option<Arc<EventStorage>>,
+    ingest_queue: Option<EventIngestQueue>,
     config_path: PathBuf,
     /// 告警去重：记录最近 60 秒内已告警的 (rule_name, key_field, event_type) 组合
-    alert_dedup: Arc<parking_lot::Mutex<HashSet<(String, String, String, i64)>>>,
+    #[allow(clippy::type_complexity)]
+    alert_dedup: Arc<parking_lot::Mutex<HashSet<AlertDedupKey>>>,
     /// 进程链缓存：PID → 进程链字符串（避免重复快照）
     chain_cache: Arc<parking_lot::Mutex<HashMap<u32, String>>>,
+    /// 遥测：进入后台模式的时间戳
+    started_at: AtomicI64,
+    /// 遥测：最后事件时间戳
+    last_event_at: AtomicI64,
+    /// 遥测：前台模式处理的事件数
+    foreground_events: AtomicU64,
 }
 
 impl MonitorEngine {
@@ -33,9 +45,13 @@ impl MonitorEngine {
         Self {
             config: Arc::new(parking_lot::Mutex::new(config)),
             storage,
+            ingest_queue: None,
             config_path,
             alert_dedup: Arc::new(parking_lot::Mutex::new(HashSet::new())),
             chain_cache: Arc::new(parking_lot::Mutex::new(HashMap::new())),
+            started_at: AtomicI64::new(chrono::Utc::now().timestamp_millis()),
+            last_event_at: AtomicI64::new(0),
+            foreground_events: AtomicU64::new(0),
         }
     }
 
@@ -65,8 +81,15 @@ impl MonitorEngine {
             let storage = EventStorage::open(&db_path)?;
             self.storage = Some(Arc::new(storage));
         }
+        // 确保摄入队列存在
+        if self.ingest_queue.is_none() {
+            if let Some(storage) = &self.storage {
+                self.ingest_queue = Some(EventIngestQueue::start(storage.clone()));
+            }
+        }
         self.config.lock().background_mode = true;
         config::save_config(&self.config_path, &self.config.lock())?;
+        self.started_at.store(chrono::Utc::now().timestamp_millis(), Ordering::Relaxed);
         info!("Entered background monitoring mode");
         Ok(())
     }
@@ -120,6 +143,10 @@ impl MonitorEngine {
 
     /// 处理一条 MonitorEvent
     pub async fn process_monitor_event(&self, event: &MonitorEvent) -> Vec<Alert> {
+        // 更新遥测
+        self.last_event_at.store(event.timestamp, Ordering::Relaxed);
+        self.foreground_events.fetch_add(1, Ordering::Relaxed);
+
         // 在锁内提取所需数据，确保 MutexGuard 不跨 .await
         let (rules, background_mode, persist_event_types, notify_config) = {
             let config = self.config.lock();
@@ -188,14 +215,14 @@ impl MonitorEngine {
             }
         }
 
-        // 后台模式时持久化事件
+        // 后台模式时持久化事件（通过摄入队列批量写入）
         if background_mode {
-            if let Some(storage) = &self.storage {
+            if let Some(ingest_queue) = &self.ingest_queue {
                 let should_persist = persist_event_types.is_empty()
                     || persist_event_types.contains(&event.event_type);
                 if should_persist {
-                    if let Err(e) = storage.insert_events(&[event.clone()]) {
-                        warn!("存储事件失败: {}", e);
+                    if let Err(e) = ingest_queue.push(event.clone()) {
+                        warn!("推送事件到摄入队列失败: {}", e);
                     }
                 }
             }
@@ -308,20 +335,52 @@ impl MonitorEngine {
     }
 
     /// 搜索事件，支持多种过滤条件
-    pub fn search_events(
-        &self,
-        source: Option<&str>,
-        event_type: Option<&str>,
-        process_name: Option<&str>,
-        key_field: Option<&str>,
-        search_text: Option<&str>,
-        limit: u32,
-        offset: u32,
-    ) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
+    pub fn search_events(&self, query: &EventQuery) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
         if let Some(storage) = &self.storage {
-            storage.search_events(source, event_type, process_name, key_field, search_text, limit, offset)
+            storage.search_events(query)
         } else {
             Ok(Vec::new())
+        }
+    }
+
+    /// 分页搜索事件，返回总数 + 当前页数据
+    pub fn search_events_page(&self, query: &EventQuery) -> Result<EventPage, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.search_events_page(query)
+        } else {
+            Ok(EventPage {
+                items: Vec::new(),
+                total: 0,
+                limit: query.limit,
+                offset: query.offset,
+            })
+        }
+    }
+
+    /// 获取运行时遥测信息
+    pub fn get_telemetry(&self) -> RuntimeTelemetry {
+        let mode = if self.config.lock().background_mode {
+            RuntimeMode::Background
+        } else {
+            RuntimeMode::Foreground
+        };
+        let started_at = self.started_at.load(Ordering::Relaxed);
+        let last_event_at = self.last_event_at.load(Ordering::Relaxed);
+        let fg_events = self.foreground_events.load(Ordering::Relaxed);
+
+        let (events_written, events_dropped) = if let Some(q) = &self.ingest_queue {
+            (q.events_written(), q.events_dropped())
+        } else {
+            (fg_events, 0)
+        };
+
+        RuntimeTelemetry {
+            mode,
+            started_at: if started_at > 0 { Some(started_at) } else { None },
+            events_written,
+            events_dropped,
+            last_event_at: if last_event_at > 0 { Some(last_event_at) } else { None },
+            last_error: None,
         }
     }
 }
@@ -368,5 +427,99 @@ fn sysmon_to_monitor_event(event: &SysmonEvent) -> MonitorEvent {
         process_name: event.process_name.clone(),
         key_field,
         raw_json,
+    }
+}
+
+#[cfg(test)]
+mod telemetry_tests {
+    use super::*;
+
+    fn temp_engine() -> MonitorEngine {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let temp_dir = std::env::temp_dir().join(format!("irtool_test_{}", ts));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        MonitorEngine::new(&temp_dir)
+    }
+
+    fn make_event(timestamp: i64) -> MonitorEvent {
+        MonitorEvent {
+            id: 0,
+            timestamp,
+            source: EventSource::Sysmon,
+            event_type: "dns".to_string(),
+            process_name: "test.exe".to_string(),
+            key_field: "example.com".to_string(),
+            raw_json: "{}".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn telemetry_started_at_set_on_new() {
+        let engine = temp_engine();
+        let telemetry = engine.get_telemetry();
+        assert!(telemetry.started_at.is_some(), "前台模式 started_at 应有值");
+        assert!(telemetry.started_at.unwrap() > 0);
+        assert_eq!(telemetry.mode, RuntimeMode::Foreground);
+    }
+
+    #[tokio::test]
+    async fn telemetry_last_event_at_updates_on_process() {
+        let engine = temp_engine();
+        let event = make_event(1_000_000_000_000);
+        engine.process_monitor_event(&event).await;
+
+        let telemetry = engine.get_telemetry();
+        assert_eq!(telemetry.last_event_at, Some(1_000_000_000_000));
+    }
+
+    #[tokio::test]
+    async fn telemetry_foreground_events_increments_on_process() {
+        let engine = temp_engine();
+        assert_eq!(engine.get_telemetry().events_written, 0);
+
+        engine.process_monitor_event(&make_event(1)).await;
+        engine.process_monitor_event(&make_event(2)).await;
+        engine.process_monitor_event(&make_event(3)).await;
+
+        // 前台模式 events_written 等于前台处理数
+        let telemetry = engine.get_telemetry();
+        assert_eq!(telemetry.events_written, 3);
+    }
+
+    #[tokio::test]
+    async fn telemetry_mode_reflects_background_mode() {
+        let mut engine = temp_engine();
+        // 默认前台
+        assert_eq!(engine.get_telemetry().mode, RuntimeMode::Foreground);
+        assert!(!engine.is_background_mode());
+
+        // 进入后台模式
+        let temp_dir = std::env::temp_dir();
+        engine.enter_background_mode(&temp_dir).unwrap();
+        assert_eq!(engine.get_telemetry().mode, RuntimeMode::Background);
+        assert!(engine.is_background_mode());
+
+        // 退出后台模式
+        engine.exit_background_mode().unwrap();
+        assert_eq!(engine.get_telemetry().mode, RuntimeMode::Foreground);
+        assert!(!engine.is_background_mode());
+    }
+
+    #[tokio::test]
+    async fn telemetry_started_at_persists_after_exit_background() {
+        let mut engine = temp_engine();
+        let initial_started = engine.get_telemetry().started_at;
+        assert!(initial_started.is_some());
+
+        let temp_dir = std::env::temp_dir();
+        engine.enter_background_mode(&temp_dir).unwrap();
+        engine.exit_background_mode().unwrap();
+
+        // 退出后台模式后 started_at 不应重置
+        let telemetry = engine.get_telemetry();
+        assert!(telemetry.started_at.is_some(), "退出后台后 started_at 不应重置");
     }
 }
