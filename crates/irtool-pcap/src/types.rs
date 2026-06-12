@@ -25,17 +25,30 @@ pub enum PcapEventKind {
 }
 
 /// pcap 配置
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct PcapConfig {
     pub enable_sni: bool,
     pub enable_dns_pcap: bool,
+    /// Optional specific adapter IP to bind to. None = auto-detect.
+    pub adapter_ip: Option<String>,
+    /// Auto-stop after this many seconds. 0 = no limit.
+    #[serde(default)]
+    pub max_duration_secs: u32,
 }
 
-impl Default for PcapConfig {
-    fn default() -> Self {
-        Self {
-            enable_sni: true,
-            enable_dns_pcap: true,
-        }
-    }
+/// 适配器信息
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AdapterInfo {
+    pub name: String,
+    pub ip: String,
+    pub description: String,
+}
+
+/// 捕获计数器快照
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PcapCountersSnapshot {
+    pub packets_seen: u64,
+    pub events_extracted: u64,
+    pub parse_errors: u64,
+    pub dropped_events: u64,
 }

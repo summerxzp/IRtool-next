@@ -4,4 +4,5 @@ pub mod sni;
 pub mod types;
 
 pub use collector::PcapCollector;
+pub use collector::PcapCounters;
 pub use types::*;

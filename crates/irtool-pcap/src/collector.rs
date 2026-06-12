@@ -1,9 +1,9 @@
 use crate::dns_raw;
 use crate::sni;
-use crate::types::{PcapConfig, PcapEvent, PcapEventKind};
+use crate::types::{PcapConfig, PcapCountersSnapshot, PcapEvent, PcapEventKind, AdapterInfo};
 use irtool_core::IrError;
 use std::net::Ipv4Addr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use tokio::sync::mpsc;
@@ -32,9 +32,43 @@ extern "system" {
     ) -> i32;
 }
 
+pub struct PcapCounters {
+    pub packets_seen: AtomicU64,
+    pub events_extracted: AtomicU64,
+    pub parse_errors: AtomicU64,
+    pub dropped_events: AtomicU64,
+}
+
+impl Default for PcapCounters {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PcapCounters {
+    pub fn new() -> Self {
+        Self {
+            packets_seen: AtomicU64::new(0),
+            events_extracted: AtomicU64::new(0),
+            parse_errors: AtomicU64::new(0),
+            dropped_events: AtomicU64::new(0),
+        }
+    }
+
+    pub fn snapshot(&self) -> PcapCountersSnapshot {
+        PcapCountersSnapshot {
+            packets_seen: self.packets_seen.load(Ordering::Relaxed),
+            events_extracted: self.events_extracted.load(Ordering::Relaxed),
+            parse_errors: self.parse_errors.load(Ordering::Relaxed),
+            dropped_events: self.dropped_events.load(Ordering::Relaxed),
+        }
+    }
+}
+
 pub struct PcapCollector {
     running: Arc<AtomicBool>,
     thread_handle: Option<std::thread::JoinHandle<()>>,
+    counters: Arc<PcapCounters>,
 }
 
 impl PcapCollector {
@@ -42,7 +76,12 @@ impl PcapCollector {
         Self {
             running: Arc::new(AtomicBool::new(false)),
             thread_handle: None,
+            counters: Arc::new(PcapCounters::new()),
         }
+    }
+
+    pub fn counters(&self) -> &PcapCounters {
+        &self.counters
     }
 
     /// 检查 raw socket 是否可用（需要管理员权限）
@@ -55,7 +94,7 @@ impl PcapCollector {
             }
             match WSASocketW(
                 AF_INET.0 as i32,
-                SOCK_RAW.0 as i32,
+                SOCK_RAW.0,
                 IPPROTO_IP.0,
                 None,
                 0,
@@ -79,6 +118,36 @@ impl PcapCollector {
         false
     }
 
+    /// 列出本机所有可用 IPv4 地址
+    pub fn list_local_ips() -> Vec<String> {
+        let mut ips = Vec::new();
+        for target in &["8.8.8.8:53", "1.1.1.1:53", "208.67.222.222:53"] {
+            if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+                if socket.connect(target).is_ok() {
+                    if let Ok(addr) = socket.local_addr() {
+                        let ip = addr.ip().to_string();
+                        if !ips.contains(&ip) {
+                            ips.push(ip);
+                        }
+                    }
+                }
+            }
+        }
+        ips
+    }
+
+    /// 列出本机网络适配器信息
+    pub fn list_adapters() -> Vec<AdapterInfo> {
+        let ips = Self::list_local_ips();
+        ips.into_iter()
+            .map(|ip| AdapterInfo {
+                name: ip.clone(),
+                ip,
+                description: String::new(),
+            })
+            .collect()
+    }
+
     /// 获取本机默认出口 IP
     fn get_local_ip() -> Result<Ipv4Addr, IrError> {
         let socket = std::net::UdpSocket::bind("0.0.0.0:0")
@@ -93,6 +162,15 @@ impl PcapCollector {
             std::net::IpAddr::V4(ip) => Ok(ip),
             std::net::IpAddr::V6(_) => Err(IrError::Network("不支持 IPv6".to_string())),
         }
+    }
+
+    /// 根据适配器 IP 获取本地 IP，None 则自动检测
+    fn get_local_ip_for_adapter(adapter_ip: Option<&str>) -> Result<Ipv4Addr, IrError> {
+        if let Some(ip) = adapter_ip {
+            return ip.parse::<Ipv4Addr>()
+                .map_err(|_| IrError::Network(format!("无效的适配器 IP: {}", ip)));
+        }
+        Self::get_local_ip()
     }
 
     /// 启动抓包
@@ -117,14 +195,15 @@ impl PcapCollector {
             }
         }
 
-        let local_ip = Self::get_local_ip()?;
+        let local_ip = Self::get_local_ip_for_adapter(config.adapter_ip.as_deref())?;
         let running = self.running.clone();
+        let counters = self.counters.clone();
         running.store(true, Ordering::SeqCst);
 
         let handle = std::thread::Builder::new()
             .name("irtool-pcap".to_string())
             .spawn(move || {
-                Self::capture_loop(local_ip, config, tx, running);
+                Self::capture_loop(local_ip, config, tx, running, counters);
             })
             .map_err(|e| IrError::Internal(format!("创建抓包线程失败: {}", e)))?;
 
@@ -165,8 +244,15 @@ impl PcapCollector {
         config: PcapConfig,
         tx: mpsc::UnboundedSender<PcapEvent>,
         running: Arc<AtomicBool>,
+        counters: Arc<PcapCounters>,
     ) {
         info!("capture_loop starting, local_ip={}", local_ip);
+        let start_time = std::time::Instant::now();
+        let max_duration = if config.max_duration_secs > 0 {
+            Some(std::time::Duration::from_secs(config.max_duration_secs as u64))
+        } else {
+            None
+        };
         unsafe {
             let mut wsa_data = WSADATA::default();
             if WSAStartup(0x0202, &mut wsa_data) != 0 {
@@ -177,7 +263,7 @@ impl PcapCollector {
 
             let socket = match WSASocketW(
                 AF_INET.0 as i32,
-                SOCK_RAW.0 as i32,
+                SOCK_RAW.0,
                 IPPROTO_IP.0,
                 None,
                 0,
@@ -255,7 +341,7 @@ impl PcapCollector {
 
             // Set non-blocking mode with timeout
             let mut non_blocking: u32 = 1;
-            let _ = ioctlsocket(socket, FIONBIO as i32, &mut non_blocking);
+            let _ = ioctlsocket(socket, FIONBIO, &mut non_blocking);
 
             let mut buffer = [0u8; 65535];
             let mut packet_count: u64 = 0;
@@ -265,6 +351,14 @@ impl PcapCollector {
             }; // 100ms
 
             while running.load(Ordering::SeqCst) {
+                // Duration guard
+                if let Some(max) = max_duration {
+                    if start_time.elapsed() >= max {
+                        info!("PCAP auto-stop: max duration of {}s reached", config.max_duration_secs);
+                        break;
+                    }
+                }
+
                 // Use select to wait with timeout
                 let mut read_fds: FD_SET = std::mem::zeroed();
                 read_fds.fd_count = 1;
@@ -302,6 +396,7 @@ impl PcapCollector {
                     continue;
                 }
 
+                counters.packets_seen.fetch_add(1, Ordering::Relaxed);
                 packet_count += 1;
                 // Log first 5 packets, then every 1000th (debug level to avoid spam)
                 if packet_count <= 5 || packet_count % 1000 == 0 {
@@ -313,7 +408,13 @@ impl PcapCollector {
 
                 let packet = &buffer[..len as usize];
                 if let Some(event) = Self::parse_packet(packet, &config, local_ip, packet_count) {
-                    let _ = tx.send(event);
+                    counters.events_extracted.fetch_add(1, Ordering::Relaxed);
+                    if tx.send(event).is_err() {
+                        counters.dropped_events.fetch_add(1, Ordering::Relaxed);
+                    }
+                } else if packet.len() >= 20 {
+                    // Only count parse errors for packets that were large enough to be valid IP
+                    counters.parse_errors.fetch_add(1, Ordering::Relaxed);
                 }
             }
 

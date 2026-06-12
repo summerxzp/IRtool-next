@@ -118,6 +118,7 @@ mod tests {
             process_name: Some("test.exe".into()),
             process_path: None,
             process_cmdline: None,
+            cmdline_status: crate::types::CmdlineStatus::Unknown,
             first_seen: 0,
             last_seen: 0,
             is_current: true,

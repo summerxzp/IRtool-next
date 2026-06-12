@@ -1,6 +1,7 @@
+use crate::cmdline_enricher::CmdlineEnricher;
 use crate::process_info::ProcessInfoCache;
 use crate::tcp::{enumerate_tcp_v4, enumerate_tcp_v6};
-use crate::types::NetConn;
+use crate::types::{CmdlineStatus, NetConn};
 use crate::udp::{enumerate_udp_v4, enumerate_udp_v6};
 use irtool_core::IrError;
 use tracing::warn;
@@ -24,46 +25,36 @@ impl WindowsNetCollector {
         &self.process_cache
     }
 
-    #[cfg(windows)]
-    fn batch_fetch_cmdlines(pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
-        crate::process_info::batch_query_cmdlines(pids)
-    }
-
-    #[cfg(not(windows))]
-    fn batch_fetch_cmdlines(_pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
-        None
-    }
-
+    /// Fast-path enrichment: fill process_name and process_path from cache.
+    /// Sets cmdline_status = Unknown and process_cmdline = None.
+    /// Does NOT call WMI — returns immediately.
     fn enrich(&self, mut conns: Vec<NetConn>) -> Vec<NetConn> {
-        // Collect unique PIDs that need cmdline
-        let mut pids_needing_cmdline: Vec<u32> = Vec::new();
         for c in &mut conns {
             let info = self.process_cache.get(c.pid);
             c.process_name = Some(info.name);
             c.process_path = info.path.map(|p| p.to_string_lossy().into_owned());
-            if info.cmdline.is_none() {
-                pids_needing_cmdline.push(c.pid);
-            }
-            c.process_cmdline = info.cmdline;
+            c.process_cmdline = None;
+            c.cmdline_status = CmdlineStatus::Unknown;
         }
-
-        // Synchronously batch-fetch cmdlines via WMI (runs in spawn_blocking already)
-        if !pids_needing_cmdline.is_empty() {
-            if let Some(cmdline_map) = Self::batch_fetch_cmdlines(&pids_needing_cmdline) {
-                for c in &mut conns {
-                    if c.process_cmdline.is_none() {
-                        if let Some(cmdline) = cmdline_map.get(&c.pid) {
-                            c.process_cmdline = Some(cmdline.clone());
-                            // Also update cache so next poll doesn't need WMI again
-                            self.process_cache.set_cmdline(c.pid, cmdline.clone());
-                        }
-                    }
-                }
-            }
-        }
-
         self.process_cache.cleanup_expired();
         conns
+    }
+
+    /// Apply cached cmdline results from the enricher and enqueue PIDs needing enrichment.
+    pub fn enrich_cmdlines(&self, conns: &mut [NetConn], enricher: &CmdlineEnricher) {
+        let mut pids_to_enqueue: Vec<u32> = Vec::new();
+        for c in conns.iter_mut() {
+            if let Some(result) = enricher.get(c.pid) {
+                c.process_cmdline = result.cmdline;
+                c.cmdline_status = result.status;
+            } else if c.cmdline_status == CmdlineStatus::Unknown {
+                pids_to_enqueue.push(c.pid);
+                c.cmdline_status = CmdlineStatus::Pending;
+            }
+        }
+        if !pids_to_enqueue.is_empty() {
+            enricher.enqueue(&pids_to_enqueue);
+        }
     }
 }
 

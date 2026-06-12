@@ -107,6 +107,18 @@ pub struct NetConnKey {
     pub pid: u32,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum CmdlineStatus {
+    #[default]
+    Unknown,
+    Pending,
+    Ready,
+    Denied,
+    Exited,
+    Failed,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct NetConn {
     pub proto: Proto,
@@ -118,6 +130,7 @@ pub struct NetConn {
     pub process_name: Option<String>,
     pub process_path: Option<String>,
     pub process_cmdline: Option<String>,
+    pub cmdline_status: CmdlineStatus,
     pub first_seen: u64,
     pub last_seen: u64,
     pub is_current: bool,
@@ -190,6 +203,7 @@ mod tests {
             process_name: None,
             process_path: None,
             process_cmdline: None,
+            cmdline_status: CmdlineStatus::Unknown,
             first_seen: 0,
             last_seen: 0,
             is_current: true,

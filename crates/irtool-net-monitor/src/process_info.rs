@@ -86,11 +86,14 @@ impl ProcessInfoCache {
 #[cfg(windows)]
 use std::collections::HashMap;
 
-/// Batch query WMI for CommandLine of all given PIDs in a single WMI connection.
-/// Returns a map of PID -> CommandLine.
+/// Targeted WMI query for CommandLine of specific PIDs.
+/// Builds a WHERE clause to avoid scanning all processes.
+/// Chunks PIDs into groups of 50 with a 1500ms timeout per chunk.
 #[cfg(windows)]
-pub(crate) fn batch_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
+pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
     use serde::Deserialize;
+    use std::sync::mpsc;
+    use std::time::Duration;
     use wmi::WMIConnection;
 
     #[derive(Deserialize)]
@@ -100,22 +103,52 @@ pub(crate) fn batch_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>>
         CommandLine: Option<String>,
     }
 
-    let wmi = WMIConnection::new().ok()?;
-    // Single query for all processes, then filter by PID
-    let results: Vec<Win32Process> = wmi
-        .raw_query("SELECT ProcessId, CommandLine FROM Win32_Process")
-        .ok()?;
+    if pids.is_empty() {
+        return Some(HashMap::new());
+    }
 
-    let pid_set: std::collections::HashSet<u32> = pids.iter().copied().collect();
     let mut map = HashMap::new();
-    for proc in results {
-        if pid_set.contains(&proc.ProcessId) {
-            if let Some(cmdline) = proc.CommandLine {
-                map.insert(proc.ProcessId, cmdline);
+    let chunk_size = 50;
+
+    for chunk in pids.chunks(chunk_size) {
+        let conditions: Vec<String> = chunk.iter().map(|p| format!("ProcessId = {}", p)).collect();
+        let where_clause = conditions.join(" OR ");
+        let query = format!(
+            "SELECT ProcessId, CommandLine FROM Win32_Process WHERE {}",
+            where_clause
+        );
+
+        // Run WMI query on a separate thread with timeout
+        let (tx, rx) = mpsc::channel();
+        let query_owned = query.clone();
+        std::thread::spawn(move || {
+            let result = (|| -> Option<Vec<Win32Process>> {
+                let wmi = WMIConnection::new().ok()?;
+                wmi.raw_query(&query_owned).ok()
+            })();
+            let _ = tx.send(result);
+        });
+
+        match rx.recv_timeout(Duration::from_millis(1500)) {
+            Ok(Some(results)) => {
+                for proc in results {
+                    if let Some(cmdline) = proc.CommandLine {
+                        map.insert(proc.ProcessId, cmdline);
+                    }
+                }
+            }
+            Ok(None) | Err(_) => {
+                // WMI query failed or timed out — skip this chunk
             }
         }
     }
+
     Some(map)
+}
+
+#[cfg(not(windows))]
+pub fn targeted_query_cmdlines(_pids: &[u32]) -> Option<HashMap<u32, String>> {
+    None
 }
 
 #[cfg(windows)]
@@ -239,7 +272,7 @@ mod tests {
         assert!(info.cmdline.is_none(), "cmdline should be None on first lookup");
         // Batch WMI query fills it
         cache.get(pid); // insert into cache
-        let cmdlines = batch_query_cmdlines(&[pid]);
+        let cmdlines = targeted_query_cmdlines(&[pid]);
         assert!(cmdlines.is_some(), "batch WMI query should succeed");
         let cmdline = cmdlines.unwrap().get(&pid).cloned();
         assert!(cmdline.is_some(), "cmdline should be found for current process");
