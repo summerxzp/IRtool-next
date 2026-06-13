@@ -3,8 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import * as api from "./api";
 import { useAutorunsStore } from "./store";
-import { clearIconCache, preloadIcons } from "./columns";
-import type { AutorunItem, ScanProgress, SignatureProgress } from "./types";
+import { preloadIcons } from "./columns";
+import type { ScanProgress, SignatureProgress } from "./types";
 
 const QK_AUTORUNS = ["autoruns", "items"] as const;
 
@@ -19,6 +19,7 @@ export function useAutorunsData() {
     queryFn: api.getResult,
     retry: false,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   useEffect(() => {
@@ -30,10 +31,11 @@ export function useAutorunsData() {
       const store = useAutorunsStore.getState();
       store.setScanProgress(e.payload);
       if (e.payload.phase === "complete") {
-        clearIconCache();
-        qc.invalidateQueries({ queryKey: QK_AUTORUNS }).then(() => {
-          const data = qc.getQueryData<AutorunItem[]>(QK_AUTORUNS);
-          if (data && data.length > 0) preloadIcons(data);
+        api.getResult().then(async (newData) => {
+          qc.setQueryData(QK_AUTORUNS, newData);
+          if (newData && newData.length > 0) {
+            setTimeout(() => preloadIcons(newData), 0);
+          }
         });
         store.setScanning(false);
         const match = e.payload.message.match(/耗时\s+([\d.]+)s/);
@@ -84,13 +86,6 @@ export function useAutorunsData() {
       store.setVerifyingSignatures(false);
     });
   }, [qc]);
-
-  // Safety: if data is available but scanning is still true, the complete event was missed
-  useEffect(() => {
-    if (query.isSuccess && query.data && useAutorunsStore.getState().scanning) {
-      useAutorunsStore.getState().setScanning(false);
-    }
-  }, [query.isSuccess, query.data]);
 
   return query;
 }
@@ -156,4 +151,24 @@ export function useCalculateHash() {
       setError(msg);
     },
   });
+}
+
+/**
+ * Sync frontend scanning state with backend on mount.
+ * Same pattern as log-collector's useSyncCollectingState:
+ * ask the backend for the truth, set it once.
+ */
+export function useSyncScanningState() {
+  const setScanning = useAutorunsStore((s) => s.setScanning);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const backendScanning = await api.isScanning();
+        setScanning(backendScanning);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [setScanning]);
 }

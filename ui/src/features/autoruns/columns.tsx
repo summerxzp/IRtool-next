@@ -1,11 +1,33 @@
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { SignatureBadge } from "./components/SignatureBadge";
 import type { AutorunItem } from "./types";
 
-// Shared in-memory icon cache: path -> data URL ("" means no icon)
+// ── Reactive icon cache ──────────────────────────────────────────
+// Per-path listeners: when an icon for a specific path is loaded,
+// only components subscribed to that path re-render.
+
 const MAX_ICON_CACHE = 500;
 const iconCache = new Map<string, string>();
+const pathListeners = new Map<string, Set<() => void>>();
+
+function subscribePath(path: string, listener: () => void): () => void {
+  if (!pathListeners.has(path)) {
+    pathListeners.set(path, new Set());
+  }
+  pathListeners.get(path)!.add(listener);
+  return () => {
+    const set = pathListeners.get(path);
+    if (set) {
+      set.delete(listener);
+      if (set.size === 0) pathListeners.delete(path);
+    }
+  };
+}
+
+function notifyPath(path: string) {
+  pathListeners.get(path)?.forEach((l) => l());
+}
 
 function trimIconCache() {
   if (iconCache.size > MAX_ICON_CACHE) {
@@ -21,27 +43,26 @@ function trimIconCache() {
 
 export function clearIconCache() {
   iconCache.clear();
+  for (const [, listeners] of pathListeners) {
+    listeners.forEach((l) => l());
+  }
 }
 
-/** Batch preload icons into cache. Called after scan completes. */
+/** Batch preload icons into cache. Skips paths already cached. */
 export async function preloadIcons(items: AutorunItem[]) {
   const { batchExtractIcons } = await import("./api");
-  const paths = items
+  const uncachedPaths = items
     .map((i) => i.image_path)
-    .filter((p): p is string => !!p);
+    .filter((p): p is string => !!p)
+    .filter((p) => !iconCache.has(p));
 
-  if (paths.length === 0) return;
-
-  // Mark all as loading (empty string = no icon, undefined = not loaded yet)
-  // We use a sentinel to distinguish "loading" from "no icon"
-  for (const p of paths) {
-    if (!iconCache.has(p)) iconCache.set(p, "");
-  }
+  if (uncachedPaths.length === 0) return;
 
   try {
-    const results = await batchExtractIcons(paths);
+    const results = await batchExtractIcons(uncachedPaths);
     for (const [path, icon] of results) {
       iconCache.set(path, icon ?? "");
+      notifyPath(path);
     }
     trimIconCache();
   } catch {
@@ -49,23 +70,28 @@ export async function preloadIcons(items: AutorunItem[]) {
   }
 }
 
+// ── EntryWithIcon component ──────────────────────────────────────
+
 function EntryWithIcon({ entry, imagePath }: { entry: string; imagePath: string | null }) {
-  const cached = imagePath ? iconCache.get(imagePath) : undefined;
-  const [iconSrc, setIconSrc] = useState<string | null>(
-    cached !== undefined ? cached : null
+  // Subscribe to cache changes for this specific path
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!imagePath) return () => {};
+      return subscribePath(imagePath, listener);
+    },
+    [imagePath]
   );
 
-  useEffect(() => {
-    if (!imagePath) return;
-    // Check cache
-    const cached = iconCache.get(imagePath);
-    if (cached !== undefined) {
-      setIconSrc(cached);
-      return;
-    }
-    // Not in cache - shouldn't happen after batch preload, but handle gracefully
-    setIconSrc(null);
-  }, [imagePath]);
+  // Read current icon from cache reactively
+  const iconSrc = useSyncExternalStore(
+    subscribe,
+    () => {
+      if (!imagePath) return null;
+      const cached = iconCache.get(imagePath);
+      return cached && cached !== "" ? cached : null;
+    },
+    () => null
+  );
 
   return (
     <span className="flex items-center gap-1.5">

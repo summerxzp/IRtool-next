@@ -3,7 +3,7 @@ import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
-import { useAutorunsData, useAutorunsScan, useDeleteEntry, useCalculateHash } from "../hooks";
+import { useAutorunsData, useAutorunsScan, useDeleteEntry, useCalculateHash, useSyncScanningState } from "../hooks";
 import * as api from "../api";
 import { useAutorunsStore } from "../store";
 import { useUIStore } from "@/stores/ui-store";
@@ -22,6 +22,9 @@ export function AutorunsPage() {
   const scanMutation = useAutorunsScan();
   const deleteMutation = useDeleteEntry();
   const calculateHashMutation = useCalculateHash();
+
+  // Sync scanning state with backend on mount (handles page navigation)
+  useSyncScanningState();
 
   const selectedEntryId = useAutorunsStore((s) => s.selectedEntryId);
   const setSelectedEntryId = useAutorunsStore((s) => s.setSelectedEntryId);

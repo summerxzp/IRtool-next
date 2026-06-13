@@ -6,7 +6,8 @@ use crate::state::AppState;
 use irtool_autoruns::{AutorunItem, DeleteResult, ScanOptions, ScanPhase, ScanProgress, SignatureProgress};
 use irtool_core::{IrError, TaskId};
 use std::path::PathBuf;
-use tauri::{Emitter, State};
+use std::sync::atomic::Ordering;
+use tauri::{Emitter, Manager, State};
 
 #[tauri::command]
 #[specta::specta]
@@ -22,12 +23,15 @@ pub async fn cmd_autoruns_scan(
     }
 
     let store = state.autoruns_store.clone();
+    let scanning_flag = state.autoruns_scanning.clone();
     let tasks = state.tasks.clone();
     let (id, token) = tasks.register();
     let app_for_progress = app.clone();
     let app_for_result = app.clone();
 
     tracing::info!("autoruns scan started, task_id={}", id);
+
+    state.autoruns_scanning.store(true, Ordering::SeqCst);
 
     tauri::async_runtime::spawn(async move {
         let task_id = id;
@@ -41,6 +45,8 @@ pub async fn cmd_autoruns_scan(
             Some(s) => s.scan(options, progress, token).await,
             None => Err(IrError::FeatureDisabled("autoruns scanner not available".into())),
         };
+
+        scanning_flag.store(false, Ordering::SeqCst);
 
         match result {
             Ok(items) => {
@@ -56,6 +62,35 @@ pub async fn cmd_autoruns_scan(
                         message: format!("扫描完成，共 {} 项", count),
                     },
                 );
+                // Re-apply window icon: autorunsc64.exe exit can flush the Windows
+                // icon cache, causing the taskbar icon to revert to default.
+                // Delay to let the icon cache flush complete before re-applying.
+                let app_for_icon = app_for_result.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    match app_for_icon.get_webview_window("main") {
+                        Some(window) => {
+                            match app_for_icon.default_window_icon() {
+                                Some(icon) => {
+                                    tracing::info!(
+                                        "autoruns re-applying window icon ({}x{})",
+                                        icon.width(),
+                                        icon.height()
+                                    );
+                                    if let Err(e) = window.set_icon(icon.clone()) {
+                                        tracing::warn!("autoruns set_icon failed: {}", e);
+                                    }
+                                }
+                                None => {
+                                    tracing::warn!("autoruns default_window_icon() returned None");
+                                }
+                            }
+                        }
+                        None => {
+                            tracing::warn!("autoruns get_webview_window(\"main\") returned None");
+                        }
+                    }
+                });
             }
             Err(IrError::Cancelled) => {
                 tracing::info!("autoruns scan cancelled, task_id={}", id);
@@ -322,4 +357,10 @@ pub fn cmd_autoruns_extract_icon(image_path: String) -> Result<Option<String>, I
 #[specta::specta]
 pub fn cmd_autoruns_batch_extract_icons(paths: Vec<String>) -> Result<Vec<(String, Option<String>)>, IrError> {
     Ok(irtool_autoruns::batch_extract_icons(&paths))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn cmd_autoruns_is_scanning(state: State<'_, AppState>) -> Result<bool, IrError> {
+    Ok(state.autoruns_scanning.load(Ordering::SeqCst))
 }

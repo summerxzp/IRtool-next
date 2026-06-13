@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { ScanProgress, SignatureProgress } from "./types";
 
 export interface AutorunsFilters {
@@ -52,48 +51,42 @@ const DEFAULT_FILTERS: AutorunsFilters = {
   signature: "all",
 };
 
-export const useAutorunsStore = create<AutorunsState>()(
-  persist(
-    (set) => ({
-      filters: DEFAULT_FILTERS,
-      setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
-      resetFilters: () => set({ filters: DEFAULT_FILTERS }),
+// No persist middleware — same pattern as log-collector store.
+// Scanning state is a transient runtime flag synced from the backend
+// via useSyncScanningState on mount. Persisting it causes async
+// rehydration races that reset the state incorrectly.
+export const useAutorunsStore = create<AutorunsState>()((set) => ({
+  filters: DEFAULT_FILTERS,
+  setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
+  resetFilters: () => set({ filters: DEFAULT_FILTERS }),
 
-      selectedEntryId: null,
-      setSelectedEntryId: (selectedEntryId) => set({ selectedEntryId }),
+  selectedEntryId: null,
+  setSelectedEntryId: (selectedEntryId) => set({ selectedEntryId }),
 
-      scanProgress: null,
-      setScanProgress: (scanProgress) => set({ scanProgress }),
+  scanProgress: null,
+  setScanProgress: (scanProgress) => set({ scanProgress }),
 
-      signatureProgress: null,
-      setSignatureProgress: (signatureProgress) => set({ signatureProgress }),
+  signatureProgress: null,
+  setSignatureProgress: (signatureProgress) => set({ signatureProgress }),
 
-      scanning: false,
-      setScanning: (scanning) => set({ scanning }),
+  scanning: false,
+  setScanning: (scanning) => set({ scanning }),
 
-      verifyingSignatures: false,
-      setVerifyingSignatures: (verifyingSignatures) => set({ verifyingSignatures }),
+  verifyingSignatures: false,
+  setVerifyingSignatures: (verifyingSignatures) => set({ verifyingSignatures }),
 
-      calculatingHash: false,
-      setCalculatingHash: (calculatingHash) => set({ calculatingHash }),
+  calculatingHash: false,
+  setCalculatingHash: (calculatingHash) => set({ calculatingHash }),
 
-      hashProgress: null,
-      setHashProgress: (hashProgress) => set({ hashProgress }),
+  hashProgress: null,
+  setHashProgress: (hashProgress) => set({ hashProgress }),
 
-      error: null,
-      setError: (error) => set({ error }),
+  error: null,
+  setError: (error) => set({ error }),
 
-      lastScanDuration: null,
-      setLastScanDuration: (lastScanDuration) => set({ lastScanDuration }),
+  lastScanDuration: null,
+  setLastScanDuration: (lastScanDuration) => set({ lastScanDuration }),
 
-      sigcheckResult: null,
-      setSigcheckResult: (sigcheckResult) => set({ sigcheckResult }),
-    }),
-    {
-      name: "irtool-autoruns",
-      partialize: (state) => ({
-        scanning: state.scanning,
-      } as AutorunsState),
-    }
-  )
-);
+  sigcheckResult: null,
+  setSigcheckResult: (sigcheckResult) => set({ sigcheckResult }),
+}));

@@ -78,3 +78,9 @@ export async function batchCalculateHash(entryIds: number[]) {
   if (result.status === "error") throw result.error;
   return result.data;
 }
+
+export async function isScanning(): Promise<boolean> {
+  const result = await commands.cmdAutorunsIsScanning();
+  if (result.status === "error") throw result.error;
+  return result.data;
+}

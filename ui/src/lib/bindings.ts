@@ -149,6 +149,14 @@ async cmdAutorunsBatchExtractIcons(paths: string[]) : Promise<Result<([string, s
     else return { status: "error", error: e  as any };
 }
 },
+async cmdAutorunsIsScanning() : Promise<Result<boolean, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_is_scanning") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdProcessSnapshot() : Promise<Result<ProcessSnapshot, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_process_snapshot") };

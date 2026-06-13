@@ -3,6 +3,7 @@ use irtool_core::{AppDirs, TaskRegistry};
 use irtool_net_monitor::{CmdlineEnricher, HistoryStore, RetentionPolicy, WindowsNetCollector};
 use parking_lot::Mutex;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tokio::sync;
 use tokio_util::sync::CancellationToken;
 
@@ -17,6 +18,7 @@ pub struct AppState {
     // --- P2 新增 ---
     pub autoruns_scanner: Arc<Option<AutorunsScanner>>,
     pub autoruns_store: Arc<AutorunsStore>,
+    pub autoruns_scanning: Arc<AtomicBool>,
     // --- P4 新增 ---
     pub sysmon_reader: Arc<irtool_sysmon::SysmonReader>,
     pub sysmon_config: Arc<irtool_sysmon::SysmonConfigManager>,
@@ -66,6 +68,7 @@ impl AppState {
             net_enricher: Arc::new(CmdlineEnricher::new()),
             autoruns_scanner: Arc::new(autoruns_scanner),
             autoruns_store: Arc::new(AutorunsStore::new()),
+            autoruns_scanning: Arc::new(AtomicBool::new(false)),
             // --- P4 新增 ---
             sysmon_reader: Arc::new(irtool_sysmon::SysmonReader::new()),
             sysmon_config: Arc::new(irtool_sysmon::SysmonConfigManager::new(None, None, &root)),
