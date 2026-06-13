@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Eye, EyeOff, Send, Database, Bell, ShieldAlert, Info, Download, Upload } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Send, Bell, ShieldAlert, Info, Download, Upload } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 
@@ -60,7 +60,7 @@ function createEmptyRule(): AlertRule {
   };
 }
 
-type SettingsTab = "alert-rules" | "notification" | "database" | "data-source" | "import-export";
+type SettingsTab = "alert-rules" | "notification" | "data-source" | "import-export";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -252,8 +252,7 @@ export default function SettingsPage() {
       });
       if (!filePath) return;
       const monitorConfig = await invoke<MonitorConfig>("cmd_monitor_get_config");
-      const { rules, ...appConfig } = monitorConfig;
-      const data = { app_config: appConfig, exported_at: new Date().toISOString() };
+      const data = { monitor_config: monitorConfig, exported_at: new Date().toISOString() };
       await writeTextFile(filePath, JSON.stringify(data, null, 2));
       toast.success(t("settings.import-export.export-success"));
     } catch {
@@ -272,15 +271,13 @@ export default function SettingsPage() {
       if (!filePath) return;
       const text = await readTextFile(filePath as string);
       const data = JSON.parse(text);
-      const configData = data.app_config || data.monitor_config;
+      const configData = data.monitor_config || data.app_config;
       if (!configData) {
         toast.error(t("settings.import-export.import-failed"), { description: "文件格式无效：未找到配置数据" });
         return;
       }
-      const currentRules = config.rules;
-      const restoredConfig = { ...configData, rules: currentRules };
-      await invoke("cmd_monitor_update_config", { config: restoredConfig as any });
-      setConfig(restoredConfig as MonitorConfig);
+      await invoke("cmd_monitor_update_config", { config: configData });
+      setConfig(configData as MonitorConfig);
       toast.success(t("settings.import-export.import-success"));
     } catch {
       toast.error(t("settings.import-export.import-failed"));
@@ -314,7 +311,6 @@ export default function SettingsPage() {
   const tabs: { key: SettingsTab; icon: typeof Bell; label: string }[] = [
     { key: "alert-rules", icon: ShieldAlert, label: t("settings.tabs.alert-rules") },
     { key: "notification", icon: Bell, label: t("settings.tabs.notification") },
-    { key: "database", icon: Database, label: t("settings.tabs.database") },
     { key: "data-source", icon: Info, label: t("settings.tabs.data-source") },
     { key: "import-export", icon: Download, label: t("settings.tabs.import-export") },
   ];
@@ -551,72 +547,6 @@ export default function SettingsPage() {
                   >
                     <Send className="h-3 w-3" />
                   </Button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === "database" && (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-medium">{t("settings.database.title")}</h2>
-                <Button size="sm" onClick={handleSave} disabled={loading} className="hover:shadow-sm transition-shadow">
-                  {loading ? t("log-collector.monitor.saving") : t("log-collector.monitor.save")}
-                </Button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs shrink-0 w-28">{t("settings.database.retention-days")}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={config.retention_days}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v) && v >= 0) setConfig((prev) => ({ ...prev, retention_days: v }));
-                    }}
-                    className="h-7 w-20 text-xs"
-                  />
-                  <span className="text-xs text-fg-tertiary">{t("settings.database.retention-days-hint")}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs shrink-0 w-28">{t("settings.database.max-size")}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={config.max_size_mb}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v) && v >= 0) setConfig((prev) => ({ ...prev, max_size_mb: v }));
-                    }}
-                    className="h-7 w-20 text-xs"
-                  />
-                  <span className="text-xs text-fg-tertiary">MB{t("settings.database.max-size-hint")}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs shrink-0 w-28">{t("settings.database.load-limit")}</Label>
-                  <Input
-                    type="number"
-                    min={100}
-                    max={100000}
-                    value={config.load_limit}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v) && v >= 100 && v <= 100000) setConfig((prev) => ({ ...prev, load_limit: v }));
-                    }}
-                    className="h-7 w-20 text-xs"
-                  />
-                  <span className="text-xs text-fg-tertiary">{t("settings.database.load-limit-hint")}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs shrink-0 w-28">{t("settings.database.db-path")}</Label>
-                  <Input
-                    type="text"
-                    placeholder={t("settings.database.db-path-placeholder")}
-                    value={config.db_path}
-                    onChange={(e) => setConfig((prev) => ({ ...prev, db_path: e.target.value }))}
-                    className="h-7 text-xs flex-1"
-                  />
                 </div>
               </div>
             </>

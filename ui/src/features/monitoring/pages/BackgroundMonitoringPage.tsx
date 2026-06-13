@@ -47,7 +47,6 @@ interface Preset {
 
 const SYSMON_EVENT_GROUPS = [
   { key: "dns", label: "DNS 查询" },
-  { key: "dns_client", label: "DNS Client" },
   { key: "network_connect", label: "网络连接" },
   { key: "create_remote_thread", label: "远程线程" },
   { key: "file_create", label: "文件创建" },
@@ -164,7 +163,7 @@ export default function BackgroundMonitoringPage() {
       label: "低开销",
       description: "Sysmon DNS + 网络连接，网络快照 5s，PCAP 关闭，仅持久化外连/DNS 事件",
       config: {
-        persist_event_types: ["dns", "dns_client", "network_connect"],
+        persist_event_types: ["dns", "network_connect"],
         enable_sni: false,
         enable_dns_pcap: false,
       },
@@ -173,7 +172,7 @@ export default function BackgroundMonitoringPage() {
       label: "均衡",
       description: "DNS + 网络连接 + 远程线程 + 文件创建，PCAP DNS/SNI 关闭",
       config: {
-        persist_event_types: ["dns", "dns_client", "network_connect", "create_remote_thread", "file_create"],
+        persist_event_types: ["dns", "network_connect", "create_remote_thread", "file_create"],
         enable_sni: false,
         enable_dns_pcap: false,
       },
@@ -182,7 +181,7 @@ export default function BackgroundMonitoringPage() {
       label: "深度捕获",
       description: "均衡 + PCAP DNS/SNI，更完整的持久化覆盖",
       config: {
-        persist_event_types: ["dns", "dns_client", "network_connect", "create_remote_thread", "file_create", "tls_sni", "dns_pcap", "network_monitor"],
+        persist_event_types: ["dns", "network_connect", "create_remote_thread", "file_create", "tls_sni", "dns_pcap", "network_monitor"],
         enable_sni: true,
         enable_dns_pcap: true,
       },
@@ -370,7 +369,6 @@ export default function BackgroundMonitoringPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="off">关闭</SelectItem>
-                    <SelectItem value="lazy">懒加载</SelectItem>
                     <SelectItem value="background">后台富化</SelectItem>
                   </SelectContent>
                 </Select>
@@ -385,30 +383,7 @@ export default function BackgroundMonitoringPage() {
               <h2 className="text-sm font-medium">DNS / SNI</h2>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={config.persist_event_types.includes("dns")}
-                  onCheckedChange={(v) => {
-                    if (v) togglePersistType("dns");
-                    else togglePersistType("dns");
-                  }}
-                  disabled
-                />
-                <Label className="text-xs">Sysmon DNS</Label>
-                <span className="text-[10px] text-fg-tertiary">（在 Sysmon 事件中配置）</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={config.persist_event_types.includes("dns_client")}
-                  onCheckedChange={(v) => {
-                    if (v === true && !config.persist_event_types.includes("dns_client"))
-                      togglePersistType("dns_client");
-                    else if (v === false && config.persist_event_types.includes("dns_client"))
-                      togglePersistType("dns_client");
-                  }}
-                />
-                <Label className="text-xs">DNS Client</Label>
-              </div>
+              <p className="text-[10px] text-fg-tertiary">Sysmon DNS 事件由上方 Sysmon 事件区域控制</p>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Checkbox

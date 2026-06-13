@@ -43,9 +43,17 @@ export function AutorunsStatsBar({ data, filteredCount, scanning, scanProgress, 
       <span className="text-success">{t("autoruns.stats.signed")}: <span className="font-medium">{stats.signed}/{stats.total}</span></span>
       {stats.disabled > 0 && <span className="text-fg-tertiary">{t("autoruns.stats.disabled")}: {stats.disabled}</span>}
       <div className="flex-1" />
-      {scanning && scanProgress && scanProgress.phase !== "complete" && (
-        <span className="text-accent animate-pulse">
-          {PHASE_LABELS[scanProgress.phase] ?? scanProgress.phase}…
+      {scanning && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          </span>
+          <span className="text-accent">
+            {scanProgress && scanProgress.phase !== "complete"
+              ? `${PHASE_LABELS[scanProgress.phase] ?? scanProgress.phase}…`
+              : "扫描中…"}
+          </span>
         </span>
       )}
       {verifyingSignatures && signatureProgress && (

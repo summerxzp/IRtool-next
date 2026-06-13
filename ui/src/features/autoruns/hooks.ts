@@ -98,9 +98,10 @@ export function useAutorunsData() {
 export function useAutorunsScan() {
   const setScanning = useAutorunsStore((s) => s.setScanning);
   const setError = useAutorunsStore((s) => s.setError);
+  const setLastScanDuration = useAutorunsStore((s) => s.setLastScanDuration);
   return useMutation({
     mutationFn: api.scan,
-    onMutate: () => { setScanning(true); setError(null); },
+    onMutate: () => { setScanning(true); setError(null); setLastScanDuration(null); },
     onError: (_err, _vars, _ctx) => {
       setScanning(false);
       const msg = _err instanceof Error ? _err.message : String(_err);
