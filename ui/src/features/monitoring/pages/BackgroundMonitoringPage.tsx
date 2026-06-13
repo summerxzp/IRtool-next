@@ -53,10 +53,6 @@ const SYSMON_EVENT_GROUPS = [
   { key: "file_create", label: "文件创建" },
 ];
 
-function isBackgroundMode(mode: api.RuntimeTelemetry["mode"]): boolean {
-  return mode && "Background" in mode;
-}
-
 export default function BackgroundMonitoringPage() {
   const { t } = useTranslation();
   const { isBackground, telemetry, eventCount, setIsBackground, setTelemetry, setEventCount } =
@@ -101,7 +97,7 @@ export default function BackgroundMonitoringPage() {
         ]);
         if (!mounted) return;
         setTelemetry({
-          mode: isBackgroundMode(tel.mode) ? "Background" : "Foreground",
+          mode: tel.mode,
           started_at: tel.started_at,
           events_written: tel.events_written,
           events_dropped: tel.events_dropped,

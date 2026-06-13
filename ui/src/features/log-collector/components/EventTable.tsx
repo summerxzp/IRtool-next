@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type ColumnDef } from "@tanstack/react-table";
+import { formatEventTimestamp } from "@/lib/utils";
 
 import { useLogCollectorStore } from "../store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "../types";
@@ -73,7 +74,11 @@ export function EventTable({ events }: Props) {
       accessorKey: "timestamp",
       header: t("log-collector.table.time"),
       size: 144,
-      cell: ({ getValue }) => <span className="font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">{getValue() as string || "-"}</span>,
+      cell: ({ getValue }) => {
+        const ts = getValue() as string | number;
+        const display = typeof ts === 'number' ? formatEventTimestamp(ts) : (ts || "-");
+        return <span className="font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">{display}</span>;
+      },
     },
     {
       accessorKey: "event_type",

@@ -22,7 +22,8 @@ function fmtPort(port: number) {
 function fmtTime(epoch: number) {
   if (!epoch) return "-";
   const d = new Date(epoch * 1000);
-  return d.toLocaleString("en-GB", { hour12: false });
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function CmdlineStatusIcon({ status }: { status: CmdlineStatus }) {

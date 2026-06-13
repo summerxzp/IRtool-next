@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export interface RuntimeTelemetry {
-  mode: { Foreground: null } | { Background: null };
+  mode: string;
   started_at: number | null;
   events_written: number;
   events_dropped: number;

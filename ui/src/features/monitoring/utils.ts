@@ -1,5 +1,5 @@
 export function formatUptime(startedAt: number | null): string {
-  if (!startedAt) return "-";
+  if (!startedAt || startedAt <= 0) return "-";
   const ms = Date.now() - startedAt;
   const secs = Math.floor(ms / 1000);
   if (secs < 60) return `${secs}秒`;

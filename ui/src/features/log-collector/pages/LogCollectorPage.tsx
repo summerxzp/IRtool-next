@@ -127,7 +127,7 @@ export function monitorEventToSysmonEvent(me: MonitorEvent): any {
   return {
     event_id: raw.event_id || 0,
     event_type: me.event_type,
-    timestamp: raw.timestamp || formatEventTimestamp(me.timestamp),
+    timestamp: (typeof raw.timestamp === 'number') ? formatEventTimestamp(raw.timestamp) : (raw.timestamp || formatEventTimestamp(me.timestamp)),
     timestamp_epoch: raw.timestamp_epoch || me.timestamp / 1000,
     timestamp_valid: raw.timestamp_valid ?? true,
     record_id: me.id,

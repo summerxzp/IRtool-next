@@ -240,6 +240,13 @@ pub fn run() {
             // 创建系统托盘
             crate::tray::create_tray(app.handle())?;
 
+            // 设置窗口图标（确保任务栏显示自定义图标，尤其 decorations=false 时）
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some(icon) = app.default_window_icon() {
+                    let _ = window.set_icon(icon.clone());
+                }
+            }
+
             // 拦截窗口关闭：仅后台监测模式时隐藏到托盘，否则退出
             if let Some(window) = app.get_webview_window("main") {
                 let win_clone = window.clone();

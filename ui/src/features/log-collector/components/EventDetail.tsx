@@ -4,6 +4,7 @@ import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { commands } from "@/lib/bindings";
+import { formatEventTimestamp } from "@/lib/utils";
 import { EVENT_TYPE_LABELS } from "../types";
 import type { SysmonEvent, ExtendedSysmonEventType } from "../types";
 
@@ -61,6 +62,13 @@ function ProcessChain({ pid }: { pid: number }) {
   );
 }
 
+function formatDisplayTimestamp(ts: string | number): string {
+  if (typeof ts === 'number') {
+    return formatEventTimestamp(ts);
+  }
+  return ts;
+}
+
 export function EventDetail({ event, onClose }: Props) {
   const { t } = useTranslation();
 
@@ -87,7 +95,7 @@ export function EventDetail({ event, onClose }: Props) {
       </div>
       <Separator />
 
-      <FieldRow label={t("log-collector.detail.time")} value={event.timestamp} />
+      <FieldRow label={t("log-collector.detail.time")} value={formatDisplayTimestamp(event.timestamp)} />
       <FieldRow label={t("log-collector.detail.process")} value={event.process_name && event.process_name !== "<unknown process>" ? `${event.process_name} (${event.process_id})` : `PID: ${event.process_id}`} />
       <FieldRow label={t("log-collector.detail.path")} value={event.process_path === "<unknown process>" ? "" : event.process_path} copyable />
       <FieldRow label={t("log-collector.detail.user")} value={event.user} />
