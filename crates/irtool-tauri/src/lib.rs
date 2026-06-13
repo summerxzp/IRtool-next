@@ -263,6 +263,21 @@ pub fn run() {
                 });
             }
 
+            // Re-apply window icon on focus gain (desktop refresh from tools like autorunsc can reset taskbar icon)
+            let icon_data = app.default_window_icon().map(|icon| {
+                (icon.rgba().to_vec(), icon.width(), icon.height())
+            });
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some((rgba, width, height)) = icon_data {
+                    let win = window.clone();
+                    window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::Focused(true) = event {
+                            let _ = win.set_icon(tauri::image::Image::new(&rgba, width, height));
+                        }
+                    });
+                }
+            }
+
             info!("main window setup; default polling started");
             #[cfg(debug_assertions)]
             {

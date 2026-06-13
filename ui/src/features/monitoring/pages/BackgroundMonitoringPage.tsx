@@ -27,8 +27,8 @@ import {
   HardDrive,
   Cpu,
   Wifi,
-  Globe,
   Shield,
+  Settings,
   Zap,
   AlertTriangle,
 } from "lucide-react";
@@ -77,6 +77,7 @@ export default function BackgroundMonitoringPage() {
     },
   });
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [dnsSniDialogOpen, setDnsSniDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Load config on mount
@@ -309,11 +310,22 @@ export default function BackgroundMonitoringPage() {
             </div>
           </section>
 
-          {/* Sysmon Section */}
+          {/* 日志采集事件 Section */}
           <section className="border border-border rounded-md p-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-fg-secondary" />
-              <h2 className="text-sm font-medium">Sysmon 事件</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-fg-secondary" />
+                <h2 className="text-sm font-medium">日志采集事件</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] gap-1 px-1.5"
+                onClick={() => setDnsSniDialogOpen(true)}
+              >
+                <Settings className="h-3 w-3" />
+                配置
+              </Button>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-1 mb-1">
@@ -372,49 +384,6 @@ export default function BackgroundMonitoringPage() {
                     <SelectItem value="background">后台富化</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-          </section>
-
-          {/* DNS/SNI Section */}
-          <section className="border border-border rounded-md p-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-fg-secondary" />
-              <h2 className="text-sm font-medium">DNS / SNI</h2>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[10px] text-fg-tertiary">Sysmon DNS 事件由上方 Sysmon 事件区域控制</p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={config.enable_dns_pcap}
-                    onCheckedChange={(v) => setConfig((prev) => ({ ...prev, enable_dns_pcap: v === true }))}
-                  />
-                  <Label className="text-xs">PCAP DNS 抓包</Label>
-                  <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">
-                    <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                    较高开销
-                  </Badge>
-                </div>
-                <p className="text-[10px] text-fg-tertiary pl-6">
-                  从网卡层捕获 UDP:53 DNS 报文，覆盖 Go/dig 等不走系统 API 的工具
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={config.enable_sni}
-                    onCheckedChange={(v) => setConfig((prev) => ({ ...prev, enable_sni: v === true }))}
-                  />
-                  <Label className="text-xs">TLS SNI 提取</Label>
-                  <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">
-                    <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                    较高开销
-                  </Badge>
-                </div>
-                <p className="text-[10px] text-fg-tertiary pl-6">
-                  从 TLS 握手中提取域名，覆盖浏览器 DoH 等场景
-                </p>
               </div>
             </div>
           </section>
@@ -506,6 +475,53 @@ export default function BackgroundMonitoringPage() {
           </section>
         </div>
       </div>
+
+      {/* DNS/SNI Config Dialog */}
+      <Dialog open={dnsSniDialogOpen} onOpenChange={setDnsSniDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>DNS / SNI 配置</DialogTitle>
+            <DialogDescription>
+              额外的网络层采集选项，开销较高，请按需开启
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={config.enable_dns_pcap}
+                onCheckedChange={(v) => setConfig((prev) => ({ ...prev, enable_dns_pcap: v === true }))}
+              />
+              <Label className="text-xs">PCAP DNS 抓包</Label>
+              <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">
+                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                较高开销
+              </Badge>
+            </div>
+            <p className="text-[10px] text-fg-tertiary pl-6">
+              从网卡层捕获 UDP:53 DNS 报文，覆盖 Go/dig 等不走系统 API 的工具
+            </p>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={config.enable_sni}
+                onCheckedChange={(v) => setConfig((prev) => ({ ...prev, enable_sni: v === true }))}
+              />
+              <Label className="text-xs">TLS SNI 提取</Label>
+              <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/30">
+                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                较高开销
+              </Badge>
+            </div>
+            <p className="text-[10px] text-fg-tertiary pl-6">
+              从 TLS 握手中提取域名，覆盖浏览器 DoH 等场景
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDnsSniDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Enter Background Confirm Dialog */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
