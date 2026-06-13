@@ -4,6 +4,7 @@ use irtool_core::IrError;
 /// Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).
 #[tauri::command]
 #[specta::specta]
+#[allow(unused_variables)]
 pub async fn cmd_workspace_run_command(
     program: String,
     args: String,
