@@ -4,51 +4,52 @@ use irtool_core::IrError;
 /// Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).
 #[tauri::command]
 #[specta::specta]
-#[allow(unused_variables)]
 pub async fn cmd_workspace_run_command(
     program: String,
     args: String,
 ) -> Result<String, IrError> {
-    // Gate: only allow in debug builds
     #[cfg(not(debug_assertions))]
     {
+        let _ = (program, args);
         return Err(IrError::Internal(
             "通用命令执行已在生产构建中禁用，请使用类型化命令".to_string(),
         ));
     }
 
     #[cfg(debug_assertions)]
-    tracing::info!("workspace run command: {} {}", program, args);
+    {
+        tracing::info!("workspace run command: {} {}", program, args);
 
-    let output = tokio::task::spawn_blocking(move || {
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            std::process::Command::new(&program)
-                .args(shell_words_split(&args))
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output()
-        }
-        #[cfg(not(windows))]
-        {
-            std::process::Command::new(&program)
-                .args(shell_words_split(&args))
-                .output()
-        }
-    })
-    .await
-    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
+        let output = tokio::task::spawn_blocking(move || {
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                std::process::Command::new(&program)
+                    .args(shell_words_split(&args))
+                    .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                    .output()
+            }
+            #[cfg(not(windows))]
+            {
+                std::process::Command::new(&program)
+                    .args(shell_words_split(&args))
+                    .output()
+            }
+        })
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        Ok(stdout)
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(IrError::Internal(format!(
-            "command failed (exit {}): {}",
-            output.status.code().unwrap_or(-1),
-            stderr
-        )))
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(stdout)
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(IrError::Internal(format!(
+                "command failed (exit {}): {}",
+                output.status.code().unwrap_or(-1),
+                stderr
+            )))
+        }
     }
 }
 
