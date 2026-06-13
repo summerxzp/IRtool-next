@@ -3,6 +3,7 @@ use irtool_net_monitor::{
     ProcessInfoCache, Proto, RetentionPolicy, WindowsNetCollector,
 };
 
+#[allow(clippy::too_many_arguments)]
 fn make_conn(
     proto: Proto,
     family: Family,

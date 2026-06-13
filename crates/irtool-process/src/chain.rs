@@ -179,6 +179,6 @@ mod tests {
         // Chain should not be empty and should contain the target.
         assert!(!chain.is_empty());
         // The chain should terminate (no infinite loop) — just verify it has multiple nodes.
-        assert!(chain.nodes.len() >= 1);
+        assert!(!chain.nodes.is_empty());
     }
 }

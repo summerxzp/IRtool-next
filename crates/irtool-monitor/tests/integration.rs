@@ -414,7 +414,7 @@ async fn test_cleanup_expires_old_events() {
         .await;
     engine
         .process_monitor_event(&make_event(
-            now_ms - 1 * 24 * 3600 * 1000,
+            now_ms - 24 * 3600 * 1000,
             EventSource::Sysmon,
             "dns",
             "recent.exe",

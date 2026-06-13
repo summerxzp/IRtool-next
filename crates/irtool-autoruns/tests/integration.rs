@@ -405,5 +405,5 @@ fn test_risk_file_not_exists() {
     // 文件不存在时不 panic
     let (_, reasons) = evaluate(&entry, Some(&file_info));
     // 文件不存在可能是高危
-    assert!(reasons.len() >= 1);
+    assert!(!reasons.is_empty());
 }
