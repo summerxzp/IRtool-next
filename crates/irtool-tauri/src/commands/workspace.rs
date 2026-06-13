@@ -17,6 +17,7 @@ pub async fn cmd_workspace_run_command(
         ));
     }
 
+    #[cfg(debug_assertions)]
     tracing::info!("workspace run command: {} {}", program, args);
 
     let output = tokio::task::spawn_blocking(move || {
