@@ -339,6 +339,17 @@
     "history-loaded": "已加载 {{count}} 条历史事件",
     "no-history": "未找到历史事件",
     "load-history-failed": "加载历史失败",
+    "load-history-dialog": {
+      "title": "加载历史事件",
+      "description": "事件日志中共有 {{count}} 条记录",
+      "description-unknown": "正在获取事件记录总数",
+      "counting": "正在统计记录数...",
+      "limit": "加载数量",
+      "records": "条",
+      "load-all": "加载所有记录",
+      "load": "加载",
+      "loading": "加载中..."
+    },
     "uninstall-failed": "卸载失败",
     "uninstall-error": "卸载异常",
     "install-failed": "安装失败",

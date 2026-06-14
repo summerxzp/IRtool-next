@@ -66,6 +66,10 @@ export async function getExistingEvents(limit: number, enabledEventIds: number[]
   return unwrap(await commands.cmdSysmonGetExistingEvents(limit, enabledEventIds));
 }
 
+export async function getEventCount(enabledEventIds: number[]): Promise<number> {
+  return await invoke<number>("cmd_sysmon_get_event_count", { enabledEventIds });
+}
+
 export async function getDefaultEventConfigs(): Promise<EventConfigEntry[]> {
   return unwrap(await commands.cmdSysmonDefaultEventConfigs());
 }

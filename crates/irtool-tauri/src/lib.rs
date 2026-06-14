@@ -169,6 +169,7 @@ pub fn run() {
         cmd_sysmon_start_subscription,
         cmd_sysmon_stop_subscription,
         cmd_sysmon_is_subscribing,
+        cmd_sysmon_get_event_count,
         cmd_sysmon_get_log_max_size,
         cmd_sysmon_set_log_max_size,
         // --- P5 新增 ---
@@ -187,6 +188,7 @@ pub fn run() {
             cmd_monitor_test_feishu,
             cmd_monitor_clear_events,
             cmd_monitor_event_type_counts,
+            cmd_monitor_get_db_size,
         // --- P3 工作台 ---
         cmd_workspace_run_command,
         cmd_workspace_unhide_path,

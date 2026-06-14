@@ -334,6 +334,15 @@ impl MonitorEngine {
         }
     }
 
+    /// 获取数据库文件大小（字节）
+    pub fn get_db_size(&self) -> Result<u64, IrError> {
+        if let Some(storage) = &self.storage {
+            storage.get_db_size()
+        } else {
+            Ok(0)
+        }
+    }
+
     /// 搜索事件，支持多种过滤条件
     pub fn search_events(&self, query: &EventQuery) -> Result<Vec<crate::types::MonitorEvent>, IrError> {
         if let Some(storage) = &self.storage {

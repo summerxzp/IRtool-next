@@ -1,11 +1,12 @@
 use crate::types::{Alert, EventQuery, EventPage, MonitorEvent};
 use irtool_core::IrError;
 use rusqlite::{params, Connection};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub struct EventStorage {
     conn: Mutex<Connection>,
+    db_path: PathBuf,
 }
 
 impl EventStorage {
@@ -22,7 +23,7 @@ impl EventStorage {
              PRAGMA synchronous = NORMAL;
              PRAGMA busy_timeout = 3000;"
         ).map_err(|e| IrError::Internal(format!("设置 PRAGMA 失败: {}", e)))?;
-        let storage = Self { conn: Mutex::new(conn) };
+        let storage = Self { conn: Mutex::new(conn), db_path: path.to_path_buf() };
         storage.init_tables()?;
         storage.migrate_schema()?;
         Ok(storage)
@@ -241,6 +242,18 @@ impl EventStorage {
             result.push(row.map_err(|e| IrError::Internal(format!("读取统计失败: {}", e)))?);
         }
         Ok(result)
+    }
+
+    /// 获取数据库实际磁盘占用（字节），包含 .db、.db-wal、.db-shm 文件
+    pub fn get_db_size(&self) -> Result<u64, IrError> {
+        let mut total: u64 = 0;
+        for suffix in &["", "-wal", "-shm"] {
+            let p = PathBuf::from(format!("{}{}", self.db_path.display(), suffix));
+            if let Ok(meta) = std::fs::metadata(&p) {
+                total += meta.len();
+            }
+        }
+        Ok(total)
     }
 
     /// 查询事件总数

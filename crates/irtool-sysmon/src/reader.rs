@@ -258,6 +258,23 @@ impl SysmonReader {
     pub fn reset_backlog(&self) {
         self.backlog.store(0, Ordering::SeqCst);
     }
+
+    /// Count total events in the Sysmon and DNS Client channels matching the given event IDs.
+    #[cfg(windows)]
+    pub fn get_event_count(&self, enabled_event_ids: &[u32]) -> Result<u64, IrError> {
+        let sysmon_count = count_events_in_channel(SYSMON_CHANNEL, enabled_event_ids)?;
+        let dns_count = if enabled_event_ids.contains(&3008) {
+            count_events_in_channel(DNS_CLIENT_CHANNEL, &[3008])?
+        } else {
+            0
+        };
+        Ok(sysmon_count + dns_count)
+    }
+
+    #[cfg(not(windows))]
+    pub fn get_event_count(&self, _enabled_event_ids: &[u32]) -> Result<u64, IrError> {
+        Err(IrError::FeatureDisabled("sysmon requires Windows".into()))
+    }
 }
 
 #[cfg(windows)]
@@ -446,6 +463,54 @@ fn build_xpath_query(event_ids: &[u32], after_record_id: Option<u64>) -> String 
         Some(rid) => format!("*[System[({}) and (EventRecordID > {})]]", ids_expr, rid),
         None => format!("*[System[{}]]", ids_expr),
     }
+}
+
+/// Count events in a Windows Event Log channel matching the given event IDs.
+#[cfg(windows)]
+fn count_events_in_channel(channel_name: &str, event_ids: &[u32]) -> Result<u64, IrError> {
+    use windows::core::HSTRING;
+    use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection, EvtNext, EvtClose};
+
+    let xpath = build_xpath_query(event_ids, None);
+    let channel = HSTRING::from(channel_name);
+    let query_str = HSTRING::from(&xpath);
+
+    let result_set = unsafe {
+        EvtQuery(None, &channel, &query_str, EvtQueryChannelPath.0 | EvtQueryForwardDirection.0)
+            .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
+    };
+
+    let mut count: u64 = 0;
+    let mut event_handles: Vec<isize> = vec![0; BATCH_SIZE];
+
+    loop {
+        let mut returned: u32 = 0;
+        let result = unsafe {
+            EvtNext(result_set, &mut event_handles, 0, 0, &mut returned)
+        };
+
+        if returned == 0 {
+            break;
+        }
+
+        // Close handles to free resources
+        for &raw_handle in event_handles.iter().take(returned as usize) {
+            let handle = windows::Win32::System::EventLog::EVT_HANDLE(raw_handle);
+            if !handle.is_invalid() {
+                unsafe { let _ = EvtClose(handle); }
+            }
+        }
+
+        count += returned as u64;
+
+        if result.is_err() {
+            break;
+        }
+    }
+
+    unsafe { let _ = EvtClose(result_set); }
+
+    Ok(count)
 }
 
 #[cfg(test)]

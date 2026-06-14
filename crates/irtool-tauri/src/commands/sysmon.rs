@@ -56,10 +56,16 @@ pub async fn cmd_sysmon_get_existing_events(
     limit: u32,
     enabled_event_ids: Vec<u32>,
 ) -> Result<Vec<SysmonEvent>, IrError> {
+    tracing::info!("cmd_sysmon_get_existing_events called, limit={}, event_ids={:?}", limit, enabled_event_ids);
     let reader = state.sysmon_reader.clone();
-    tokio::task::spawn_blocking(move || reader.get_existing_events(limit, &enabled_event_ids))
+    let result = tokio::task::spawn_blocking(move || reader.get_existing_events(limit, &enabled_event_ids))
         .await
-        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
+    match &result {
+        Ok(events) => tracing::info!("cmd_sysmon_get_existing_events returned {} events", events.len()),
+        Err(e) => tracing::error!("cmd_sysmon_get_existing_events error: {}", e),
+    }
+    result
 }
 
 /// Get the default event configurations.
@@ -181,4 +187,17 @@ pub async fn cmd_sysmon_set_log_max_size(state: State<'_, AppState>, size_mb: u6
 #[specta::specta]
 pub async fn cmd_sysmon_is_subscribing(state: State<'_, AppState>) -> Result<bool, IrError> {
     Ok(state.sysmon_reader.is_polling())
+}
+
+/// Count total events in the Sysmon and DNS Client channels.
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_sysmon_get_event_count(
+    state: State<'_, AppState>,
+    enabled_event_ids: Vec<u32>,
+) -> Result<u64, IrError> {
+    let reader = state.sysmon_reader.clone();
+    tokio::task::spawn_blocking(move || reader.get_event_count(&enabled_event_ids))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
 }

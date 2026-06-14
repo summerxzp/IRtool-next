@@ -296,6 +296,17 @@ async cmdSysmonIsSubscribing() : Promise<Result<boolean, IrError>> {
 }
 },
 /**
+ * Count total events in the Sysmon and DNS Client channels.
+ */
+async cmdSysmonGetEventCount(enabledEventIds: number[]) : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_event_count", { enabledEventIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Get the Sysmon event log maximum size in MB.
  */
 async cmdSysmonGetLogMaxSize() : Promise<Result<number, IrError>> {
@@ -432,6 +443,14 @@ async cmdMonitorClearEvents() : Promise<Result<number, IrError>> {
 async cmdMonitorEventTypeCounts() : Promise<Result<([string, number])[], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_event_type_counts") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdMonitorGetDbSize() : Promise<Result<number, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_monitor_get_db_size") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

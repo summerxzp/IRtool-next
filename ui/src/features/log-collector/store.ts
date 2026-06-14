@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import type { SysmonEvent, SysmonStatus, LogCollectorFilters } from "./types";
 
-const MAX_LIVE_EVENTS = 1000;
-
 interface LogCollectorState {
   // Live event buffer (foreground only, not persisted)
   events: SysmonEvent[];
@@ -14,6 +12,7 @@ interface LogCollectorState {
   selectedEvent: SysmonEvent | null;
   autoScroll: boolean;
   enabledEventKeys: string[];
+  loadLimit: number;
 
   addEvents: (events: SysmonEvent[]) => void;
   clearEvents: () => void;
@@ -25,6 +24,7 @@ interface LogCollectorState {
   setSelectedEvent: (event: SysmonEvent | null) => void;
   setAutoScroll: (v: boolean) => void;
   setEnabledEventKeys: (keys: string[]) => void;
+  setLoadLimit: (limit: number) => void;
 }
 
 const DEFAULT_FILTERS: LogCollectorFilters = {
@@ -44,6 +44,7 @@ export const useLogCollectorStore = create<LogCollectorState>()(
     selectedEvent: null,
     autoScroll: true,
     enabledEventKeys: ["dns_client", "dns", "network_connect"],
+    loadLimit: 5000,
 
     addEvents: (newEvents) =>
       set((s) => {
@@ -57,15 +58,6 @@ export const useLogCollectorStore = create<LogCollectorState>()(
         if (uniqueNew.length === 0) return s;
         // Prepend new events at top, keep newest
         const combined = [...uniqueNew, ...s.events];
-        if (combined.length > MAX_LIVE_EVENTS) {
-          // Remove oldest events (at the end)
-          const removed = combined.slice(MAX_LIVE_EVENTS);
-          const newSeen = new Set(s.seenKeys);
-          for (const e of removed) {
-            newSeen.delete(`${e.record_id}-${e.timestamp}-${e.event_id}`);
-          }
-          return { events: combined.slice(0, MAX_LIVE_EVENTS), seenKeys: newSeen };
-        }
         return { events: combined };
       }),
 
@@ -78,5 +70,6 @@ export const useLogCollectorStore = create<LogCollectorState>()(
     setSelectedEvent: (selectedEvent) => set({ selectedEvent }),
     setAutoScroll: (autoScroll) => set({ autoScroll }),
     setEnabledEventKeys: (enabledEventKeys) => set({ enabledEventKeys }),
+    setLoadLimit: (loadLimit) => set({ loadLimit }),
   })
 );

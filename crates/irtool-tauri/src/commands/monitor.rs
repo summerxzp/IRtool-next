@@ -90,6 +90,12 @@ pub async fn cmd_monitor_event_type_counts(state: State<'_, AppState>) -> Result
 
 #[tauri::command]
 #[specta::specta]
+pub async fn cmd_monitor_get_db_size(state: State<'_, AppState>) -> Result<u64, IrError> {
+    state.monitor_engine.lock().await.get_db_size()
+}
+
+#[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn cmd_monitor_search_events(
     state: State<'_, AppState>,

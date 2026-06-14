@@ -83,9 +83,10 @@ export function useDefaultEventConfigs() {
   });
 }
 
-export function useLoadHistory(enabledEventIds: number[] = DEFAULT_ENABLED_EVENT_IDS) {
+export function useLoadHistory() {
   return useMutation({
-    mutationFn: (limit: number) => api.getExistingEvents(limit, enabledEventIds),
+    mutationFn: ({ limit, enabledEventIds }: { limit: number; enabledEventIds: number[] }) =>
+      api.getExistingEvents(limit, enabledEventIds),
   });
 }
 

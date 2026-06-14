@@ -5,9 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invoke } from "@tauri-apps/api/core";
-import { useSysmonStatus, useDefaultEventConfigs, useStartCollection, useStopCollection, useLoadHistory, useSearchEventPage, useUninstallSysmon, useLogMaxSize, useSyncCollectingState } from "../hooks";
+import { useSysmonStatus, useDefaultEventConfigs, useStartCollection, useStopCollection, useUninstallSysmon, useLogMaxSize, useSyncCollectingState } from "../hooks";
 import { useLogCollectorStore } from "../store";
 import { useUIStore } from "@/stores/ui-store";
 import { LogCollectorToolbar } from "../components/LogCollectorToolbar";
@@ -20,11 +19,7 @@ import * as api from "../api";
 import type { MonitorEvent } from "../types";
 import { formatEventTimestamp } from "@/lib/utils";
 import { exportCsv } from "@/lib/csv";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "../types";
-import type { ExtendedSysmonEventType } from "../types";
-import { DataTable } from "@/components/data-table/DataTable";
-import { type ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, Database, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 /**
  * 将 MonitorEvent 转换为 SysmonEvent 格式，从 raw_json 解析出所有字段
@@ -164,199 +159,6 @@ export function monitorEventToSysmonEvent(me: MonitorEvent): any {
   };
 }
 
-// --- History query panel ---
-type HistorySource = "all" | "Sysmon" | "DnsClient" | "Pcap" | "NetMonitor";
-
-function getHistoryDestination(event: any): string {
-  const et = event.event_type as ExtendedSysmonEventType;
-  switch (et) {
-    case "network_connect":
-      return `${event.destination_ip}:${event.destination_port}`;
-    case "dns":
-    case "dns_client":
-    case "tls_sni":
-    case "dns_pcap":
-      return event.query_name || "-";
-    case "create_remote_thread":
-      return `${event.source_process_name} → ${event.target_process_name}`;
-    case "file_create":
-      return event.target_filename || "-";
-    default:
-      return event.process_name || "-";
-  }
-}
-
-function HistoryQueryPanel({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
-  const searchEventPage = useSearchEventPage();
-  const [source, setSource] = useState<HistorySource>("all");
-  const [eventType, setEventType] = useState<string>("all");
-  const [processName, setProcessName] = useState("");
-  const [keyField, setKeyField] = useState("");
-  const [searchText, setSearchText] = useState("");
-  const [historyEvents, setHistoryEvents] = useState<any[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [currentOffset, setCurrentOffset] = useState(0);
-  const [pageSize] = useState(200);
-  const [selectedHistoryEvent, setSelectedHistoryEvent] = useState<any>(null);
-
-  const handleSearch = useCallback(async (offset = 0) => {
-    try {
-      const result = await searchEventPage.mutateAsync({
-        source: source === "all" ? null : source,
-        event_type: eventType === "all" ? null : eventType,
-        process_name: processName || null,
-        key_field: keyField || null,
-        search_text: searchText || null,
-        limit: pageSize,
-        offset,
-      });
-      const converted = result.items.map(monitorEventToSysmonEvent);
-      setHistoryEvents(offset === 0 ? converted : (prev) => [...prev, ...converted]);
-      setTotalCount(result.total);
-      setCurrentOffset(offset + result.items.length);
-    } catch (e) {
-      toast.error(t("log-collector.history.search-failed"), { description: e instanceof Error ? e.message : "Unknown error" });
-    }
-  }, [source, eventType, processName, keyField, searchText, pageSize, searchEventPage, t]);
-
-  const handleLoadMore = useCallback(() => {
-    handleSearch(currentOffset);
-  }, [handleSearch, currentOffset]);
-
-  const columns = useMemo<ColumnDef<any, unknown>[]>(() => [
-    {
-      accessorKey: "timestamp",
-      header: t("log-collector.table.time"),
-      size: 144,
-      cell: ({ getValue }) => <span className="font-mono text-fg-secondary whitespace-nowrap overflow-hidden text-ellipsis">{getValue() as string || "-"}</span>,
-    },
-    {
-      accessorKey: "event_type",
-      header: t("log-collector.table.type"),
-      size: 96,
-      cell: ({ getValue }) => {
-        const et = getValue() as string;
-        return <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et as ExtendedSysmonEventType] || ""}`}>
-          {EVENT_TYPE_LABELS[et as ExtendedSysmonEventType] || et}
-        </span>;
-      },
-    },
-    {
-      id: "destination",
-      accessorFn: (row) => getHistoryDestination(row),
-      header: t("log-collector.table.destination"),
-      size: 176,
-      cell: ({ row }) => <span className="truncate text-fg-primary" title={getHistoryDestination(row.original)}>{getHistoryDestination(row.original)}</span>,
-    },
-    {
-      accessorKey: "process_path",
-      header: t("log-collector.table.path"),
-      size: 300,
-      cell: ({ getValue }) => <span className="truncate text-fg-secondary" title={getValue() as string}>{getValue() as string}</span>,
-    },
-  ], [t]);
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Search controls */}
-      <div className="flex flex-wrap items-end gap-2 p-2 border-b border-border bg-bg-elev-1">
-        <div className="flex flex-col gap-0.5">
-          <Label className="text-[10px]">{t("log-collector.history.source")}</Label>
-          <Select value={source} onValueChange={(v: HistorySource) => setSource(v)}>
-            <SelectTrigger className="h-7 w-28 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("log-collector.history.all")}</SelectItem>
-              <SelectItem value="Sysmon">Sysmon</SelectItem>
-              <SelectItem value="DnsClient">DNS Client</SelectItem>
-              <SelectItem value="Pcap">Pcap</SelectItem>
-              <SelectItem value="NetMonitor">{t("log-collector.history.net-monitor")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <Label className="text-[10px]">{t("log-collector.history.event-type")}</Label>
-          <Select value={eventType} onValueChange={setEventType}>
-            <SelectTrigger className="h-7 w-28 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("log-collector.history.all")}</SelectItem>
-              <SelectItem value="dns">DNS</SelectItem>
-              <SelectItem value="dns_client">DNS Client</SelectItem>
-              <SelectItem value="network_connect">{t("log-collector.history.network-connect")}</SelectItem>
-              <SelectItem value="network_monitor">{t("log-collector.history.net-monitor")}</SelectItem>
-              <SelectItem value="tls_sni">TLS SNI</SelectItem>
-              <SelectItem value="dns_pcap">DNS Pcap</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <Label className="text-[10px]">{t("log-collector.history.process-name")}</Label>
-          <Input type="text" value={processName} onChange={(e) => setProcessName(e.target.value)} placeholder={t("log-collector.history.fuzzy-match")} className="h-7 w-28 text-xs" />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <Label className="text-[10px]">IP/{t("log-collector.history.domain")}</Label>
-          <Input type="text" value={keyField} onChange={(e) => setKeyField(e.target.value)} placeholder={t("log-collector.history.fuzzy-match")} className="h-7 w-28 text-xs" />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <Label className="text-[10px]">{t("log-collector.history.fulltext")}</Label>
-          <Input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="raw_json" className="h-7 w-36 text-xs" />
-        </div>
-        <div className="flex items-end gap-2">
-          <Button variant="default" size="sm" onClick={() => handleSearch(0)} disabled={searchEventPage.isPending} className="h-7 text-xs">
-            {searchEventPage.isPending ? t("log-collector.history.searching") : t("log-collector.history.search")}
-          </Button>
-          {currentOffset < totalCount && historyEvents.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={handleLoadMore} disabled={searchEventPage.isPending} className="h-7 text-xs">
-              <ChevronRight className="h-3 w-3 mr-0.5" />
-              {t("log-collector.history.load-more")}
-            </Button>
-          )}
-          <div className="flex-1" />
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
-            <ChevronLeft className="h-3 w-3 mr-0.5" />
-            {t("log-collector.history.back-to-live")}
-          </Button>
-        </div>
-      </div>
-
-      {/* Results */}
-      <div className="flex-1 min-h-0">
-        <Group orientation="horizontal">
-          <Panel defaultSize={selectedHistoryEvent ? 70 : 100} minSize={40}>
-            <DataTable
-              columns={columns}
-              data={historyEvents}
-              getRowId={(e) => `${e.record_id}-${e.timestamp}`}
-              onRowSelect={(row) => row && setSelectedHistoryEvent(row)}
-              selectedRowId={selectedHistoryEvent ? `${selectedHistoryEvent.record_id}-${selectedHistoryEvent.timestamp}` : null}
-              empty={t("log-collector.history.no-results")}
-              persistKey="log-collector-history"
-            />
-          </Panel>
-          {selectedHistoryEvent != null && (
-            <>
-              <Separator className="w-px bg-border hover:bg-accent transition-colors" />
-              <Panel defaultSize={30} minSize={20}>
-                <EventDetail event={selectedHistoryEvent} onClose={() => setSelectedHistoryEvent(null)} />
-              </Panel>
-            </>
-          )}
-        </Group>
-      </div>
-
-      {/* Stats bar */}
-      <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-bg-elev-1 text-[10px] text-fg-tertiary">
-        <span>{t("log-collector.history.total")}: {totalCount}</span>
-        <span>{t("log-collector.history.loaded")}: {historyEvents.length}</span>
-      </div>
-    </div>
-  );
-}
-
 // --- Background mode telemetry ---
 interface BackgroundTelemetry {
   events_written: number;
@@ -370,7 +172,7 @@ export default function LogCollectorPage() {
   const { data: eventConfigs = [] } = useDefaultEventConfigs();
   const { data: logMaxSizeMb = 0 } = useLogMaxSize();
   const uninstallMutation = useUninstallSysmon();
-  const { events, collecting, selectedEvent, clearEvents, addEvents, enabledEventKeys, setEnabledEventKeys, setSelectedEvent } = useLogCollectorStore();
+  const { events, collecting, selectedEvent, clearEvents, addEvents, enabledEventKeys, setEnabledEventKeys, setSelectedEvent, loadLimit, setLoadLimit } = useLogCollectorStore();
   const detailPosition = useUIStore((s) => s.detailPositions["log-collector"] ?? "right");
   const eventIds = useMemo(() =>
     eventConfigs.filter((c) => enabledEventKeys.includes(c.key)).map((c) => c.event_id),
@@ -378,18 +180,18 @@ export default function LogCollectorPage() {
   );
   const startMutation = useStartCollection(eventIds);
   const stopMutation = useStopCollection();
-  const loadHistoryMutation = useLoadHistory(eventIds);
 
   const [installLoading, setInstallLoading] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"install" | "config">("config");
   const [uninstallConfirmOpen, setUninstallConfirmOpen] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [loadHistoryDialogOpen, setLoadHistoryDialogOpen] = useState(false);
+  const [totalEventCount, setTotalEventCount] = useState<number | null>(null);
+  const [countingEvents, setCountingEvents] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [pcapAvailable, setPcapAvailable] = useState(false);
   const [pcapConfig, setPcapConfig] = useState({ enable_sni: false, enable_dns_pcap: false, adapter_ip: null as string | null, max_duration_secs: 0 });
-
-  // History query panel state
-  const [showHistory, setShowHistory] = useState(false);
 
   // Background mode state
   const [isBackground, setIsBackground] = useState(false);
@@ -447,25 +249,36 @@ export default function LogCollectorPage() {
     }
   }, [stopMutation, t]);
 
-  const handleOpenHistory = useCallback(() => {
-    setShowHistory(true);
-  }, []);
-
   const handleLoadHistory = useCallback(() => {
-    loadHistoryMutation.mutate(5000, {
-      onSuccess: (data) => {
-        if (data && data.length > 0) {
-          addEvents(data);
-          toast.success(t("log-collector.history-loaded", { count: data.length }));
-        } else {
-          toast.info(t("log-collector.no-history"));
-        }
-      },
-      onError: (e) => {
-        toast.error(t("log-collector.load-history-failed"), { description: e instanceof Error ? e.message : "Unknown error" });
-      },
+    setLoadHistoryDialogOpen(true);
+    setTotalEventCount(null);
+    setCountingEvents(true);
+    api.getEventCount(eventIds).then((count) => {
+      setTotalEventCount(count);
+    }).catch(() => {
+      setTotalEventCount(null);
+    }).finally(() => {
+      setCountingEvents(false);
     });
-  }, [loadHistoryMutation, addEvents, t]);
+  }, [eventIds]);
+
+  const doLoadHistory = useCallback(async (limit: number) => {
+    setLoadingHistory(true);
+    try {
+      const data = await api.getExistingEvents(limit, eventIds);
+      if (data && data.length > 0) {
+        addEvents(data);
+        toast.success(t("log-collector.history-loaded", { count: data.length }));
+      } else {
+        toast.info(t("log-collector.no-history"));
+      }
+    } catch (e) {
+      toast.error(t("log-collector.load-history-failed"), { description: e instanceof Error ? e.message : "Unknown error" });
+    } finally {
+      setLoadingHistory(false);
+      setLoadHistoryDialogOpen(false);
+    }
+  }, [addEvents, t, eventIds]);
 
   const handleClear = useCallback(() => {
     setClearConfirmOpen(true);
@@ -595,15 +408,6 @@ export default function LogCollectorPage() {
     }
   }, [refetchStatus, dialogMode, startMutation, collecting, eventConfigs, setEnabledEventKeys, t]);
 
-  // If showing history panel, render it instead of live view
-  if (showHistory) {
-    return (
-      <div className="flex flex-col h-full">
-        <HistoryQueryPanel onClose={() => setShowHistory(false)} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
       {/* Background mode banner */}
@@ -626,18 +430,12 @@ export default function LogCollectorPage() {
               )}
             </span>
           )}
-          <div className="flex-1" />
-          <Button variant="secondary" size="sm" onClick={handleOpenHistory} className="h-6 text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 border-amber-500/30">
-            <Database className="h-3 w-3 mr-1" />
-            {t("log-collector.background-mode.view-history")}
-          </Button>
         </div>
       )}
 
       <LogCollectorToolbar
         onStart={handleStart}
         onStop={handleStop}
-        onOpenHistory={handleOpenHistory}
         onLoadHistory={handleLoadHistory}
         onClear={handleClear}
         onExport={handleExport}
@@ -702,6 +500,45 @@ export default function LogCollectorPage() {
           <DialogFooter>
             <Button variant="secondary" size="sm" onClick={() => setClearConfirmOpen(false)}>{t("common.cancel")}</Button>
             <Button variant="destructive" size="sm" onClick={() => { setClearConfirmOpen(false); clearEvents(); }}>{t("log-collector.clear-confirm.confirm")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={loadHistoryDialogOpen} onOpenChange={setLoadHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("log-collector.load-history-dialog.title")}</DialogTitle>
+            <DialogDescription>
+              {countingEvents
+                ? t("log-collector.load-history-dialog.counting")
+                : totalEventCount !== null
+                  ? t("log-collector.load-history-dialog.description", { count: totalEventCount })
+                  : t("log-collector.load-history-dialog.description-unknown")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 py-2">
+            <Label className="text-xs shrink-0">{t("log-collector.load-history-dialog.limit")}</Label>
+            <Input
+              type="number"
+              min={100}
+              max={100000}
+              value={loadLimit}
+              onChange={(e) => setLoadLimit(Math.max(100, parseInt(e.target.value) || 5000))}
+              className="w-24 h-7 text-xs text-center"
+            />
+            <span className="text-xs text-fg-tertiary">{t("log-collector.load-history-dialog.records")}</span>
+          </div>
+          <DialogFooter className="flex-row gap-2 sm:justify-between">
+            {totalEventCount !== null && (
+              <Button variant="secondary" size="sm" onClick={() => doLoadHistory(totalEventCount)} disabled={loadingHistory || countingEvents}>
+                {loadingHistory ? t("log-collector.load-history-dialog.loading") : t("log-collector.load-history-dialog.load-all")}
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button variant="secondary" size="sm" onClick={() => setLoadHistoryDialogOpen(false)}>{t("common.cancel")}</Button>
+            <Button variant="default" size="sm" onClick={() => doLoadHistory(loadLimit)} disabled={loadingHistory || countingEvents}>
+              {loadingHistory ? t("log-collector.load-history-dialog.loading") : t("log-collector.load-history-dialog.load")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

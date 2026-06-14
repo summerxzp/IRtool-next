@@ -152,6 +152,16 @@ function DbEventDetail({ event, onClose }: { event: DbSearchEvent | null; onClos
   );
 }
 
+// --- 格式化字节数 ---
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const val = bytes / Math.pow(k, i);
+  return `${val.toFixed(val >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
 // --- 主页面 ---
 export default function DatabaseSearchPage() {
   const { t } = useTranslation();
@@ -166,24 +176,20 @@ export default function DatabaseSearchPage() {
   const [loadLimit, setLoadLimit] = useState(1000);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  const [dbSize, setDbSize] = useState<number>(0);
 
   const { events, selectedEvent, setEvents, appendEvents, setSelectedEvent, totalCount, setTotalCount, clear } = useDbSearchStore();
 
+  // 页面卸载时清空数据，初始加载时获取 DB 大小
   useEffect(() => {
-    api.monitorGetConfig().then((c) => {
-      setLoadLimit(c.load_limit);
-    }).catch(() => {});
-  }, []);
-
-  // 页面卸载时清空数据
-  useEffect(() => {
+    invoke<number>("cmd_monitor_get_db_size").then(setDbSize).catch(() => {});
     return () => { clear(); };
   }, [clear]);
 
   const doSearch = useCallback(async (newOffset = 0) => {
     setLoading(true);
     try {
-      const [dbEvents, count, countsArr] = await Promise.all([
+      const [dbEvents, count, countsArr, size] = await Promise.all([
         api.monitorSearchEvents(
           source === "all" ? undefined : source,
           eventType === "all" ? undefined : eventType,
@@ -195,7 +201,9 @@ export default function DatabaseSearchPage() {
         ),
         api.monitorGetEventCount(),
         invoke<[string, number][]>("cmd_monitor_event_type_counts"),
+        invoke<number>("cmd_monitor_get_db_size"),
       ]);
+      setDbSize(size);
       setTotalCount(count);
       const tc: Record<string, number> = {};
       for (const [k, v] of countsArr) { tc[k] = v; }
@@ -353,6 +361,17 @@ export default function DatabaseSearchPage() {
           <Label className="text-xs">全文搜索</Label>
           <Input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="搜索 raw_json" className="h-7 w-48 text-xs" />
         </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">查询数量</Label>
+          <Input
+            type="number"
+            min={100}
+            max={100000}
+            value={loadLimit}
+            onChange={(e) => setLoadLimit(Math.max(100, parseInt(e.target.value) || 1000))}
+            className="h-7 w-20 text-xs text-center"
+          />
+        </div>
         <div className="flex items-end gap-2">
           <Button variant="default" size="sm" onClick={handleSearch} disabled={loading} className="h-7 text-xs hover:shadow-sm transition-shadow">
             {loading ? "搜索中..." : "搜索"}
@@ -401,6 +420,8 @@ export default function DatabaseSearchPage() {
       </div>
       <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-bg-elev-1 text-[10px] text-fg-tertiary">
         <span>总计 {totalCount} 条</span>
+        <span className="text-fg-tertiary">|</span>
+        <span>DB {formatBytes(dbSize)}</span>
         {Object.entries(typeCounts).map(([type, count]) => (
           <span key={type} className="flex items-center gap-0.5">
             <span className="text-fg-secondary">{EVENT_TYPE_LABELS[type as ExtendedSysmonEventType] || type}</span>
@@ -423,6 +444,8 @@ export default function DatabaseSearchPage() {
                 clear();
                 setOffset(0);
                 setHasMore(false);
+                const newSize = await invoke<number>("cmd_monitor_get_db_size");
+                setDbSize(newSize);
                 toast.success("数据库已清空");
               } catch (e) {
                 toast.error("清空失败", { description: e instanceof Error ? e.message : "未知错误" });
