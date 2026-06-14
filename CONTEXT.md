@@ -124,5 +124,9 @@ Sysmon64.exe 的 `-i`/`-c` 参数不支持中文路径。先用 `GetShortPathNam
 ### 日志拆分
 三个独立滚动日志：`irtool-app.log`（全局）、`irtool-monitor.log`（监测引擎）、`irtool-tools.log`（工具管理）。每日轮转，保留 7 天。Release 构建无控制台输出。
 
-### 主题默认浅色
+### Commit 规范
+
+- Commit message 不添加 Co-Authored-By，仅使用作者 summerxzp
+
+## 主题默认浅色
 新用户默认浅色主题。深色主题可选。持久化到 `tauri-plugin-store`。
