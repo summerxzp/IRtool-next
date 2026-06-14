@@ -47,9 +47,8 @@ impl TaskRegistry {
 
     fn cleanup_stale(&self) {
         let now = Instant::now();
-        self.tokens.retain(|_, (_, registered)| {
-            now.duration_since(*registered).as_secs() < STALE_THRESHOLD_SECS
-        });
+        self.tokens
+            .retain(|_, (_, registered)| now.duration_since(*registered).as_secs() < STALE_THRESHOLD_SECS);
     }
 }
 

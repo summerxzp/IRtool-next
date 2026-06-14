@@ -52,22 +52,15 @@ struct InstalledManifest {
 
 /// Write/update the installed manifest.json in the tools directory.
 /// Reads existing manifest to preserve other tools' versions, then updates the entry for `tool_id`.
-pub fn write_installed_manifest(
-    tools_dir: &Path,
-    tool_id: &str,
-    version: &str,
-) -> Result<(), std::io::Error> {
+pub fn write_installed_manifest(tools_dir: &Path, tool_id: &str, version: &str) -> Result<(), std::io::Error> {
     let manifest_path = tools_dir.join("manifest.json");
 
     let mut installed = if manifest_path.exists() {
         let content = std::fs::read_to_string(&manifest_path)?;
-        serde_json::from_str::<InstalledManifest>(&content).unwrap_or_else(|_| InstalledManifest {
-            tools: HashMap::new(),
-        })
+        serde_json::from_str::<InstalledManifest>(&content)
+            .unwrap_or_else(|_| InstalledManifest { tools: HashMap::new() })
     } else {
-        InstalledManifest {
-            tools: HashMap::new(),
-        }
+        InstalledManifest { tools: HashMap::new() }
     };
 
     installed.tools.insert(
@@ -86,8 +79,7 @@ impl ToolManifests {
     /// Load manifests from embedded default.
     pub fn load() -> Self {
         let default = include_str!("../manifest.json");
-        serde_json::from_str(default)
-            .expect("内置 manifest.json 格式错误，这是编译期 bug")
+        serde_json::from_str(default).expect("内置 manifest.json 格式错误，这是编译期 bug")
     }
 
     pub fn get(&self, id: &str) -> Option<&ToolManifest> {

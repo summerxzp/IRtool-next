@@ -81,13 +81,18 @@ fn is_running_as_admin() -> bool {
 
 #[cfg(windows)]
 fn elevate_and_restart() -> Result<(), Box<dyn std::error::Error>> {
+    use windows::core::PCWSTR;
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
-    use windows::core::PCWSTR;
 
     let exe = std::env::current_exe()?;
     let verb: Vec<u16> = "runas\0".encode_utf16().collect();
-    let file: Vec<u16> = exe.to_string_lossy().as_ref().encode_utf16().chain(std::iter::once(0)).collect();
+    let file: Vec<u16> = exe
+        .to_string_lossy()
+        .as_ref()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
 
     unsafe {
         let result = ShellExecuteW(
@@ -181,14 +186,14 @@ pub fn run() {
         cmd_monitor_is_background,
         cmd_monitor_clear_alerts,
         cmd_monitor_get_events,
-            cmd_monitor_get_event_count,
-            cmd_monitor_search_events,
-            cmd_monitor_search_event_page,
-            cmd_monitor_get_telemetry,
-            cmd_monitor_test_feishu,
-            cmd_monitor_clear_events,
-            cmd_monitor_event_type_counts,
-            cmd_monitor_get_db_size,
+        cmd_monitor_get_event_count,
+        cmd_monitor_search_events,
+        cmd_monitor_search_event_page,
+        cmd_monitor_get_telemetry,
+        cmd_monitor_test_feishu,
+        cmd_monitor_clear_events,
+        cmd_monitor_event_type_counts,
+        cmd_monitor_get_db_size,
         // --- P3 工作台 ---
         cmd_workspace_run_command,
         cmd_workspace_unhide_path,
@@ -267,9 +272,9 @@ pub fn run() {
             }
 
             // Re-apply window icon on focus gain (desktop refresh from tools like autorunsc can reset taskbar icon)
-            let icon_data = app.default_window_icon().map(|icon| {
-                (icon.rgba().to_vec(), icon.width(), icon.height())
-            });
+            let icon_data = app
+                .default_window_icon()
+                .map(|icon| (icon.rgba().to_vec(), icon.width(), icon.height()));
             if let Some(window) = app.get_webview_window("main") {
                 if let Some((rgba, width, height)) = icon_data {
                     let win = window.clone();

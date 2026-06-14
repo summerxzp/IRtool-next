@@ -1,6 +1,6 @@
 use irtool_net_monitor::{
-    CmdlineEnricher, ConnState, Family, HistoryStore, NetCollector, NetConn, NetEndpoint,
-    ProcessInfoCache, Proto, RetentionPolicy, WindowsNetCollector,
+    CmdlineEnricher, ConnState, Family, HistoryStore, NetCollector, NetConn, NetEndpoint, ProcessInfoCache, Proto,
+    RetentionPolicy, WindowsNetCollector,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -334,10 +334,7 @@ fn test_process_info_lookup_for_current() {
     let cache = ProcessInfoCache::new();
     let info = cache.get(current_pid);
 
-    assert!(
-        !info.name.is_empty(),
-        "current process should have a non-empty name"
-    );
+    assert!(!info.name.is_empty(), "current process should have a non-empty name");
 }
 
 #[test]

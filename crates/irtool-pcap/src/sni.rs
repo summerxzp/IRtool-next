@@ -2,43 +2,67 @@
 /// 输入是 TCP payload（不含 IP/TCP 头）
 pub fn extract_sni(payload: &[u8]) -> Option<String> {
     // TLS Record: ContentType(1) + Version(2) + Length(2)
-    if payload.len() < 5 { return None; }
-    if payload[0] != 0x16 { return None; } // Not Handshake
-    // Skip TLS record header
+    if payload.len() < 5 {
+        return None;
+    }
+    if payload[0] != 0x16 {
+        return None;
+    } // Not Handshake
+      // Skip TLS record header
     let record_len = ((payload[3] as usize) << 8) | (payload[4] as usize);
-    if payload.len() < 5 + record_len { return None; }
+    if payload.len() < 5 + record_len {
+        return None;
+    }
 
     let handshake = &payload[5..];
     // Handshake: Type(1) + Length(3)
-    if handshake.len() < 4 { return None; }
-    if handshake[0] != 0x01 { return None; } // Not ClientHello
+    if handshake.len() < 4 {
+        return None;
+    }
+    if handshake[0] != 0x01 {
+        return None;
+    } // Not ClientHello
 
     let client_hello = &handshake[4..];
     // ClientHello: Version(2) + Random(32) + SessionIDLen(1)
-    if client_hello.len() < 34 { return None; }
+    if client_hello.len() < 34 {
+        return None;
+    }
     let mut offset = 2 + 32;
 
     // Session ID
     let session_id_len = client_hello[offset] as usize;
     offset += 1 + session_id_len;
-    if client_hello.len() < offset { return None; }
+    if client_hello.len() < offset {
+        return None;
+    }
 
     // Cipher Suites
-    if client_hello.len() < offset + 2 { return None; }
+    if client_hello.len() < offset + 2 {
+        return None;
+    }
     let cipher_suites_len = ((client_hello[offset] as usize) << 8) | (client_hello[offset + 1] as usize);
     offset += 2 + cipher_suites_len;
-    if client_hello.len() < offset { return None; }
+    if client_hello.len() < offset {
+        return None;
+    }
 
     // Compression Methods
-    if client_hello.len() < offset + 1 { return None; }
+    if client_hello.len() < offset + 1 {
+        return None;
+    }
     let compression_len = client_hello[offset] as usize;
     offset += 1 + compression_len;
-    if client_hello.len() < offset + 2 { return None; }
+    if client_hello.len() < offset + 2 {
+        return None;
+    }
 
     // Extensions
     let extensions_len = ((client_hello[offset] as usize) << 8) | (client_hello[offset + 1] as usize);
     offset += 2;
-    if client_hello.len() < offset + extensions_len { return None; }
+    if client_hello.len() < offset + extensions_len {
+        return None;
+    }
 
     let extensions = &client_hello[offset..offset + extensions_len];
     let mut ext_offset = 0;
@@ -48,8 +72,11 @@ pub fn extract_sni(payload: &[u8]) -> Option<String> {
         let ext_len = ((extensions[ext_offset + 2] as usize) << 8) | (extensions[ext_offset + 3] as usize);
         ext_offset += 4;
 
-        if ext_type == 0x0000 { // SNI extension
-            if ext_len < 2 { return None; }
+        if ext_type == 0x0000 {
+            // SNI extension
+            if ext_len < 2 {
+                return None;
+            }
             // Server Name List Length(2)
             let list_len = ((extensions[ext_offset] as usize) << 8) | (extensions[ext_offset + 1] as usize);
             let mut name_offset = ext_offset + 2;
@@ -60,7 +87,8 @@ pub fn extract_sni(payload: &[u8]) -> Option<String> {
                 let name_len = ((extensions[name_offset + 1] as usize) << 8) | (extensions[name_offset + 2] as usize);
                 name_offset += 3;
 
-                if name_type == 0x00 { // host_name
+                if name_type == 0x00 {
+                    // host_name
                     if name_offset + name_len <= extensions.len() {
                         return std::str::from_utf8(&extensions[name_offset..name_offset + name_len])
                             .ok()

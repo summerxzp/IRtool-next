@@ -3,7 +3,7 @@ mod manifest;
 use std::path::{Path, PathBuf};
 
 use irtool_core::IrError;
-pub use manifest::{ToolManifest, ToolManifests, VerifyMethod, write_installed_manifest};
+pub use manifest::{write_installed_manifest, ToolManifest, ToolManifests, VerifyMethod};
 
 /// Status of a single tool
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
@@ -24,8 +24,7 @@ pub fn check_tools(tools_dir: &Path) -> Vec<ToolStatus> {
 
 /// Resolve the tools directory: <exe_dir>/tools/
 pub fn tools_dir() -> Result<PathBuf, IrError> {
-    let exe_dir = std::env::current_exe()
-        .map_err(|e| IrError::Internal(format!("无法获取可执行文件路径: {}", e)))?;
+    let exe_dir = std::env::current_exe().map_err(|e| IrError::Internal(format!("无法获取可执行文件路径: {}", e)))?;
     let dir = exe_dir
         .parent()
         .ok_or_else(|| IrError::Internal("无法获取可执行文件目录".into()))?
@@ -37,19 +36,14 @@ pub fn tools_dir() -> Result<PathBuf, IrError> {
 pub fn ensure_tools_dir() -> Result<PathBuf, IrError> {
     let dir = tools_dir()?;
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)
-            .map_err(|e| IrError::Internal(format!("创建 tools 目录失败: {}", e)))?;
+        std::fs::create_dir_all(&dir).map_err(|e| IrError::Internal(format!("创建 tools 目录失败: {}", e)))?;
     }
     Ok(dir)
 }
 
 /// Download a tool's zip, verify, extract to tools/<id>/.
 /// `on_progress` is called with (downloaded_bytes, total_bytes).
-pub async fn download_tool(
-    tool_id: &str,
-    tools_dir: &Path,
-    on_progress: impl Fn(u64, u64),
-) -> Result<(), IrError> {
+pub async fn download_tool(tool_id: &str, tools_dir: &Path, on_progress: impl Fn(u64, u64)) -> Result<(), IrError> {
     let manifests = ToolManifests::load();
     let manifest = manifests
         .get(tool_id)
@@ -57,8 +51,7 @@ pub async fn download_tool(
 
     let tool_dir = tools_dir.join(tool_id);
     if !tool_dir.exists() {
-        std::fs::create_dir_all(&tool_dir)
-            .map_err(|e| IrError::Internal(format!("创建目录失败: {}", e)))?;
+        std::fs::create_dir_all(&tool_dir).map_err(|e| IrError::Internal(format!("创建目录失败: {}", e)))?;
     }
 
     // Download zip to temp file
@@ -94,11 +87,7 @@ pub async fn download_tool(
 }
 
 /// Import a tool from a local zip file.
-pub fn import_tool_zip(
-    tool_id: &str,
-    tools_dir: &Path,
-    zip_path: &Path,
-) -> Result<(), IrError> {
+pub fn import_tool_zip(tool_id: &str, tools_dir: &Path, zip_path: &Path) -> Result<(), IrError> {
     let manifests = ToolManifests::load();
     let manifest = manifests
         .get(tool_id)
@@ -106,8 +95,7 @@ pub fn import_tool_zip(
 
     let tool_dir = tools_dir.join(tool_id);
     if !tool_dir.exists() {
-        std::fs::create_dir_all(&tool_dir)
-            .map_err(|e| IrError::Internal(format!("创建目录失败: {}", e)))?;
+        std::fs::create_dir_all(&tool_dir).map_err(|e| IrError::Internal(format!("创建目录失败: {}", e)))?;
     }
 
     // Verify zip if configured
@@ -135,7 +123,10 @@ pub fn import_tool_zip(
 fn verify_tool(zip_path: &Path, manifest: &ToolManifest) -> Result<(), IrError> {
     match &manifest.verify {
         VerifyMethod::None => {
-            tracing::warn!("工具 {} 未配置校验，跳过", manifest.files.first().unwrap_or(&String::new()));
+            tracing::warn!(
+                "工具 {} 未配置校验，跳过",
+                manifest.files.first().unwrap_or(&String::new())
+            );
         }
         VerifyMethod::Sha256 => {
             if let Some(expected) = &manifest.sha256 {
@@ -182,8 +173,8 @@ fn cleanup_tool_files(tool_dir: &Path, files: &[String]) {
 /// Verify Authenticode signature of a PE file using WinVerifyTrust.
 #[cfg(windows)]
 fn verify_authenticode(path: &Path, expected_signer: &str) -> Result<(), IrError> {
-    use windows::Win32::Security::WinTrust::*;
     use windows::core::PCWSTR;
+    use windows::Win32::Security::WinTrust::*;
 
     let path_wide: Vec<u16> = path
         .to_str()
@@ -206,9 +197,7 @@ fn verify_authenticode(path: &Path, expected_signer: &str) -> Result<(), IrError
         dwUIChoice: WTD_UI_NONE,
         fdwRevocationChecks: WINTRUST_DATA_REVOCATION_CHECKS(0),
         dwUnionChoice: WTD_CHOICE_FILE,
-        Anonymous: WINTRUST_DATA_0 {
-            pFile: &mut trust_file,
-        },
+        Anonymous: WINTRUST_DATA_0 { pFile: &mut trust_file },
         dwStateAction: WINTRUST_DATA_STATE_ACTION(0),
         hWVTStateData: Default::default(),
         pwszURLReference: windows::core::PWSTR::null(),
@@ -219,13 +208,7 @@ fn verify_authenticode(path: &Path, expected_signer: &str) -> Result<(), IrError
 
     let mut action_id = WINTRUST_ACTION_GENERIC_VERIFY_V2;
 
-    let result = unsafe {
-        WinVerifyTrust(
-            None,
-            &mut action_id,
-            &trust_data as *const _ as *mut _,
-        )
-    };
+    let result = unsafe { WinVerifyTrust(None, &mut action_id, &trust_data as *const _ as *mut _) };
 
     // WinVerifyTrust returns 0 on success
     if result != 0 {
@@ -244,7 +227,11 @@ fn verify_authenticode(path: &Path, expected_signer: &str) -> Result<(), IrError
     tracing::info!(
         "Authenticode 验证通过: {} (签名者: {})",
         path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
-        if expected_signer.is_empty() { "未指定" } else { expected_signer }
+        if expected_signer.is_empty() {
+            "未指定"
+        } else {
+            expected_signer
+        }
     );
     Ok(())
 }
@@ -282,17 +269,11 @@ fn verify_publisher(path: &Path, expected_signer: &str) -> Result<(), IrError> {
     };
 
     if let Err(e) = result {
-        return Err(IrError::Internal(format!(
-            "提取签名证书失败: {} — 文件可能未签名",
-            e
-        )));
+        return Err(IrError::Internal(format!("提取签名证书失败: {} — 文件可能未签名", e)));
     }
 
     // Search for a certificate whose subject contains the expected signer
-    let signer_wide: Vec<u16> = expected_signer
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let signer_wide: Vec<u16> = expected_signer.encode_utf16().chain(std::iter::once(0)).collect();
 
     let cert_ctx = unsafe {
         CertFindCertificateInStore(
@@ -365,11 +346,7 @@ pub async fn accept_eula(tool_id: &str, tools_dir: &Path) -> Result<(), IrError>
             .output()
             .await
             .map_err(|e| IrError::Internal(format!("运行 {} 失败: {}", file_name, e)))?;
-        tracing::info!(
-            "{} -accepteula 退出码: {:?}",
-            file_name,
-            output.status.code()
-        );
+        tracing::info!("{} -accepteula 退出码: {:?}", file_name, output.status.code());
     }
     Ok(())
 }
@@ -380,20 +357,13 @@ pub async fn accept_eula(_tool_id: &str, _tools_dir: &Path) -> Result<(), IrErro
 }
 
 /// Download a file with progress reporting.
-async fn download_file_with_progress(
-    url: &str,
-    dest: &Path,
-    on_progress: impl Fn(u64, u64),
-) -> Result<(), IrError> {
+async fn download_file_with_progress(url: &str, dest: &Path, on_progress: impl Fn(u64, u64)) -> Result<(), IrError> {
     let response = reqwest::get(url)
         .await
         .map_err(|e| IrError::Internal(format!("下载失败: {}", e)))?;
 
     if !response.status().is_success() {
-        return Err(IrError::Internal(format!(
-            "下载失败: HTTP {}",
-            response.status()
-        )));
+        return Err(IrError::Internal(format!("下载失败: HTTP {}", response.status())));
     }
 
     let total_size = response.content_length().unwrap_or(0);
@@ -427,8 +397,7 @@ async fn download_file_with_progress(
 fn verify_sha256(path: &Path, expected: &str) -> Result<(), IrError> {
     use sha2::{Digest, Sha256};
 
-    let data = std::fs::read(path)
-        .map_err(|e| IrError::Internal(format!("读取文件失败: {}", e)))?;
+    let data = std::fs::read(path).map_err(|e| IrError::Internal(format!("读取文件失败: {}", e)))?;
     let mut hasher = Sha256::new();
     hasher.update(&data);
     let result = hasher.finalize();
@@ -445,13 +414,10 @@ fn verify_sha256(path: &Path, expected: &str) -> Result<(), IrError> {
 
 /// Extract specific files from a zip archive to a target directory.
 fn extract_zip(zip_path: &Path, dest_dir: &Path, wanted_files: &[String]) -> Result<(), IrError> {
-    let file = std::fs::File::open(zip_path)
-        .map_err(|e| IrError::Internal(format!("打开 ZIP 失败: {}", e)))?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| IrError::Internal(format!("解析 ZIP 失败: {}", e)))?;
+    let file = std::fs::File::open(zip_path).map_err(|e| IrError::Internal(format!("打开 ZIP 失败: {}", e)))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| IrError::Internal(format!("解析 ZIP 失败: {}", e)))?;
 
-    let wanted_set: std::collections::HashSet<&str> =
-        wanted_files.iter().map(|s| s.as_str()).collect();
+    let wanted_set: std::collections::HashSet<&str> = wanted_files.iter().map(|s| s.as_str()).collect();
 
     for i in 0..archive.len() {
         let mut entry = archive
@@ -459,10 +425,7 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path, wanted_files: &[String]) -> Res
             .map_err(|e| IrError::Internal(format!("读取 ZIP 条目失败: {}", e)))?;
 
         let name = entry.name().to_string();
-        let file_name = Path::new(&name)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = Path::new(&name).file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if !wanted_set.contains(file_name) {
             continue;

@@ -56,7 +56,11 @@ pub async fn cmd_sysmon_get_existing_events(
     limit: u32,
     enabled_event_ids: Vec<u32>,
 ) -> Result<Vec<SysmonEvent>, IrError> {
-    tracing::info!("cmd_sysmon_get_existing_events called, limit={}, event_ids={:?}", limit, enabled_event_ids);
+    tracing::info!(
+        "cmd_sysmon_get_existing_events called, limit={}, event_ids={:?}",
+        limit,
+        enabled_event_ids
+    );
     let reader = state.sysmon_reader.clone();
     let result = tokio::task::spawn_blocking(move || reader.get_existing_events(limit, &enabled_event_ids))
         .await
@@ -78,7 +82,10 @@ pub async fn cmd_sysmon_default_event_configs() -> Result<Vec<EventConfigEntry>,
 /// Generate Sysmon XML config from enabled events list and write to disk.
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_sysmon_generate_config(state: State<'_, AppState>, enabled_events: Vec<String>) -> Result<String, IrError> {
+pub async fn cmd_sysmon_generate_config(
+    state: State<'_, AppState>,
+    enabled_events: Vec<String>,
+) -> Result<String, IrError> {
     tracing::info!("Generating sysmon config with events: {:?}", enabled_events);
     let config = state.sysmon_config.clone();
     tokio::task::spawn_blocking(move || config.generate_config(&enabled_events))
@@ -107,18 +114,17 @@ pub async fn cmd_sysmon_start_subscription(
         tokio::task::spawn_blocking(move || {
             let mut m = dns_manager.lock();
             let _ = m.enable();
-        }).await
+        })
+        .await
         .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
     }
 
     // Init last_record_id to skip existing events
     let init_reader = reader.clone();
     let init_event_ids = enabled_event_ids.clone();
-    tokio::task::spawn_blocking(move || {
-        init_reader.init_last_record_id(&init_event_ids)
-    })
-    .await
-    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
+    tokio::task::spawn_blocking(move || init_reader.init_last_record_id(&init_event_ids))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<SysmonEvent>();
 
@@ -150,15 +156,16 @@ pub async fn cmd_sysmon_start_subscription(
 #[specta::specta]
 pub async fn cmd_sysmon_stop_subscription(state: State<'_, AppState>) -> Result<(), IrError> {
     state.sysmon_reader.stop_polling();
-    
+
     // Restore DNS Client event log state
     let dns_manager = state.dns_client_manager.clone();
     tokio::task::spawn_blocking(move || {
         let mut m = dns_manager.lock();
         let _ = m.restore();
-    }).await
+    })
+    .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))?;
-    
+
     Ok(())
 }
 

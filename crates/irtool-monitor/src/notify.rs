@@ -49,14 +49,22 @@ pub async fn test_feishu_webhook(webhook_url: &str) -> Result<(), IrError> {
         .await
         .map_err(|e| IrError::Network(format!("请求失败: {}", e)))?;
     if !resp.status().is_success() {
-        return Err(IrError::Network(format!("HTTP {}: {}", resp.status(), resp.text().await.unwrap_or_default())));
+        return Err(IrError::Network(format!(
+            "HTTP {}: {}",
+            resp.status(),
+            resp.text().await.unwrap_or_default()
+        )));
     }
     Ok(())
 }
 
 async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
     let time_str = chrono::DateTime::from_timestamp_millis(alert.timestamp)
-        .map(|dt| dt.with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap()).format("%Y/%m/%d %H:%M:%S").to_string())
+        .map(|dt| {
+            dt.with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+                .format("%Y/%m/%d %H:%M:%S")
+                .to_string()
+        })
         .unwrap_or_default();
 
     let raw: Option<serde_json::Value> = serde_json::from_str(&alert.raw_json).ok();
@@ -77,7 +85,12 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
                     }]
                 }
             });
-            no_proxy_client().post(webhook_url).json(&payload).send().await.map_err(|e| format!("HTTP 请求失败: {}", e))?;
+            no_proxy_client()
+                .post(webhook_url)
+                .json(&payload)
+                .send()
+                .await
+                .map_err(|e| format!("HTTP 请求失败: {}", e))?;
             return Ok(());
         }
     };
@@ -91,9 +104,17 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
         // ---- Pcap 事件布局 ----
         // 第一行：源地址 / 目标地址
         let src_ip = raw.get("src_ip").and_then(|v| v.as_str()).unwrap_or("");
-        let src_port = raw.get("src_port").and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let src_port = raw
+            .get("src_port")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
         let dst_ip = raw.get("dst_ip").and_then(|v| v.as_str()).unwrap_or("");
-        let dst_port = raw.get("dst_port").and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let dst_port = raw
+            .get("dst_port")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
 
         elements.push(column_set(
             lark_md_col("**源地址**", &format!("{}{}", src_ip, src_port)),
@@ -102,7 +123,11 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
 
         // 第二行：域名 / 类型
         let domain = raw.get("domain").and_then(|v| v.as_str()).unwrap_or("-");
-        let type_label = if event_kind == "tls_sni" { "TLS SNI" } else { "DNS查询" };
+        let type_label = if event_kind == "tls_sni" {
+            "TLS SNI"
+        } else {
+            "DNS查询"
+        };
         elements.push(column_set(
             lark_md_col("**域名**", domain),
             lark_md_col("**类型**", type_label),
@@ -128,17 +153,39 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
         ));
 
         // 第二行：源地址 / 目标地址
-        let local_addr = raw.get("local").and_then(|v| v.get("addr")).and_then(|v| v.as_str()).unwrap_or("-");
-        let local_port = raw.get("local").and_then(|v| v.get("port")).and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
-        let remote_addr = raw.get("remote").and_then(|v| v.get("addr")).and_then(|v| v.as_str()).unwrap_or("-");
-        let remote_port = raw.get("remote").and_then(|v| v.get("port")).and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let local_addr = raw
+            .get("local")
+            .and_then(|v| v.get("addr"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
+        let local_port = raw
+            .get("local")
+            .and_then(|v| v.get("port"))
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
+        let remote_addr = raw
+            .get("remote")
+            .and_then(|v| v.get("addr"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
+        let remote_port = raw
+            .get("remote")
+            .and_then(|v| v.get("port"))
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
         elements.push(column_set(
             lark_md_col("**源地址**", &format!("{}{}", local_addr, local_port)),
             lark_md_col("**目标地址**", &format!("{}{}", remote_addr, remote_port)),
         ));
 
         // 第三行：时间 / 进程
-        let pid = raw.get("pid").and_then(|v| v.as_u64()).map(|p| format!(" ({})", p)).unwrap_or_default();
+        let pid = raw
+            .get("pid")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(" ({})", p))
+            .unwrap_or_default();
         let proc_name = raw.get("process_name").and_then(|v| v.as_str()).unwrap_or("-");
         let proc_display = format!("{}{}", proc_name, pid);
         elements.push(column_set(
@@ -153,7 +200,11 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
     } else {
         // ---- Sysmon 事件布局 ----
         // 第一行：协议 / 用户
-        let protocol = raw.get("protocol").and_then(|v| v.as_str()).unwrap_or("-").to_uppercase();
+        let protocol = raw
+            .get("protocol")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-")
+            .to_uppercase();
         let user = raw.get("user").and_then(|v| v.as_str()).unwrap_or("-");
         elements.push(column_set(
             lark_md_col("**协议**", &protocol),
@@ -162,16 +213,28 @@ async fn send_feishu(webhook_url: &str, alert: &Alert) -> Result<(), String> {
 
         // 第二行：源地址 / 目标地址
         let src_ip = raw.get("source_ip").and_then(|v| v.as_str()).unwrap_or("-");
-        let src_port = raw.get("source_port").and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let src_port = raw
+            .get("source_port")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
         let dst_ip = raw.get("destination_ip").and_then(|v| v.as_str()).unwrap_or("-");
-        let dst_port = raw.get("destination_port").and_then(|v| v.as_u64()).map(|p| format!(":{}", p)).unwrap_or_default();
+        let dst_port = raw
+            .get("destination_port")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(":{}", p))
+            .unwrap_or_default();
         elements.push(column_set(
             lark_md_col("**源地址**", &format!("{}{}", src_ip, src_port)),
             lark_md_col("**目标地址**", &format!("{}{}", dst_ip, dst_port)),
         ));
 
         // 第三行：时间 / 进程
-        let pid = raw.get("process_id").and_then(|v| v.as_u64()).map(|p| format!(" ({})", p)).unwrap_or_default();
+        let pid = raw
+            .get("process_id")
+            .and_then(|v| v.as_u64())
+            .map(|p| format!(" ({})", p))
+            .unwrap_or_default();
         let proc_display = if alert.process_name.is_empty() {
             "-".to_string()
         } else {

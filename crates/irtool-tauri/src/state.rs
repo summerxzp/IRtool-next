@@ -2,8 +2,8 @@ use irtool_autoruns::{AutorunsScanner, AutorunsStore};
 use irtool_core::{AppDirs, TaskRegistry};
 use irtool_net_monitor::{CmdlineEnricher, HistoryStore, RetentionPolicy, WindowsNetCollector};
 use parking_lot::Mutex;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tokio::sync;
 use tokio_util::sync::CancellationToken;
 

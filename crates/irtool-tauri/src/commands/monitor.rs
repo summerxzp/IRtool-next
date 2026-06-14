@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use irtool_core::IrError;
-use irtool_monitor::{Alert, EventQuery, EventPage, MonitorConfig, RuntimeTelemetry};
+use irtool_monitor::{Alert, EventPage, EventQuery, MonitorConfig, RuntimeTelemetry};
 use irtool_pcap::PcapConfig;
 use tauri::Emitter;
 use tauri::Manager;
@@ -14,10 +14,7 @@ pub async fn cmd_monitor_get_config(state: State<'_, AppState>) -> Result<Monito
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_update_config(
-    state: State<'_, AppState>,
-    config: MonitorConfig,
-) -> Result<(), IrError> {
+pub async fn cmd_monitor_update_config(state: State<'_, AppState>, config: MonitorConfig) -> Result<(), IrError> {
     state.monitor_engine.lock().await.update_config(config)
 }
 
@@ -45,10 +42,7 @@ pub async fn cmd_monitor_exit_background(state: State<'_, AppState>) -> Result<(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_alerts(
-    state: State<'_, AppState>,
-    limit: u32,
-) -> Result<Vec<Alert>, IrError> {
+pub async fn cmd_monitor_get_alerts(state: State<'_, AppState>, limit: u32) -> Result<Vec<Alert>, IrError> {
     state.monitor_engine.lock().await.get_recent_alerts(limit)
 }
 
@@ -66,7 +60,10 @@ pub async fn cmd_monitor_clear_alerts(state: State<'_, AppState>) -> Result<u64,
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_events(state: State<'_, AppState>, limit: u32) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
+pub async fn cmd_monitor_get_events(
+    state: State<'_, AppState>,
+    limit: u32,
+) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
     state.monitor_engine.lock().await.get_recent_events(limit)
 }
 
@@ -237,7 +234,13 @@ pub async fn cmd_show_alert_popup(
     state: State<'_, AppState>,
     params: AlertPopupParams,
 ) -> Result<(), String> {
-    let popup_duration = state.monitor_engine.lock().await.get_config().notify_config.popup_duration_secs;
+    let popup_duration = state
+        .monitor_engine
+        .lock()
+        .await
+        .get_config()
+        .notify_config
+        .popup_duration_secs;
     show_alert_popup_window(
         &app,
         &params.rule_name,
@@ -303,9 +306,7 @@ fn show_alert_popup_window(
         let wa_h = work_area.size.height as f64 / scale;
         let x = wa_x + wa_w - width - margin;
         let y = wa_y + wa_h - height - margin - (popup_index as f64 * (height + gap));
-        window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(
-            x, y,
-        )))?;
+        window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))?;
     }
 
     // Don't show window yet — the frontend will show it after receiving popup data.

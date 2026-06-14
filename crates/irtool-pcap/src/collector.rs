@@ -1,12 +1,12 @@
 use crate::dns_raw;
 use crate::sni;
-use crate::types::{PcapConfig, PcapCountersSnapshot, PcapEvent, PcapEventKind, AdapterInfo};
+use crate::types::{AdapterInfo, PcapConfig, PcapCountersSnapshot, PcapEvent, PcapEventKind};
 use irtool_core::IrError;
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
 use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 
 #[cfg(windows)]
 use windows::Win32::Networking::WinSock::*;
@@ -92,14 +92,7 @@ impl PcapCollector {
             if WSAStartup(0x0202, &mut wsa_data) != 0 {
                 return false;
             }
-            match WSASocketW(
-                AF_INET.0 as i32,
-                SOCK_RAW.0,
-                IPPROTO_IP.0,
-                None,
-                0,
-                WSA_FLAG_OVERLAPPED,
-            ) {
+            match WSASocketW(AF_INET.0 as i32, SOCK_RAW.0, IPPROTO_IP.0, None, 0, WSA_FLAG_OVERLAPPED) {
                 Ok(s) => {
                     closesocket(s);
                     WSACleanup();
@@ -167,7 +160,8 @@ impl PcapCollector {
     /// 根据适配器 IP 获取本地 IP，None 则自动检测
     fn get_local_ip_for_adapter(adapter_ip: Option<&str>) -> Result<Ipv4Addr, IrError> {
         if let Some(ip) = adapter_ip {
-            return ip.parse::<Ipv4Addr>()
+            return ip
+                .parse::<Ipv4Addr>()
                 .map_err(|_| IrError::Network(format!("无效的适配器 IP: {}", ip)));
         }
         Self::get_local_ip()
@@ -175,11 +169,7 @@ impl PcapCollector {
 
     /// 启动抓包
     #[cfg(windows)]
-    pub fn start(
-        &mut self,
-        config: PcapConfig,
-        tx: mpsc::UnboundedSender<PcapEvent>,
-    ) -> Result<(), IrError> {
+    pub fn start(&mut self, config: PcapConfig, tx: mpsc::UnboundedSender<PcapEvent>) -> Result<(), IrError> {
         // 如果正在运行，先停止
         if self.running.load(Ordering::SeqCst) {
             self.stop();
@@ -213,14 +203,8 @@ impl PcapCollector {
     }
 
     #[cfg(not(windows))]
-    pub fn start(
-        &mut self,
-        _config: PcapConfig,
-        _tx: mpsc::UnboundedSender<PcapEvent>,
-    ) -> Result<(), IrError> {
-        Err(IrError::FeatureDisabled(
-            "Raw socket 仅支持 Windows".to_string(),
-        ))
+    pub fn start(&mut self, _config: PcapConfig, _tx: mpsc::UnboundedSender<PcapEvent>) -> Result<(), IrError> {
+        Err(IrError::FeatureDisabled("Raw socket 仅支持 Windows".to_string()))
     }
 
     /// 停止抓包（非阻塞，设置标志后立即返回，线程会在 100ms 内自行退出）
@@ -261,14 +245,7 @@ impl PcapCollector {
                 return;
             }
 
-            let socket = match WSASocketW(
-                AF_INET.0 as i32,
-                SOCK_RAW.0,
-                IPPROTO_IP.0,
-                None,
-                0,
-                WSA_FLAG_OVERLAPPED,
-            ) {
+            let socket = match WSASocketW(AF_INET.0 as i32, SOCK_RAW.0, IPPROTO_IP.0, None, 0, WSA_FLAG_OVERLAPPED) {
                 Ok(s) => s,
                 Err(_) => {
                     error!("Failed to create raw socket (requires admin privileges)");
@@ -328,10 +305,7 @@ impl PcapCollector {
             );
 
             if result != 0 {
-                error!(
-                    "Failed to set SIO_RCVALL (error: {:?})",
-                    WSAGetLastError()
-                );
+                error!("Failed to set SIO_RCVALL (error: {:?})", WSAGetLastError());
                 closesocket(socket);
                 WSACleanup();
                 running.store(false, Ordering::SeqCst);
@@ -400,10 +374,7 @@ impl PcapCollector {
                 packet_count += 1;
                 // Log first 5 packets, then every 1000th (debug level to avoid spam)
                 if packet_count <= 5 || packet_count % 1000 == 0 {
-                    debug!(
-                        "Received packet #{}: {} bytes",
-                        packet_count, len
-                    );
+                    debug!("Received packet #{}: {} bytes", packet_count, len);
                 }
 
                 let packet = &buffer[..len as usize];
@@ -424,12 +395,7 @@ impl PcapCollector {
     }
 
     /// 解析 IP 数据包
-    fn parse_packet(
-        packet: &[u8],
-        config: &PcapConfig,
-        _local_ip: Ipv4Addr,
-        packet_count: u64,
-    ) -> Option<PcapEvent> {
+    fn parse_packet(packet: &[u8], config: &PcapConfig, _local_ip: Ipv4Addr, packet_count: u64) -> Option<PcapEvent> {
         // IP header minimum 20 bytes
         if packet.len() < 20 {
             return None;
@@ -446,14 +412,8 @@ impl PcapCollector {
         }
 
         let protocol = packet[9];
-        let src_ip = format!(
-            "{}.{}.{}.{}",
-            packet[12], packet[13], packet[14], packet[15]
-        );
-        let dst_ip = format!(
-            "{}.{}.{}.{}",
-            packet[16], packet[17], packet[18], packet[19]
-        );
+        let src_ip = format!("{}.{}.{}.{}", packet[12], packet[13], packet[14], packet[15]);
+        let dst_ip = format!("{}.{}.{}.{}", packet[16], packet[17], packet[18], packet[19]);
 
         let now_ts = chrono::Utc::now().timestamp_millis();
 
@@ -477,7 +437,11 @@ impl PcapCollector {
                     if packet_count <= 5 || packet_count % 1000 == 0 {
                         debug!(
                             "[pkt#{}] TCP {}:{} -> {}:{} (port 443, payload {} bytes)",
-                            packet_count, src_ip, src_port, dst_ip, dst_port,
+                            packet_count,
+                            src_ip,
+                            src_port,
+                            dst_ip,
+                            dst_port,
                             tcp_header.len().saturating_sub(20)
                         );
                     }
@@ -522,7 +486,11 @@ impl PcapCollector {
                     if packet_count <= 5 || packet_count % 1000 == 0 {
                         debug!(
                             "[pkt#{}] UDP {}:{} -> {}:{} (port 53, payload {} bytes)",
-                            packet_count, src_ip, src_port, dst_ip, dst_port,
+                            packet_count,
+                            src_ip,
+                            src_port,
+                            dst_ip,
+                            dst_port,
                             udp_header.len().saturating_sub(8)
                         );
                     }

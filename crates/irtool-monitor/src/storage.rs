@@ -1,4 +1,4 @@
-use crate::types::{Alert, EventQuery, EventPage, MonitorEvent};
+use crate::types::{Alert, EventPage, EventQuery, MonitorEvent};
 use irtool_core::IrError;
 use rusqlite::{params, Connection};
 use std::path::{Path, PathBuf};
@@ -12,18 +12,20 @@ pub struct EventStorage {
 impl EventStorage {
     pub fn open(path: &Path) -> Result<Self, IrError> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| IrError::Io(e.to_string()))?;
+            std::fs::create_dir_all(parent).map_err(|e| IrError::Io(e.to_string()))?;
         }
-        let conn = Connection::open(path)
-            .map_err(|e| IrError::Internal(format!("SQLite 打开失败: {}", e)))?;
+        let conn = Connection::open(path).map_err(|e| IrError::Internal(format!("SQLite 打开失败: {}", e)))?;
         // 性能优化 PRAGMA
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 3000;"
-        ).map_err(|e| IrError::Internal(format!("设置 PRAGMA 失败: {}", e)))?;
-        let storage = Self { conn: Mutex::new(conn), db_path: path.to_path_buf() };
+             PRAGMA busy_timeout = 3000;",
+        )
+        .map_err(|e| IrError::Internal(format!("设置 PRAGMA 失败: {}", e)))?;
+        let storage = Self {
+            conn: Mutex::new(conn),
+            db_path: path.to_path_buf(),
+        };
         storage.init_tables()?;
         storage.migrate_schema()?;
         Ok(storage)
@@ -60,8 +62,9 @@ impl EventStorage {
                 action_taken TEXT,
                 raw_json TEXT
             );
-            CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);"
-        ).map_err(|e| IrError::Internal(format!("建表失败: {}", e)))?;
+            CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);",
+        )
+        .map_err(|e| IrError::Internal(format!("建表失败: {}", e)))?;
         Ok(())
     }
 
@@ -91,16 +94,20 @@ impl EventStorage {
             "CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(event_type, timestamp DESC);
              CREATE INDEX IF NOT EXISTS idx_events_source_time ON events(source, timestamp DESC);
              CREATE INDEX IF NOT EXISTS idx_events_key_time ON events(key_field, timestamp DESC);
-             CREATE INDEX IF NOT EXISTS idx_events_external_time ON events(is_external, timestamp DESC);"
-        ).map_err(|e| IrError::Internal(format!("创建索引失败: {}", e)))?;
+             CREATE INDEX IF NOT EXISTS idx_events_external_time ON events(is_external, timestamp DESC);",
+        )
+        .map_err(|e| IrError::Internal(format!("创建索引失败: {}", e)))?;
         Ok(())
     }
 
     /// 批量写入事件（事务）
     pub fn insert_events(&self, events: &[MonitorEvent]) -> Result<(), IrError> {
-        if events.is_empty() { return Ok(()); }
+        if events.is_empty() {
+            return Ok(());
+        }
         let conn = self.conn.lock().unwrap();
-        let tx = conn.unchecked_transaction()
+        let tx = conn
+            .unchecked_transaction()
             .map_err(|e| IrError::Internal(format!("事务开始失败: {}", e)))?;
         {
             let mut stmt = tx.prepare(
@@ -122,10 +129,12 @@ impl EventStorage {
                     extra.remote_port,
                     extra.domain,
                     extra.is_external,
-                ]).map_err(|e| IrError::Internal(format!("插入事件失败: {}", e)))?;
+                ])
+                .map_err(|e| IrError::Internal(format!("插入事件失败: {}", e)))?;
             }
         }
-        tx.commit().map_err(|e| IrError::Internal(format!("事务提交失败: {}", e)))?;
+        tx.commit()
+            .map_err(|e| IrError::Internal(format!("事务提交失败: {}", e)))?;
         Ok(())
     }
 
@@ -151,14 +160,14 @@ impl EventStorage {
 
     /// 清理过期事件
     pub fn cleanup_old_events(&self, retention_days: u32) -> Result<u64, IrError> {
-        if retention_days == 0 { return Ok(0); }
-        let cutoff = chrono::Utc::now().timestamp_millis()
-            - (retention_days as i64 * 24 * 3600 * 1000);
+        if retention_days == 0 {
+            return Ok(0);
+        }
+        let cutoff = chrono::Utc::now().timestamp_millis() - (retention_days as i64 * 24 * 3600 * 1000);
         let conn = self.conn.lock().unwrap();
-        let deleted = conn.execute(
-            "DELETE FROM events WHERE timestamp < ?1",
-            params![cutoff],
-        ).map_err(|e| IrError::Internal(format!("清理事件失败: {}", e)))?;
+        let deleted = conn
+            .execute("DELETE FROM events WHERE timestamp < ?1", params![cutoff])
+            .map_err(|e| IrError::Internal(format!("清理事件失败: {}", e)))?;
         Ok(deleted as u64)
     }
 
@@ -168,18 +177,20 @@ impl EventStorage {
         let mut stmt = conn.prepare(
             "SELECT id, timestamp, rule_name, event_type, process_name, key_field, action_taken, raw_json FROM alerts ORDER BY timestamp DESC LIMIT ?1"
         ).map_err(|e| IrError::Internal(format!("查询告警失败: {}", e)))?;
-        let rows = stmt.query_map(params![limit], |row| {
-            Ok(Alert {
-                id: row.get(0)?,
-                timestamp: row.get(1)?,
-                rule_name: row.get(2)?,
-                event_type: row.get(3)?,
-                process_name: row.get(4)?,
-                key_field: row.get(5)?,
-                action_taken: row.get(6)?,
-                raw_json: row.get(7)?,
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                Ok(Alert {
+                    id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    rule_name: row.get(2)?,
+                    event_type: row.get(3)?,
+                    process_name: row.get(4)?,
+                    key_field: row.get(5)?,
+                    action_taken: row.get(6)?,
+                    raw_json: row.get(7)?,
+                })
             })
-        }).map_err(|e| IrError::Internal(format!("查询告警失败: {}", e)))?;
+            .map_err(|e| IrError::Internal(format!("查询告警失败: {}", e)))?;
         let mut alerts = Vec::new();
         for row in rows {
             alerts.push(row.map_err(|e| IrError::Internal(format!("读取告警行失败: {}", e)))?);
@@ -190,7 +201,8 @@ impl EventStorage {
     /// 清除所有告警
     pub fn clear_alerts(&self) -> Result<u64, IrError> {
         let conn = self.conn.lock().unwrap();
-        let deleted = conn.execute("DELETE FROM alerts", [])
+        let deleted = conn
+            .execute("DELETE FROM alerts", [])
             .map_err(|e| IrError::Internal(format!("清除告警失败: {}", e)))?;
         Ok(deleted as u64)
     }
@@ -201,18 +213,20 @@ impl EventStorage {
         let mut stmt = conn.prepare(
             "SELECT id, timestamp, source, event_type, process_name, key_field, raw_json FROM events ORDER BY timestamp DESC LIMIT ?1"
         ).map_err(|e| IrError::Internal(format!("查询事件失败: {}", e)))?;
-        let rows = stmt.query_map(params![limit], |row| {
-            let source_str: String = row.get(2)?;
-            Ok(crate::types::MonitorEvent {
-                id: row.get(0)?,
-                timestamp: row.get(1)?,
-                source: serde_json::from_str(&source_str).unwrap_or(crate::types::EventSource::Sysmon),
-                event_type: row.get(3)?,
-                process_name: row.get(4)?,
-                key_field: row.get(5)?,
-                raw_json: row.get(6)?,
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                let source_str: String = row.get(2)?;
+                Ok(crate::types::MonitorEvent {
+                    id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    source: serde_json::from_str(&source_str).unwrap_or(crate::types::EventSource::Sysmon),
+                    event_type: row.get(3)?,
+                    process_name: row.get(4)?,
+                    key_field: row.get(5)?,
+                    raw_json: row.get(6)?,
+                })
             })
-        }).map_err(|e| IrError::Internal(format!("查询事件失败: {}", e)))?;
+            .map_err(|e| IrError::Internal(format!("查询事件失败: {}", e)))?;
         let mut events = Vec::new();
         for row in rows {
             events.push(row.map_err(|e| IrError::Internal(format!("读取事件行失败: {}", e)))?);
@@ -223,7 +237,8 @@ impl EventStorage {
     /// 清除所有事件
     pub fn clear_events(&self) -> Result<u64, IrError> {
         let conn = self.conn.lock().unwrap();
-        let deleted = conn.execute("DELETE FROM events", [])
+        let deleted = conn
+            .execute("DELETE FROM events", [])
             .map_err(|e| IrError::Internal(format!("清除事件失败: {}", e)))?;
         Ok(deleted as u64)
     }
@@ -231,12 +246,12 @@ impl EventStorage {
     /// 查询事件类型统计
     pub fn get_event_type_counts(&self) -> Result<Vec<(String, u64)>, IrError> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT event_type, COUNT(*) as cnt FROM events GROUP BY event_type ORDER BY cnt DESC"
-        ).map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
-        }).map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
+        let mut stmt = conn
+            .prepare("SELECT event_type, COUNT(*) as cnt FROM events GROUP BY event_type ORDER BY cnt DESC")
+            .map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?)))
+            .map_err(|e| IrError::Internal(format!("查询事件类型统计失败: {}", e)))?;
         let mut result = Vec::new();
         for row in rows {
             result.push(row.map_err(|e| IrError::Internal(format!("读取统计失败: {}", e)))?);
@@ -259,7 +274,8 @@ impl EventStorage {
     /// 查询事件总数
     pub fn get_event_count(&self) -> Result<u64, IrError> {
         let conn = self.conn.lock().unwrap();
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
             .map_err(|e| IrError::Internal(format!("查询事件总数失败: {}", e)))?;
         Ok(count as u64)
     }
@@ -289,38 +305,45 @@ struct EventExtra {
 fn extract_event_extra(raw_json: &str) -> EventExtra {
     let val: serde_json::Value = match serde_json::from_str(raw_json) {
         Ok(v) => v,
-        Err(_) => return EventExtra {
-            process_id: None,
-            process_path: None,
-            remote_ip: None,
-            remote_port: None,
-            domain: None,
-            is_external: 0,
-        },
+        Err(_) => {
+            return EventExtra {
+                process_id: None,
+                process_path: None,
+                remote_ip: None,
+                remote_port: None,
+                domain: None,
+                is_external: 0,
+            }
+        }
     };
 
-    let process_id = val.get("process_id")
+    let process_id = val
+        .get("process_id")
         .and_then(|v| v.as_i64())
         .or_else(|| val.get("ProcessId").and_then(|v| v.as_i64()));
 
-    let process_path = val.get("process_path")
+    let process_path = val
+        .get("process_path")
         .and_then(|v| v.as_str())
         .or_else(|| val.get("Image").and_then(|v| v.as_str()))
         .map(|s| s.to_string());
 
-    let remote_ip = val.get("destination_ip")
+    let remote_ip = val
+        .get("destination_ip")
         .and_then(|v| v.as_str())
         .or_else(|| val.get("DestinationIp").and_then(|v| v.as_str()))
         .or_else(|| val.get("dst_ip").and_then(|v| v.as_str()))
         .map(|s| s.to_string());
 
-    let remote_port = val.get("destination_port")
+    let remote_port = val
+        .get("destination_port")
         .and_then(|v| v.as_u64())
         .or_else(|| val.get("DestinationPort").and_then(|v| v.as_u64()))
         .or_else(|| val.get("dst_port").and_then(|v| v.as_u64()))
         .map(|v| v as i64);
 
-    let domain = val.get("query_name")
+    let domain = val
+        .get("query_name")
         .and_then(|v| v.as_str())
         .or_else(|| val.get("QueryName").and_then(|v| v.as_str()))
         .or_else(|| val.get("domain").and_then(|v| v.as_str()))
@@ -328,9 +351,9 @@ fn extract_event_extra(raw_json: &str) -> EventExtra {
 
     // 判断是否为外部 IP（非私有地址）
     let is_external = if let Some(ref ip_str) = remote_ip {
-        ip_str.parse::<std::net::IpAddr>().map_or(1, |ip| {
-            if ip.is_loopback() || is_private_ip(&ip) { 0 } else { 1 }
-        })
+        ip_str
+            .parse::<std::net::IpAddr>()
+            .map_or(1, |ip| if ip.is_loopback() || is_private_ip(&ip) { 0 } else { 1 })
     } else {
         0
     };
@@ -411,8 +434,9 @@ mod tests {
                 raw_json TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);"
-        ).unwrap();
+            CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);",
+        )
+        .unwrap();
         // 插入一条旧数据
         conn.execute(
             "INSERT INTO events (timestamp, source, event_type, process_name, key_field, raw_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -423,7 +447,12 @@ mod tests {
         // 用 EventStorage::open 打开旧数据库，应自动迁移
         let storage = EventStorage::open(&db_path).unwrap();
         // 验证迁移后可以正常写入
-        let event = make_event(2000, "network_connect", EventSource::Sysmon, r#"{"destination_ip":"8.8.8.8"}"#);
+        let event = make_event(
+            2000,
+            "network_connect",
+            EventSource::Sysmon,
+            r#"{"destination_ip":"8.8.8.8"}"#,
+        );
         storage.insert_events(&[event]).unwrap();
         let count = storage.get_event_count().unwrap();
         assert_eq!(count, 2);
@@ -432,9 +461,9 @@ mod tests {
     #[test]
     fn insert_events_batch_persists_all_rows() {
         let storage = test_storage();
-        let events: Vec<MonitorEvent> = (0..5).map(|i| {
-            make_event(1000 + i, "dns", EventSource::Sysmon, r#"{"process_id":123}"#)
-        }).collect();
+        let events: Vec<MonitorEvent> = (0..5)
+            .map(|i| make_event(1000 + i, "dns", EventSource::Sysmon, r#"{"process_id":123}"#))
+            .collect();
         storage.insert_events(&events).unwrap();
 
         let count = storage.get_event_count().unwrap();
@@ -444,22 +473,49 @@ mod tests {
     #[test]
     fn search_events_uses_limit_offset() {
         let storage = test_storage();
-        let events: Vec<MonitorEvent> = (0..10).map(|i| {
-            make_event(1000 + i, "dns", EventSource::Sysmon, "{}")
-        }).collect();
+        let events: Vec<MonitorEvent> = (0..10)
+            .map(|i| make_event(1000 + i, "dns", EventSource::Sysmon, "{}"))
+            .collect();
         storage.insert_events(&events).unwrap();
 
-        let query1 = EventQuery { source: None, event_type: None, process_name: None, key_field: None, is_external: None, search_text: None, limit: 3, offset: 0 };
+        let query1 = EventQuery {
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 0,
+        };
         let page1 = storage.search_events(&query1).unwrap();
         assert_eq!(page1.len(), 3);
 
         // 第二页
-        let query2 = EventQuery { source: None, event_type: None, process_name: None, key_field: None, is_external: None, search_text: None, limit: 3, offset: 3 };
+        let query2 = EventQuery {
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 3,
+        };
         let page2 = storage.search_events(&query2).unwrap();
         assert_eq!(page2.len(), 3);
 
         // 超出范围
-        let query3 = EventQuery { source: None, event_type: None, process_name: None, key_field: None, is_external: None, search_text: None, limit: 3, offset: 9 };
+        let query3 = EventQuery {
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 9,
+        };
         let page3 = storage.search_events(&query3).unwrap();
         assert_eq!(page3.len(), 1);
     }
@@ -467,12 +523,12 @@ mod tests {
     #[test]
     fn search_events_page_total_matches_filters() {
         let storage = test_storage();
-        let dns_events: Vec<MonitorEvent> = (0..4).map(|i| {
-            make_event(1000 + i, "dns", EventSource::Sysmon, "{}")
-        }).collect();
-        let net_events: Vec<MonitorEvent> = (0..3).map(|i| {
-            make_event(2000 + i, "network_connect", EventSource::Sysmon, "{}")
-        }).collect();
+        let dns_events: Vec<MonitorEvent> = (0..4)
+            .map(|i| make_event(1000 + i, "dns", EventSource::Sysmon, "{}"))
+            .collect();
+        let net_events: Vec<MonitorEvent> = (0..3)
+            .map(|i| make_event(2000 + i, "network_connect", EventSource::Sysmon, "{}"))
+            .collect();
         storage.insert_events(&dns_events).unwrap();
         storage.insert_events(&net_events).unwrap();
 
@@ -554,9 +610,9 @@ mod tests {
     fn get_event_count_matches_inserted() {
         let storage = test_storage();
         assert_eq!(storage.get_event_count().unwrap(), 0);
-        let events: Vec<MonitorEvent> = (0..7).map(|i| {
-            make_event(1000 + i, "dns", EventSource::Sysmon, "{}")
-        }).collect();
+        let events: Vec<MonitorEvent> = (0..7)
+            .map(|i| make_event(1000 + i, "dns", EventSource::Sysmon, "{}"))
+            .collect();
         storage.insert_events(&events).unwrap();
         assert_eq!(storage.get_event_count().unwrap(), 7);
     }
@@ -564,9 +620,9 @@ mod tests {
     #[test]
     fn get_recent_events_ordered_by_timestamp_desc() {
         let storage = test_storage();
-        let events: Vec<MonitorEvent> = (0..5).map(|i| {
-            make_event(1000 + i * 100, "dns", EventSource::Sysmon, "{}")
-        }).collect();
+        let events: Vec<MonitorEvent> = (0..5)
+            .map(|i| make_event(1000 + i * 100, "dns", EventSource::Sysmon, "{}"))
+            .collect();
         storage.insert_events(&events).unwrap();
         let recent = storage.get_recent_events(10).unwrap();
         assert_eq!(recent.len(), 5);
@@ -637,9 +693,9 @@ mod tests {
     #[test]
     fn clear_events_removes_all() {
         let storage = test_storage();
-        let events: Vec<MonitorEvent> = (0..3).map(|i| {
-            make_event(1000 + i, "dns", EventSource::Sysmon, "{}")
-        }).collect();
+        let events: Vec<MonitorEvent> = (0..3)
+            .map(|i| make_event(1000 + i, "dns", EventSource::Sysmon, "{}"))
+            .collect();
         storage.insert_events(&events).unwrap();
         assert_eq!(storage.get_event_count().unwrap(), 3);
 

@@ -495,7 +495,9 @@ fn build_multi_sz(strings: &[&String]) -> Vec<u16> {
 
 fn extract_clsid(text: &str) -> Option<String> {
     static CLSID_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re = CLSID_RE.get_or_init(|| regex::Regex::new(r"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}").unwrap());
+    let re = CLSID_RE.get_or_init(|| {
+        regex::Regex::new(r"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}").unwrap()
+    });
     let caps = re.find(text)?;
     Some(caps.as_str().to_owned())
 }

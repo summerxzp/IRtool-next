@@ -4,10 +4,7 @@ use irtool_core::IrError;
 /// Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_workspace_run_command(
-    program: String,
-    args: String,
-) -> Result<String, IrError> {
+pub async fn cmd_workspace_run_command(program: String, args: String) -> Result<String, IrError> {
     #[cfg(not(debug_assertions))]
     {
         let _ = (program, args);
@@ -76,25 +73,19 @@ pub async fn cmd_workspace_take_ownership(path: String) -> Result<String, IrErro
 /// Sample a file (zip with password protection)
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_workspace_sample_path(
-    path: String,
-    output_dir: String,
-    password: String,
-) -> Result<String, IrError> {
+pub async fn cmd_workspace_sample_path(path: String, output_dir: String, password: String) -> Result<String, IrError> {
     if !std::path::Path::new(&path).exists() {
         return Err(IrError::Internal(format!("路径不存在: {}", path)));
     }
     if !std::path::Path::new(&output_dir).exists() {
-        std::fs::create_dir_all(&output_dir)
-            .map_err(|e| IrError::Io(e.to_string()))?;
+        std::fs::create_dir_all(&output_dir).map_err(|e| IrError::Io(e.to_string()))?;
     }
     let filename = std::path::Path::new(&path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "sample".to_string());
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-    let output_path = std::path::Path::new(&output_dir)
-        .join(format!("{}_{}.7z", filename, timestamp));
+    let output_path = std::path::Path::new(&output_dir).join(format!("{}_{}.7z", filename, timestamp));
     run_typed_command(
         "7z",
         format!("a -p\"{}\" \"{}\" \"{}\"", password, output_path.display(), path),

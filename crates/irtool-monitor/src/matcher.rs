@@ -30,10 +30,7 @@ fn matches_target(key_field: &str, target: &str) -> bool {
         if middle.is_empty() {
             return false;
         }
-        let key = key_field
-            .rsplit_once(':')
-            .map(|(k, _)| k)
-            .unwrap_or(key_field);
+        let key = key_field.rsplit_once(':').map(|(k, _)| k).unwrap_or(key_field);
         return key == middle
             || key.starts_with(&format!("{}.", middle))
             || key.ends_with(&format!(".{}", middle))

@@ -1,4 +1,6 @@
-use irtool_monitor::{EventQuery, EventSource, MonitorConfig, MonitorEngine, MonitorEvent, RuntimeMode, RuntimeTelemetry};
+use irtool_monitor::{
+    EventQuery, EventSource, MonitorConfig, MonitorEngine, MonitorEvent, RuntimeMode, RuntimeTelemetry,
+};
 use std::time::Duration;
 
 fn temp_dir() -> tempfile::TempDir {
@@ -70,8 +72,26 @@ async fn test_telemetry_updates_on_events() {
     let engine = build_engine_in_background(dir.path());
     let before = engine.get_telemetry();
 
-    engine.process_monitor_event(&make_event(2_000_000_000_000, EventSource::DnsClient, "dns_client", "firefox.exe", "test.com", "{}")).await;
-    engine.process_monitor_event(&make_event(2_000_000_001_000, EventSource::NetMonitor, "network_connect", "curl.exe", "1.2.3.4:443", "{}")).await;
+    engine
+        .process_monitor_event(&make_event(
+            2_000_000_000_000,
+            EventSource::DnsClient,
+            "dns_client",
+            "firefox.exe",
+            "test.com",
+            "{}",
+        ))
+        .await;
+    engine
+        .process_monitor_event(&make_event(
+            2_000_000_001_000,
+            EventSource::NetMonitor,
+            "network_connect",
+            "curl.exe",
+            "1.2.3.4:443",
+            "{}",
+        ))
+        .await;
 
     tokio::time::sleep(Duration::from_millis(700)).await;
 
@@ -88,13 +108,40 @@ async fn test_event_type_counts_aggregates_by_type() {
     let engine = build_engine_in_background(dir.path());
 
     for _ in 0..3 {
-        engine.process_monitor_event(&make_event(3_000_000_000_000, EventSource::Sysmon, "dns", "app.exe", "a.com", "{}")).await;
+        engine
+            .process_monitor_event(&make_event(
+                3_000_000_000_000,
+                EventSource::Sysmon,
+                "dns",
+                "app.exe",
+                "a.com",
+                "{}",
+            ))
+            .await;
     }
     for _ in 0..5 {
-        engine.process_monitor_event(&make_event(3_000_000_000_001, EventSource::DnsClient, "dns_client", "svc.exe", "b.com", "{}")).await;
+        engine
+            .process_monitor_event(&make_event(
+                3_000_000_000_001,
+                EventSource::DnsClient,
+                "dns_client",
+                "svc.exe",
+                "b.com",
+                "{}",
+            ))
+            .await;
     }
     for _ in 0..2 {
-        engine.process_monitor_event(&make_event(3_000_000_000_002, EventSource::NetMonitor, "network_connect", "net.exe", "3.3.3.3:80", "{}")).await;
+        engine
+            .process_monitor_event(&make_event(
+                3_000_000_000_002,
+                EventSource::NetMonitor,
+                "network_connect",
+                "net.exe",
+                "3.3.3.3:80",
+                "{}",
+            ))
+            .await;
     }
 
     tokio::time::sleep(Duration::from_millis(700)).await;
@@ -112,10 +159,38 @@ async fn test_search_with_multiple_filters() {
     let dir = temp_dir();
     let engine = build_engine_in_background(dir.path());
 
-    let e1 = make_event(4_000_000_000_000, EventSource::Sysmon, "dns", "chrome.exe", "evil.example.com", "{}");
-    let e2 = make_event(4_000_000_000_001, EventSource::Sysmon, "dns", "chrome.exe", "safe.example.com", "{}");
-    let e3 = make_event(4_000_000_000_002, EventSource::DnsClient, "dns_client", "chrome.exe", "evil.example.com", "{}");
-    let e4 = make_event(4_000_000_000_003, EventSource::Sysmon, "network_connect", "firefox.exe", "evil.example.com", "{}");
+    let e1 = make_event(
+        4_000_000_000_000,
+        EventSource::Sysmon,
+        "dns",
+        "chrome.exe",
+        "evil.example.com",
+        "{}",
+    );
+    let e2 = make_event(
+        4_000_000_000_001,
+        EventSource::Sysmon,
+        "dns",
+        "chrome.exe",
+        "safe.example.com",
+        "{}",
+    );
+    let e3 = make_event(
+        4_000_000_000_002,
+        EventSource::DnsClient,
+        "dns_client",
+        "chrome.exe",
+        "evil.example.com",
+        "{}",
+    );
+    let e4 = make_event(
+        4_000_000_000_003,
+        EventSource::Sysmon,
+        "network_connect",
+        "firefox.exe",
+        "evil.example.com",
+        "{}",
+    );
 
     for e in &[e1, e2, e3, e4] {
         engine.process_monitor_event(e).await;
@@ -191,9 +266,14 @@ async fn test_pagination_correctness() {
 
     let page1 = engine
         .search_events_page(&EventQuery {
-            source: None, event_type: None, process_name: None,
-            key_field: None, is_external: None, search_text: None,
-            limit: 3, offset: 0,
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 0,
         })
         .expect("分页查询失败");
     assert_eq!(page1.total, 7);
@@ -201,9 +281,14 @@ async fn test_pagination_correctness() {
 
     let page2 = engine
         .search_events_page(&EventQuery {
-            source: None, event_type: None, process_name: None,
-            key_field: None, is_external: None, search_text: None,
-            limit: 3, offset: 3,
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 3,
         })
         .expect("分页查询失败");
     assert_eq!(page2.items.len(), 3);
@@ -211,18 +296,28 @@ async fn test_pagination_correctness() {
 
     let page3 = engine
         .search_events_page(&EventQuery {
-            source: None, event_type: None, process_name: None,
-            key_field: None, is_external: None, search_text: None,
-            limit: 3, offset: 6,
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 6,
         })
         .expect("分页查询失败");
     assert_eq!(page3.items.len(), 1);
 
     let page4 = engine
         .search_events_page(&EventQuery {
-            source: None, event_type: None, process_name: None,
-            key_field: None, is_external: None, search_text: None,
-            limit: 3, offset: 100,
+            source: None,
+            event_type: None,
+            process_name: None,
+            key_field: None,
+            is_external: None,
+            search_text: None,
+            limit: 3,
+            offset: 100,
         })
         .expect("分页查询失败");
     assert_eq!(page4.items.len(), 0);

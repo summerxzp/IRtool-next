@@ -2,23 +2,31 @@
 /// 输入是 UDP payload（不含 IP/UDP 头）
 pub fn extract_dns_query(payload: &[u8]) -> Option<DnsQueryInfo> {
     // DNS header: 12 bytes minimum
-    if payload.len() < 12 { return None; }
+    if payload.len() < 12 {
+        return None;
+    }
 
     let flags = ((payload[2] as u16) << 8) | (payload[3] as u16);
     let qr = (flags >> 15) & 1;
     let opcode = (flags >> 11) & 0xF;
 
     // Only process queries (QR=0, Opcode=0 standard query)
-    if qr != 0 || opcode != 0 { return None; }
+    if qr != 0 || opcode != 0 {
+        return None;
+    }
 
     let qdcount = ((payload[4] as u16) << 8) | (payload[5] as u16);
-    if qdcount == 0 { return None; }
+    if qdcount == 0 {
+        return None;
+    }
 
     // Parse first question
     let mut offset = 12;
     let domain = parse_domain_name(payload, &mut offset)?;
 
-    if offset + 4 > payload.len() { return None; }
+    if offset + 4 > payload.len() {
+        return None;
+    }
     let qtype = ((payload[offset] as u16) << 8) | (payload[offset + 1] as u16);
 
     Some(DnsQueryInfo {
@@ -41,7 +49,9 @@ fn parse_domain_name(payload: &[u8], offset: &mut usize) -> Option<String> {
     let mut jumps = 0;
 
     loop {
-        if *offset >= payload.len() { return None; }
+        if *offset >= payload.len() {
+            return None;
+        }
         let len = payload[*offset] as usize;
 
         if len == 0 {
@@ -51,19 +61,25 @@ fn parse_domain_name(payload: &[u8], offset: &mut usize) -> Option<String> {
 
         // Check for compression pointer (top 2 bits = 11)
         if (len & 0xC0) == 0xC0 {
-            if *offset + 1 >= payload.len() { return None; }
+            if *offset + 1 >= payload.len() {
+                return None;
+            }
             if !jumped {
                 jump_offset = *offset + 2;
             }
             jumps += 1;
-            if jumps > max_jumps { return None; }
+            if jumps > max_jumps {
+                return None;
+            }
             *offset = ((len & 0x3F) << 8) | (payload[*offset + 1] as usize);
             jumped = true;
             continue;
         }
 
         *offset += 1;
-        if *offset + len > payload.len() { return None; }
+        if *offset + len > payload.len() {
+            return None;
+        }
         let label = std::str::from_utf8(&payload[*offset..*offset + len]).ok()?;
         labels.push(label.to_string());
         *offset += len;
@@ -113,7 +129,7 @@ mod tests {
         packet.push(3); // "com" length
         packet.extend_from_slice(b"com");
         packet.push(0); // null terminator
-        // QTYPE: A (1)
+                        // QTYPE: A (1)
         packet.extend_from_slice(&[0x00, 0x01]);
         // QCLASS: IN (1)
         packet.extend_from_slice(&[0x00, 0x01]);

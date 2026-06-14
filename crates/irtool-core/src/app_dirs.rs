@@ -45,9 +45,7 @@ impl AppDirs {
             exe_dir
         } else {
             // Installed mode: use AppData
-            dirs::data_dir()
-                .map(|d| d.join("IRtool"))
-                .unwrap_or(exe_dir)
+            dirs::data_dir().map(|d| d.join("IRtool")).unwrap_or(exe_dir)
         };
 
         let dirs = Self { root };
@@ -57,7 +55,12 @@ impl AppDirs {
 
     /// Ensure all subdirectories exist.
     fn ensure_all(&self) {
-        for dir in &[&self.config_dir(), &self.data_dir(), &self.logs_dir(), &self.tools_dir()] {
+        for dir in &[
+            &self.config_dir(),
+            &self.data_dir(),
+            &self.logs_dir(),
+            &self.tools_dir(),
+        ] {
             if !dir.exists() {
                 let _ = std::fs::create_dir_all(dir);
             }

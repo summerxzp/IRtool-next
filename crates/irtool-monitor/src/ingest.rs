@@ -4,7 +4,7 @@ use irtool_core::IrError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{warn, info};
+use tracing::{info, warn};
 
 /// 批量摄入队列：异步收集事件，定时批量写入 SQLite
 pub struct EventIngestQueue {
@@ -50,9 +50,7 @@ impl EventIngestQueue {
                 warn!("摄入队列已满，丢弃事件");
                 Ok(())
             }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
-                Err(IrError::Internal("摄入队列已关闭".to_string()))
-            }
+            Err(mpsc::error::TrySendError::Closed(_)) => Err(IrError::Internal("摄入队列已关闭".to_string())),
         }
     }
 

@@ -348,7 +348,11 @@ fn test_store_remove_then_repopulate() {
     store.remove(1);
     assert_eq!(store.len(), 1);
 
-    store.clear_and_put(vec![make_item(1, "a.exe"), make_item(2, "b.exe"), make_item(3, "c.exe")]);
+    store.clear_and_put(vec![
+        make_item(1, "a.exe"),
+        make_item(2, "b.exe"),
+        make_item(3, "c.exe"),
+    ]);
     assert_eq!(store.len(), 3);
     assert!(store.get(1).is_some());
 }

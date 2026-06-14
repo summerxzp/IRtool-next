@@ -24,7 +24,11 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .max_log_files(7)
         .build(&log_dir)
         .unwrap_or_else(|e| {
-            eprintln!("FATAL: failed to create app log appender at {}: {}", log_dir.display(), e);
+            eprintln!(
+                "FATAL: failed to create app log appender at {}: {}",
+                log_dir.display(),
+                e
+            );
             std::process::exit(1);
         });
 
@@ -50,7 +54,11 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .max_log_files(7)
         .build(&log_dir)
         .unwrap_or_else(|e| {
-            eprintln!("FATAL: failed to create monitor log appender at {}: {}", log_dir.display(), e);
+            eprintln!(
+                "FATAL: failed to create monitor log appender at {}: {}",
+                log_dir.display(),
+                e
+            );
             std::process::exit(1);
         });
 
@@ -75,7 +83,11 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .max_log_files(7)
         .build(&log_dir)
         .unwrap_or_else(|e| {
-            eprintln!("FATAL: failed to create tools log appender at {}: {}", log_dir.display(), e);
+            eprintln!(
+                "FATAL: failed to create tools log appender at {}: {}",
+                log_dir.display(),
+                e
+            );
             std::process::exit(1);
         });
 
@@ -94,11 +106,9 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     // --- console layer (debug builds only) ---
     let console_layer = if cfg!(debug_assertions) {
-        Some(
-            fmt::layer().with_target(true).with_ansi(true).compact().with_filter(
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
-            ),
-        )
+        Some(fmt::layer().with_target(true).with_ansi(true).compact().with_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
+        ))
     } else {
         None
     };

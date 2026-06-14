@@ -8,8 +8,8 @@ use irtool_core::IrError;
 use irtool_sysmon::SysmonEvent;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::sync::Arc;
 use tracing::{info, warn};
 
 type AlertDedupKey = (String, String, String, i64);
@@ -89,7 +89,8 @@ impl MonitorEngine {
         }
         self.config.lock().background_mode = true;
         config::save_config(&self.config_path, &self.config.lock())?;
-        self.started_at.store(chrono::Utc::now().timestamp_millis(), Ordering::Relaxed);
+        self.started_at
+            .store(chrono::Utc::now().timestamp_millis(), Ordering::Relaxed);
         info!("Entered background monitoring mode");
         Ok(())
     }
@@ -113,10 +114,13 @@ impl MonitorEngine {
                 if let Some(cached) = cache.get(&event.process_id) {
                     Some(cached.clone())
                 } else {
-                    let result = irtool_process::get_process_chain(event.process_id).ok()
+                    let result = irtool_process::get_process_chain(event.process_id)
+                        .ok()
                         .filter(|c| !c.is_empty())
                         .map(|chain| {
-                            chain.nodes.iter()
+                            chain
+                                .nodes
+                                .iter()
                                 .map(|n| format!("{} ({})", n.name, n.pid))
                                 .collect::<Vec<_>>()
                                 .join("->")
@@ -150,7 +154,12 @@ impl MonitorEngine {
         // 在锁内提取所需数据，确保 MutexGuard 不跨 .await
         let (rules, background_mode, persist_event_types, notify_config) = {
             let config = self.config.lock();
-            (config.rules.clone(), config.background_mode, config.persist_event_types.clone(), config.notify_config.clone())
+            (
+                config.rules.clone(),
+                config.background_mode,
+                config.persist_event_types.clone(),
+                config.notify_config.clone(),
+            )
         };
 
         let mut alerts = Vec::new();
@@ -160,7 +169,12 @@ impl MonitorEngine {
             if matcher::matches_rule(event, rule) {
                 // 去重：同一规则 + 同一目标 + 同一类型，60秒内只告警一次
                 let minute_key = event.timestamp / 60_000;
-                let dedup_key = (rule.name.clone(), event.key_field.clone(), event.event_type.clone(), minute_key);
+                let dedup_key = (
+                    rule.name.clone(),
+                    event.key_field.clone(),
+                    event.event_type.clone(),
+                    minute_key,
+                );
                 let should_alert = {
                     let mut dedup = self.alert_dedup.lock();
                     if dedup.contains(&dedup_key) {
@@ -185,7 +199,9 @@ impl MonitorEngine {
                     action_taken_parts.push("popup");
                 }
                 if notify_config.feishu_rule_ids.contains(&rule.id) {
-                    actions.push(NotifyAction::Feishu { webhook_url: notify_config.feishu_webhook_url.clone() });
+                    actions.push(NotifyAction::Feishu {
+                        webhook_url: notify_config.feishu_webhook_url.clone(),
+                    });
                     action_taken_parts.push("feishu");
                 }
 
@@ -218,8 +234,7 @@ impl MonitorEngine {
         // 后台模式时持久化事件（通过摄入队列批量写入）
         if background_mode {
             if let Some(ingest_queue) = &self.ingest_queue {
-                let should_persist = persist_event_types.is_empty()
-                    || persist_event_types.contains(&event.event_type);
+                let should_persist = persist_event_types.is_empty() || persist_event_types.contains(&event.event_type);
                 if should_persist {
                     if let Err(e) = ingest_queue.push(event.clone()) {
                         warn!("推送事件到摄入队列失败: {}", e);
@@ -397,9 +412,7 @@ impl MonitorEngine {
 /// SysmonEvent → MonitorEvent 转换
 fn sysmon_to_monitor_event(event: &SysmonEvent) -> MonitorEvent {
     let key_field = match event.event_type {
-        irtool_sysmon::SysmonEventType::Dns | irtool_sysmon::SysmonEventType::DnsClient => {
-            event.query_name.clone()
-        }
+        irtool_sysmon::SysmonEventType::Dns | irtool_sysmon::SysmonEventType::DnsClient => event.query_name.clone(),
         irtool_sysmon::SysmonEventType::NetworkConnect => {
             format!("{}:{}", event.destination_ip, event.destination_port)
         }
@@ -420,9 +433,7 @@ fn sysmon_to_monitor_event(event: &SysmonEvent) -> MonitorEvent {
         _ => format!("unknown_{}", event.event_id),
     };
 
-    let timestamp = chrono::DateTime::parse_from_rfc3339(
-        &event.timestamp.replace('Z', "+00:00")
-    )
+    let timestamp = chrono::DateTime::parse_from_rfc3339(&event.timestamp.replace('Z', "+00:00"))
         .map(|dt| dt.timestamp_millis())
         .unwrap_or((event.timestamp_epoch * 1000.0) as i64);
 

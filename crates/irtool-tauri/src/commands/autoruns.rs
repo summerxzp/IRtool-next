@@ -69,23 +69,17 @@ pub async fn cmd_autoruns_scan(
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     match app_for_icon.get_webview_window("main") {
-                        Some(window) => {
-                            match app_for_icon.default_window_icon() {
-                                Some(icon) => {
-                                    tracing::info!(
-                                        "autoruns re-applying window icon ({}x{})",
-                                        icon.width(),
-                                        icon.height()
-                                    );
-                                    if let Err(e) = window.set_icon(icon.clone()) {
-                                        tracing::warn!("autoruns set_icon failed: {}", e);
-                                    }
-                                }
-                                None => {
-                                    tracing::warn!("autoruns default_window_icon() returned None");
+                        Some(window) => match app_for_icon.default_window_icon() {
+                            Some(icon) => {
+                                tracing::info!("autoruns re-applying window icon ({}x{})", icon.width(), icon.height());
+                                if let Err(e) = window.set_icon(icon.clone()) {
+                                    tracing::warn!("autoruns set_icon failed: {}", e);
                                 }
                             }
-                        }
+                            None => {
+                                tracing::warn!("autoruns default_window_icon() returned None");
+                            }
+                        },
                         None => {
                             tracing::warn!("autoruns get_webview_window(\"main\") returned None");
                         }
@@ -180,11 +174,9 @@ pub async fn cmd_autoruns_delete_entry(state: State<'_, AppState>, entry_id: u64
         item.location
     );
 
-    let result = tokio::task::spawn_blocking(move || {
-        match scanner_clone.as_ref() {
-            Some(s) => s.delete_entry(&item),
-            None => Err(IrError::FeatureDisabled("autoruns scanner not available".into())),
-        }
+    let result = tokio::task::spawn_blocking(move || match scanner_clone.as_ref() {
+        Some(s) => s.delete_entry(&item),
+        None => Err(IrError::FeatureDisabled("autoruns scanner not available".into())),
     })
     .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
@@ -221,11 +213,9 @@ pub async fn cmd_autoruns_calculate_hash(state: State<'_, AppState>, entry_id: u
         .as_deref()
         .ok_or_else(|| IrError::Io("no image path".into()))?;
     let path = PathBuf::from(path_str);
-    let (md5, sha256) = tokio::task::spawn_blocking(move || {
-        irtool_autoruns::AutorunsScanner::calculate_hash(&path)
-    })
-    .await
-    .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
+    let (md5, sha256) = tokio::task::spawn_blocking(move || irtool_autoruns::AutorunsScanner::calculate_hash(&path))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
     state.autoruns_store.update_hash(entry_id, md5, sha256);
     state
         .autoruns_store

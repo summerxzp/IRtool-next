@@ -10,11 +10,7 @@ use tracing::trace;
 /// Returns a `ProcessChain` with nodes ordered [target, parent, grandparent, ..., root].
 pub fn get_process_chain(pid: u32) -> Result<ProcessChain, IrError> {
     let snap = take_snapshot()?;
-    let by_pid: HashMap<u32, (u32, String)> = snap
-        .processes
-        .into_iter()
-        .map(|p| (p.pid, (p.ppid, p.name)))
-        .collect();
+    let by_pid: HashMap<u32, (u32, String)> = snap.processes.into_iter().map(|p| (p.pid, (p.ppid, p.name))).collect();
 
     let mut nodes = Vec::new();
     let mut current_pid = pid;
@@ -66,11 +62,11 @@ pub fn get_process_chain(pid: u32) -> Result<ProcessChain, IrError> {
 /// Query the full executable path for a process via OpenProcess + QueryFullProcessImageNameW.
 #[cfg(windows)]
 fn query_exe_path(pid: u32) -> Option<String> {
+    use windows::core::PWSTR;
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
     };
-    use windows::core::PWSTR;
 
     if pid == 0 || pid == 4 {
         return None;
@@ -84,8 +80,7 @@ fn query_exe_path(pid: u32) -> Option<String> {
 
         let mut buf = [0u16; 1024];
         let mut size = buf.len() as u32;
-        let result =
-            QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut size);
+        let result = QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut size);
 
         let _ = CloseHandle(handle);
 
@@ -106,10 +101,8 @@ fn query_exe_path(_pid: u32) -> Option<String> {
 #[cfg(windows)]
 fn query_create_time(pid: u32) -> Option<String> {
     use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Threading::{
-        OpenProcess, GetProcessTimes, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
     use windows::Win32::Foundation::FILETIME;
+    use windows::Win32::System::Threading::{GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
     if pid == 0 || pid == 4 {
         return None;

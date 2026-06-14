@@ -3,8 +3,7 @@ use crate::state::AppState;
 use irtool_core::IrError;
 use irtool_monitor::{EventSource, MonitorEvent};
 use irtool_net_monitor::{
-    kill_process, CmdlineEnricher, CmdlineResult, CmdlineStatus, NetCollector, NetConn,
-    RetentionPolicy,
+    kill_process, CmdlineEnricher, CmdlineResult, CmdlineStatus, NetCollector, NetConn, RetentionPolicy,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};

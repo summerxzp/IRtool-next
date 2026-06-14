@@ -18,7 +18,11 @@ impl SysmonConfigManager {
         let exe = sysmon_exe_path.unwrap_or_else(|| find_sysmon_exe(app_dir));
         let cfg = config_path.unwrap_or_else(|| app_dir.join("config").join("sysmon.xml"));
         let marker = app_dir.join(".sysmon_started_by_irtool");
-        Self { sysmon_exe_path: exe, config_path: cfg, marker_file: marker }
+        Self {
+            sysmon_exe_path: exe,
+            config_path: cfg,
+            marker_file: marker,
+        }
     }
 
     #[cfg(windows)]
@@ -26,23 +30,33 @@ impl SysmonConfigManager {
         is_service_installed(SYSMON_SERVICE_NAME) || is_service_installed(SYSMON_SERVICE_NAME_ALT)
     }
     #[cfg(not(windows))]
-    pub fn is_installed(&self) -> bool { false }
+    pub fn is_installed(&self) -> bool {
+        false
+    }
 
     #[cfg(windows)]
     pub fn is_running(&self) -> bool {
         is_service_running(SYSMON_SERVICE_NAME) || is_service_running(SYSMON_SERVICE_NAME_ALT)
     }
     #[cfg(not(windows))]
-    pub fn is_running(&self) -> bool { false }
+    pub fn is_running(&self) -> bool {
+        false
+    }
 
     #[cfg(windows)]
     pub fn get_service_name(&self) -> Option<String> {
-        if is_service_installed(SYSMON_SERVICE_NAME) { Some(SYSMON_SERVICE_NAME.to_string()) }
-        else if is_service_installed(SYSMON_SERVICE_NAME_ALT) { Some(SYSMON_SERVICE_NAME_ALT.to_string()) }
-        else { None }
+        if is_service_installed(SYSMON_SERVICE_NAME) {
+            Some(SYSMON_SERVICE_NAME.to_string())
+        } else if is_service_installed(SYSMON_SERVICE_NAME_ALT) {
+            Some(SYSMON_SERVICE_NAME_ALT.to_string())
+        } else {
+            None
+        }
     }
     #[cfg(not(windows))]
-    pub fn get_service_name(&self) -> Option<String> { None }
+    pub fn get_service_name(&self) -> Option<String> {
+        None
+    }
 
     /// Ensure the config directory exists and generate a default config if missing.
     pub fn ensure_config_dir_and_default(&self) -> Result<(), IrError> {
@@ -51,10 +65,7 @@ impl SysmonConfigManager {
             fs::create_dir_all(parent).map_err(|e| IrError::Io(e.to_string()))?;
         }
         if !self.config_path.exists() {
-            self.generate_config(&[
-                "dns".to_string(),
-                "network_connect".to_string(),
-            ])?;
+            self.generate_config(&["dns".to_string(), "network_connect".to_string()])?;
         }
         Ok(())
     }
@@ -81,7 +92,11 @@ impl SysmonConfigManager {
                 warn!("Failed to copy config to temp: {}, using original path", e);
                 return short;
             }
-            info!("Copied sysmon config to temp path: {} -> {}", self.config_path.display(), temp_config.display());
+            info!(
+                "Copied sysmon config to temp path: {} -> {}",
+                self.config_path.display(),
+                temp_config.display()
+            );
             return temp_config;
         }
 
@@ -103,7 +118,11 @@ impl SysmonConfigManager {
         }
 
         let config_path_for_sysmon = self.safe_config_path_for_sysmon();
-        info!("Using path for sysmon config: {} -> {}", self.config_path.display(), config_path_for_sysmon.display());
+        info!(
+            "Using path for sysmon config: {} -> {}",
+            self.config_path.display(),
+            config_path_for_sysmon.display()
+        );
 
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
@@ -111,7 +130,9 @@ impl SysmonConfigManager {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
-        if accept_eula { cmd.arg("-accepteula"); }
+        if accept_eula {
+            cmd.arg("-accepteula");
+        }
         cmd.arg("-i").arg(&config_path_for_sysmon);
 
         info!("Installing Sysmon: {:?}", cmd);
@@ -130,13 +151,20 @@ impl SysmonConfigManager {
                         return self.update_config();
                     }
                     // "wevtutil"/"manifest" error → retry once
-                    if stdout.contains("wevtutil") || stderr.contains("wevtutil")
-                        || stdout.to_lowercase().contains("manifest") || stderr.to_lowercase().contains("manifest") {
+                    if stdout.contains("wevtutil")
+                        || stderr.contains("wevtutil")
+                        || stdout.to_lowercase().contains("manifest")
+                        || stderr.to_lowercase().contains("manifest")
+                    {
                         warn!("Sysmon install hit wevtutil/manifest error, retrying after delay...");
                         std::thread::sleep(std::time::Duration::from_secs(2));
                         return self.run_install_cmd(accept_eula);
                     }
-                    let msg = if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() };
+                    let msg = if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        stderr.to_string()
+                    };
                     warn!("Sysmon install failed: {}", msg.trim());
                     Ok((false, format!("安装失败: {}", msg.trim())))
                 }
@@ -153,7 +181,9 @@ impl SysmonConfigManager {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        if accept_eula { cmd.arg("-accepteula"); }
+        if accept_eula {
+            cmd.arg("-accepteula");
+        }
         cmd.arg("-i").arg(&config_path_for_sysmon);
 
         match cmd.output() {
@@ -167,7 +197,11 @@ impl SysmonConfigManager {
                     if stdout.contains("Usage") || stderr.contains("Usage") {
                         return self.update_config();
                     }
-                    let msg = if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() };
+                    let msg = if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        stderr.to_string()
+                    };
                     Ok((false, format!("安装失败: {}", msg.trim())))
                 }
             }
@@ -218,7 +252,11 @@ impl SysmonConfigManager {
         info!("Updating Sysmon config, path: {}", self.config_path.display());
 
         let config_path_for_sysmon = self.safe_config_path_for_sysmon();
-        info!("Using path for sysmon config: {} -> {}", self.config_path.display(), config_path_for_sysmon.display());
+        info!(
+            "Using path for sysmon config: {} -> {}",
+            self.config_path.display(),
+            config_path_for_sysmon.display()
+        );
 
         let mut cmd = std::process::Command::new(&self.sysmon_exe_path);
         #[cfg(windows)]
@@ -324,29 +362,48 @@ impl SysmonConfigManager {
     /// Generate Sysmon XML config from enabled events list and write to disk.
     pub fn generate_config(&self, enabled_events: &[String]) -> Result<String, IrError> {
         let all_tags = [
-            ("ProcessCreate", "进程创建"), ("FileCreateTime", "文件创建时间修改"),
-            ("NetworkConnect", "网络连接"), ("ProcessTerminate", "进程终止"),
-            ("DriverLoad", "驱动加载"), ("ImageLoad", "DLL加载"),
-            ("CreateRemoteThread", "远程线程创建"), ("RawAccessRead", "原始磁盘访问"),
-            ("ProcessAccess", "进程访问"), ("FileCreate", "文件创建"),
-            ("RegistryEvent", "注册表事件"), ("FileCreateStreamHash", "文件流哈希"),
-            ("PipeEvent", "管道事件"), ("WmiEvent", "WMI事件"),
-            ("DnsQuery", "DNS查询"), ("FileDelete", "文件删除"),
-            ("ClipboardChange", "剪贴板变化"), ("ProcessTampering", "进程篡改"),
+            ("ProcessCreate", "进程创建"),
+            ("FileCreateTime", "文件创建时间修改"),
+            ("NetworkConnect", "网络连接"),
+            ("ProcessTerminate", "进程终止"),
+            ("DriverLoad", "驱动加载"),
+            ("ImageLoad", "DLL加载"),
+            ("CreateRemoteThread", "远程线程创建"),
+            ("RawAccessRead", "原始磁盘访问"),
+            ("ProcessAccess", "进程访问"),
+            ("FileCreate", "文件创建"),
+            ("RegistryEvent", "注册表事件"),
+            ("FileCreateStreamHash", "文件流哈希"),
+            ("PipeEvent", "管道事件"),
+            ("WmiEvent", "WMI事件"),
+            ("DnsQuery", "DNS查询"),
+            ("FileDelete", "文件删除"),
+            ("ClipboardChange", "剪贴板变化"),
+            ("ProcessTampering", "进程篡改"),
             ("FileDeleteDetected", "文件删除检测"),
         ];
 
         let key_to_xml: &[(&str, &str)] = &[
-            ("network_connect", "NetworkConnect"), ("dns", "DnsQuery"),
-            ("remote_thread", "CreateRemoteThread"), ("process_create", "ProcessCreate"),
-            ("process_terminate", "ProcessTerminate"), ("file_create", "FileCreate"),
-            ("file_create_dll", "FileCreate"), ("registry_event", "RegistryEvent"),
-            ("process_access", "ProcessAccess"), ("driver_load", "DriverLoad"),
-            ("image_load", "ImageLoad"), ("raw_access_read", "RawAccessRead"),
-            ("file_create_stream_hash", "FileCreateStreamHash"), ("pipe_event", "PipeEvent"),
-            ("wmi_event", "WmiEvent"), ("file_delete", "FileDelete"),
-            ("clipboard_change", "ClipboardChange"), ("process_tampering", "ProcessTampering"),
-            ("file_delete_detected", "FileDeleteDetected"), ("file_create_time", "FileCreateTime"),
+            ("network_connect", "NetworkConnect"),
+            ("dns", "DnsQuery"),
+            ("remote_thread", "CreateRemoteThread"),
+            ("process_create", "ProcessCreate"),
+            ("process_terminate", "ProcessTerminate"),
+            ("file_create", "FileCreate"),
+            ("file_create_dll", "FileCreate"),
+            ("registry_event", "RegistryEvent"),
+            ("process_access", "ProcessAccess"),
+            ("driver_load", "DriverLoad"),
+            ("image_load", "ImageLoad"),
+            ("raw_access_read", "RawAccessRead"),
+            ("file_create_stream_hash", "FileCreateStreamHash"),
+            ("pipe_event", "PipeEvent"),
+            ("wmi_event", "WmiEvent"),
+            ("file_delete", "FileDelete"),
+            ("clipboard_change", "ClipboardChange"),
+            ("process_tampering", "ProcessTampering"),
+            ("file_delete_detected", "FileDeleteDetected"),
+            ("file_create_time", "FileCreateTime"),
         ];
 
         let mut enabled_tags = std::collections::HashSet::new();
@@ -391,21 +448,32 @@ impl SysmonConfigManager {
         Ok(xml)
     }
 
-    fn mark_started_by_irtool(&self) { let _ = std::fs::write(&self.marker_file, std::process::id().to_string()); }
-    fn clear_started_marker(&self) { let _ = std::fs::remove_file(&self.marker_file); }
-    fn was_started_by_irtool(&self) -> bool { self.marker_file.exists() }
+    fn mark_started_by_irtool(&self) {
+        let _ = std::fs::write(&self.marker_file, std::process::id().to_string());
+    }
+    fn clear_started_marker(&self) {
+        let _ = std::fs::remove_file(&self.marker_file);
+    }
+    fn was_started_by_irtool(&self) -> bool {
+        self.marker_file.exists()
+    }
     fn is_current_config_managed_by_irtool(&self) -> bool {
         std::fs::read_to_string(&self.config_path)
-            .map(|c| c.contains("<!-- IRtool: Managed by IRtool")).unwrap_or(false)
+            .map(|c| c.contains("<!-- IRtool: Managed by IRtool"))
+            .unwrap_or(false)
     }
 }
 
 #[cfg(windows)]
 fn to_short_path(path: &Path) -> PathBuf {
-    use windows::Win32::Storage::FileSystem::GetShortPathNameW;
     use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetShortPathNameW;
     unsafe {
-        let wide: Vec<u16> = path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+        let wide: Vec<u16> = path
+            .to_string_lossy()
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
         // First call to get required buffer size
         let len = GetShortPathNameW(PCWSTR(wide.as_ptr()), None);
         if len == 0 {
@@ -431,21 +499,31 @@ fn find_sysmon_exe(app_dir: &Path) -> PathBuf {
     for name in &possible_names {
         // New managed layout: tools/sysmon/Sysmon64.exe
         let managed = app_dir.join("tools").join("sysmon").join(name);
-        if managed.exists() { return managed; }
+        if managed.exists() {
+            return managed;
+        }
         // Legacy flat layout: tools/Sysmon64.exe
         let flat = app_dir.join("tools").join(name);
-        if flat.exists() { return flat; }
+        if flat.exists() {
+            return flat;
+        }
     }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         for name in &possible_names {
-            if let Ok(output) = std::process::Command::new("where").arg(name).creation_flags(0x08000000).output() {
+            if let Ok(output) = std::process::Command::new("where")
+                .arg(name)
+                .creation_flags(0x08000000)
+                .output()
+            {
                 if output.status.success() {
                     let path = String::from_utf8_lossy(&output.stdout);
                     if let Some(first) = path.lines().next() {
                         let trimmed = first.trim();
-                        if !trimmed.is_empty() { return PathBuf::from(trimmed); }
+                        if !trimmed.is_empty() {
+                            return PathBuf::from(trimmed);
+                        }
                     }
                 }
             }
@@ -460,19 +538,27 @@ fn find_sysmon_exe(app_dir: &Path) -> PathBuf {
 
 #[cfg(windows)]
 fn is_service_installed(name: &str) -> bool {
-    use windows::Win32::System::Services::*;
     use windows::core::*;
+    use windows::Win32::System::Services::*;
     unsafe {
-        let manager = match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) { Ok(m) => m, Err(_) => return false };
+        let manager = match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) {
+            Ok(m) => m,
+            Err(_) => return false,
+        };
         let service = match OpenServiceW(manager, &HSTRING::from(name), SERVICE_QUERY_STATUS) {
             Ok(s) => s,
-            Err(_) => { let _ = CloseServiceHandle(manager); return false }
+            Err(_) => {
+                let _ = CloseServiceHandle(manager);
+                return false;
+            }
         };
         let mut status = SERVICE_STATUS::default();
         let query_ok = QueryServiceStatus(service, &mut status).is_ok();
         let _ = CloseServiceHandle(service);
         let _ = CloseServiceHandle(manager);
-        if !query_ok { return false; }
+        if !query_ok {
+            return false;
+        }
         // Service marked for deletion (state 0x100 = SERVICE_DELETE_PENDING) is not considered "installed"
         status.dwCurrentState.0 != 0x100
     }
@@ -480,12 +566,19 @@ fn is_service_installed(name: &str) -> bool {
 
 #[cfg(windows)]
 fn is_service_running(name: &str) -> bool {
-    use windows::Win32::System::Services::*;
     use windows::core::*;
+    use windows::Win32::System::Services::*;
     unsafe {
-        let manager = match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) { Ok(m) => m, Err(_) => return false };
+        let manager = match OpenSCManagerW(None, None, SC_MANAGER_CONNECT) {
+            Ok(m) => m,
+            Err(_) => return false,
+        };
         let service = match OpenServiceW(manager, &HSTRING::from(name), SERVICE_QUERY_STATUS) {
-            Ok(s) => s, Err(_) => { let _ = CloseServiceHandle(manager); return false }
+            Ok(s) => s,
+            Err(_) => {
+                let _ = CloseServiceHandle(manager);
+                return false;
+            }
         };
         let mut status = SERVICE_STATUS::default();
         let result = QueryServiceStatus(service, &mut status);

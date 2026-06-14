@@ -60,10 +60,7 @@ fn row_to_event(row: &rusqlite::Row) -> rusqlite::Result<MonitorEvent> {
 }
 
 /// 分页搜索事件，返回总数 + 当前页数据
-pub fn search_events_page(
-    conn: &Mutex<Connection>,
-    query: &EventQuery,
-) -> Result<EventPage, IrError> {
+pub fn search_events_page(conn: &Mutex<Connection>, query: &EventQuery) -> Result<EventPage, IrError> {
     let conn = conn.lock().unwrap();
     let (where_clause, params) = build_where_clause(query);
 
@@ -71,9 +68,11 @@ pub fn search_events_page(
     let count_sql = format!("SELECT COUNT(*) FROM events {}", where_clause);
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let total: u64 = conn
-        .query_row(&count_sql, rusqlite::params_from_iter(param_refs.iter().copied()), |row| {
-            row.get::<_, i64>(0)
-        })
+        .query_row(
+            &count_sql,
+            rusqlite::params_from_iter(param_refs.iter().copied()),
+            |row| row.get::<_, i64>(0),
+        )
         .map(|v| v as u64)
         .map_err(|e| IrError::Internal(format!("查询事件总数失败: {}", e)))?;
 

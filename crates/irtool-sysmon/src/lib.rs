@@ -7,7 +7,7 @@ pub mod parser;
 pub mod reader;
 
 pub use config::SysmonConfigManager;
-pub use dns_client::{DnsClientLogManager, parse_dns_client_event};
+pub use dns_client::{parse_dns_client_event, DnsClientLogManager};
 pub use models::*;
 pub use parser::{parse_event, parse_event_with_record_id};
 pub use reader::SysmonReader;

@@ -298,27 +298,41 @@ pub fn find_sigcheck() -> Result<PathBuf, IrError> {
         if let Some(parent) = exe_dir.parent() {
             let tools = parent.join("tools");
             let managed = tools.join("sigcheck").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
+            if flat.exists() {
+                return Ok(flat);
+            }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
         let tools = cwd.join("tools");
         let managed = tools.join("sigcheck").join(exe_name);
-        if managed.exists() { return Ok(managed); }
+        if managed.exists() {
+            return Ok(managed);
+        }
         let flat = tools.join(exe_name);
-        if flat.exists() { return Ok(flat); }
+        if flat.exists() {
+            return Ok(flat);
+        }
     }
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let mut dir = PathBuf::from(&manifest_dir);
         loop {
             let tools = dir.join("tools");
             let managed = tools.join("sigcheck").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
-            if !dir.pop() { break; }
+            if flat.exists() {
+                return Ok(flat);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
@@ -326,13 +340,21 @@ pub fn find_sigcheck() -> Result<PathBuf, IrError> {
         loop {
             let tools = dir.join("tools");
             let managed = tools.join("sigcheck").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
-            if !dir.pop() { break; }
+            if flat.exists() {
+                return Ok(flat);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
-    Err(IrError::Io("sigcheck64.exe not found. 请在设置中下载或手动导入工具。".into()))
+    Err(IrError::Io(
+        "sigcheck64.exe not found. 请在设置中下载或手动导入工具。".into(),
+    ))
 }
 
 /// Open file in Windows Explorer (select the file)
@@ -397,18 +419,26 @@ fn find_autorunsc() -> Result<PathBuf, IrError> {
         if let Some(parent) = exe_dir.parent() {
             let tools = parent.join("tools");
             let managed = tools.join("autoruns").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
+            if flat.exists() {
+                return Ok(flat);
+            }
         }
     }
 
     if let Ok(cwd) = std::env::current_dir() {
         let tools = cwd.join("tools");
         let managed = tools.join("autoruns").join(exe_name);
-        if managed.exists() { return Ok(managed); }
+        if managed.exists() {
+            return Ok(managed);
+        }
         let flat = tools.join(exe_name);
-        if flat.exists() { return Ok(flat); }
+        if flat.exists() {
+            return Ok(flat);
+        }
     }
 
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
@@ -416,10 +446,16 @@ fn find_autorunsc() -> Result<PathBuf, IrError> {
         loop {
             let tools = dir.join("tools");
             let managed = tools.join("autoruns").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
-            if !dir.pop() { break; }
+            if flat.exists() {
+                return Ok(flat);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
 
@@ -428,14 +464,22 @@ fn find_autorunsc() -> Result<PathBuf, IrError> {
         loop {
             let tools = dir.join("tools");
             let managed = tools.join("autoruns").join(exe_name);
-            if managed.exists() { return Ok(managed); }
+            if managed.exists() {
+                return Ok(managed);
+            }
             let flat = tools.join(exe_name);
-            if flat.exists() { return Ok(flat); }
-            if !dir.pop() { break; }
+            if flat.exists() {
+                return Ok(flat);
+            }
+            if !dir.pop() {
+                break;
+            }
         }
     }
 
-    Err(IrError::Io("autorunsc64.exe not found. 请在设置中下载或手动导入工具。".into()))
+    Err(IrError::Io(
+        "autorunsc64.exe not found. 请在设置中下载或手动导入工具。".into(),
+    ))
 }
 
 fn check_files_batch(entries: &[RawEntry]) -> std::collections::HashMap<String, FileInfo> {

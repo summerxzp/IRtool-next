@@ -85,9 +85,12 @@ pub async fn cmd_tools_download(
         }
     }
 
-    let _ = app.emit("evt_tools_download_complete", serde_json::json!({
-        "errors": errors.len(),
-    }));
+    let _ = app.emit(
+        "evt_tools_download_complete",
+        serde_json::json!({
+            "errors": errors.len(),
+        }),
+    );
 
     Ok(())
 }

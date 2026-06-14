@@ -17,9 +17,8 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
     if !path.exists() {
         return Ok(MonitorConfig::default());
     }
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| IrError::Io(e.to_string()))?;
-    
+    let content = std::fs::read_to_string(path).map_err(|e| IrError::Io(e.to_string()))?;
+
     // 尝试解析为新格式
     let config: MonitorConfig = match toml::from_str(&content) {
         Ok(cfg) => cfg,
@@ -34,7 +33,7 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
                 pub actions: Vec<NotifyAction>,
                 pub enabled: bool,
             }
-            
+
             #[derive(serde::Deserialize)]
             struct OldMonitorConfig {
                 pub background_mode: bool,
@@ -49,46 +48,52 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
                 #[serde(default = "default_max_size_mb")]
                 pub max_size_mb: u32,
             }
-            
-            fn default_max_size_mb() -> u32 { 512 }
-            
-            let old_config: OldMonitorConfig = toml::from_str(&content)
-                .map_err(|e| IrError::Parse(format!("监控配置解析失败: {}", e)))?;
-            
+
+            fn default_max_size_mb() -> u32 {
+                512
+            }
+
+            let old_config: OldMonitorConfig =
+                toml::from_str(&content).map_err(|e| IrError::Parse(format!("监控配置解析失败: {}", e)))?;
+
             // 迁移规则
             let mut popup_rule_ids = Vec::new();
             let mut feishu_rule_ids = Vec::new();
             let mut feishu_webhook_url = String::new();
-            
-            let rules: Vec<MonitorRule> = old_config.rules.into_iter().map(|old_rule| {
-                let id = generate_rule_id(&old_rule.name);
-                
-                // 检查 actions 并迁移
-                for action in &old_rule.actions {
-                    match action {
-                        NotifyAction::Popup => {
-                            popup_rule_ids.push(id.clone());
-                        }
-                        NotifyAction::Feishu { webhook_url } => {
-                            if !feishu_webhook_url.is_empty() && feishu_webhook_url != *webhook_url {
-                                // 如果有多个不同的 webhook，保留第一个
-                            } else if feishu_webhook_url.is_empty() {
-                                feishu_webhook_url = webhook_url.clone();
+
+            let rules: Vec<MonitorRule> = old_config
+                .rules
+                .into_iter()
+                .map(|old_rule| {
+                    let id = generate_rule_id(&old_rule.name);
+
+                    // 检查 actions 并迁移
+                    for action in &old_rule.actions {
+                        match action {
+                            NotifyAction::Popup => {
+                                popup_rule_ids.push(id.clone());
                             }
-                            feishu_rule_ids.push(id.clone());
+                            NotifyAction::Feishu { webhook_url } => {
+                                if !feishu_webhook_url.is_empty() && feishu_webhook_url != *webhook_url {
+                                    // 如果有多个不同的 webhook，保留第一个
+                                } else if feishu_webhook_url.is_empty() {
+                                    feishu_webhook_url = webhook_url.clone();
+                                }
+                                feishu_rule_ids.push(id.clone());
+                            }
                         }
                     }
-                }
-                
-                MonitorRule {
-                    id,
-                    name: old_rule.name,
-                    targets: old_rule.targets,
-                    event_types: old_rule.event_types,
-                    enabled: old_rule.enabled,
-                }
-            }).collect();
-            
+
+                    MonitorRule {
+                        id,
+                        name: old_rule.name,
+                        targets: old_rule.targets,
+                        event_types: old_rule.event_types,
+                        enabled: old_rule.enabled,
+                    }
+                })
+                .collect();
+
             MonitorConfig {
                 background_mode: old_config.background_mode,
                 persist_event_types: old_config.persist_event_types,
@@ -110,21 +115,18 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
             }
         }
     };
-    
+
     // 应用迁移（处理没有 id 的规则）
     let config = migrate_config(config);
-    
+
     Ok(config)
 }
 
 pub fn save_config(path: &Path, config: &MonitorConfig) -> Result<(), IrError> {
-    let content = toml::to_string_pretty(config)
-        .map_err(|e| IrError::Internal(format!("序列化配置失败: {}", e)))?;
+    let content = toml::to_string_pretty(config).map_err(|e| IrError::Internal(format!("序列化配置失败: {}", e)))?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| IrError::Io(e.to_string()))?;
+        std::fs::create_dir_all(parent).map_err(|e| IrError::Io(e.to_string()))?;
     }
-    std::fs::write(path, content)
-        .map_err(|e| IrError::Io(e.to_string()))?;
+    std::fs::write(path, content).map_err(|e| IrError::Io(e.to_string()))?;
     Ok(())
 }

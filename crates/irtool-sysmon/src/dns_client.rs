@@ -13,24 +13,20 @@ pub struct DnsClientLogManager {
 
 impl DnsClientLogManager {
     pub fn new() -> Self {
-        Self {
-            was_enabled: false,
-        }
+        Self { was_enabled: false }
     }
 
     #[cfg(windows)]
     pub fn enable(&mut self) -> Result<(), IrError> {
         info!("Checking DNS Client event log state...");
-        
-        let check_result = Command::new("wevtutil")
-            .args(["get-log", DNS_CLIENT_CHANNEL])
-            .output();
-        
+
+        let check_result = Command::new("wevtutil").args(["get-log", DNS_CLIENT_CHANNEL]).output();
+
         match check_result {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 self.was_enabled = stdout.contains("enabled: true");
-                
+
                 if self.was_enabled {
                     info!("DNS Client event log is already enabled");
                     return Ok(());
@@ -40,13 +36,13 @@ impl DnsClientLogManager {
                 warn!("Failed to check DNS Client log state: {}", e);
             }
         }
-        
+
         info!("Enabling DNS Client event log...");
-        
+
         let result = Command::new("wevtutil")
             .args(["sl", DNS_CLIENT_CHANNEL, "/e:true"])
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -75,13 +71,13 @@ impl DnsClientLogManager {
             info!("DNS Client event log was already enabled, no need to restore");
             return Ok(());
         }
-        
+
         info!("Restoring DNS Client event log state...");
-        
+
         let result = Command::new("wevtutil")
             .args(["sl", DNS_CLIENT_CHANNEL, "/e:false"])
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -139,33 +135,29 @@ fn parse_timestamp(time_str: &str) -> (String, f64, bool) {
 
 pub fn parse_dns_client_event(raw_data: &HashMap<String, String>) -> Option<SysmonEvent> {
     let event_id = raw_data.get("EventID").and_then(|s| s.parse::<u32>().ok())?;
-    
+
     if event_id != DNS_CLIENT_EVENT_ID {
         return None;
     }
-    
+
     let get_opt = |key: &str| raw_data.get(key).cloned();
     let get_u32_opt = |key: &str| raw_data.get(key).and_then(|v| v.parse().ok());
-    
-    let query_name = get_opt("QueryName")
-        .or_else(|| get_opt("QNAME"))
-        .unwrap_or_default();
-    
-    let process_path = get_opt("ProcessName")
-        .or_else(|| get_opt("Image"))
-        .unwrap_or_default();
+
+    let query_name = get_opt("QueryName").or_else(|| get_opt("QNAME")).unwrap_or_default();
+
+    let process_path = get_opt("ProcessName").or_else(|| get_opt("Image")).unwrap_or_default();
     let process_name = crate::models::extract_process_name(&process_path);
-    
+
     let timestamp_str = get_opt("TimeCreated")
         .or_else(|| get_opt("UtcTime"))
         .unwrap_or_default();
-    
+
     let (timestamp, timestamp_epoch, timestamp_valid) = parse_timestamp(&timestamp_str);
-    
+
     let mut raw_data_extended = HashMap::new();
     raw_data_extended.insert("QueryName".to_string(), query_name.clone());
     raw_data_extended.extend(raw_data.clone());
-    
+
     Some(SysmonEvent {
         event_id: 3008, // Windows DNS Client event ID, 区别于 Sysmon DnsQuery (22)
         event_type: SysmonEventType::DnsClient,
@@ -174,9 +166,7 @@ pub fn parse_dns_client_event(raw_data: &HashMap<String, String>) -> Option<Sysm
         timestamp_valid,
         record_id: None,
         raw_data: raw_data_extended,
-        process_id: get_u32_opt("ProcessId")
-            .or_else(|| get_u32_opt("PID"))
-            .unwrap_or(0),
+        process_id: get_u32_opt("ProcessId").or_else(|| get_u32_opt("PID")).unwrap_or(0),
         process_name,
         process_path,
         user: String::new(),
@@ -209,7 +199,7 @@ pub fn parse_dns_client_event(raw_data: &HashMap<String, String>) -> Option<Sysm
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     #[cfg(windows)]
     fn test_dns_client_manager() {
@@ -217,7 +207,7 @@ mod tests {
         // 测试不会实际修改系统状态
         assert!(!manager.was_enabled);
     }
-    
+
     #[test]
     fn test_parse_dns_client_event() {
         let mut raw_data = HashMap::new();
@@ -227,7 +217,7 @@ mod tests {
         raw_data.insert("ProcessId".to_string(), "1234".to_string());
         raw_data.insert("Image".to_string(), "C:\\Windows\\System32\\nslookup.exe".to_string());
         raw_data.insert("TimeCreated".to_string(), "2024-01-15T10:30:00.000Z".to_string());
-        
+
         let event = parse_dns_client_event(&raw_data);
         assert!(event.is_some());
         let event = event.unwrap();

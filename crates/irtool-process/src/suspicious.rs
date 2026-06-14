@@ -80,10 +80,7 @@ mod tests {
 
     #[test]
     fn normal_path_is_clean() {
-        assert_eq!(
-            check_suspicious("notepad.exe", r"C:\Windows\notepad.exe"),
-            None
-        );
+        assert_eq!(check_suspicious("notepad.exe", r"C:\Windows\notepad.exe"), None);
     }
 
     #[test]

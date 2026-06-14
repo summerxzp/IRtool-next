@@ -4,8 +4,8 @@ use crate::parser;
 use irtool_core::IrError;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tracing::{info, warn};
 use tokio::sync::mpsc;
+use tracing::{info, warn};
 
 const SYSMON_CHANNEL: &str = "Microsoft-Windows-Sysmon/Operational";
 const DNS_CLIENT_CHANNEL: &str = "Microsoft-Windows-DNS-Client/Operational";
@@ -48,31 +48,21 @@ impl SysmonReader {
 
     /// Read existing (historical) events from the channel.
     #[cfg(windows)]
-    pub fn get_existing_events(
-        &self,
-        limit: u32,
-        enabled_event_ids: &[u32],
-    ) -> Result<Vec<SysmonEvent>, IrError> {
+    pub fn get_existing_events(&self, limit: u32, enabled_event_ids: &[u32]) -> Result<Vec<SysmonEvent>, IrError> {
         let mut all_events = Vec::new();
-        
+
         // Get Sysmon events
-        let sysmon_events = get_events_from_channel(
-            SYSMON_CHANNEL, 
-            enabled_event_ids, 
-            None, 
-            limit as usize, 
-            true
-        )?;
+        let sysmon_events = get_events_from_channel(SYSMON_CHANNEL, enabled_event_ids, None, limit as usize, true)?;
         all_events.extend(sysmon_events);
-        
+
         // If DNS Client is enabled, also get DNS Client events
         if enabled_event_ids.contains(&3008) {
             let dns_events = get_events_from_channel(
-                DNS_CLIENT_CHANNEL, 
+                DNS_CLIENT_CHANNEL,
                 &[3008], // DNS Client event ID
-                None, 
-                limit as usize, 
-                true
+                None,
+                limit as usize,
+                true,
             )?;
             // Convert DNS Client events to Sysmon format
             let converted_dns_events: Vec<SysmonEvent> = dns_events
@@ -81,22 +71,18 @@ impl SysmonReader {
                 .collect();
             all_events.extend(converted_dns_events);
         }
-        
+
         // Sort by timestamp
         all_events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-        
+
         // Take up to limit
         all_events.truncate(limit as usize);
-        
+
         Ok(all_events)
     }
 
     #[cfg(not(windows))]
-    pub fn get_existing_events(
-        &self,
-        _limit: u32,
-        _enabled_event_ids: &[u32],
-    ) -> Result<Vec<SysmonEvent>, IrError> {
+    pub fn get_existing_events(&self, _limit: u32, _enabled_event_ids: &[u32]) -> Result<Vec<SysmonEvent>, IrError> {
         Err(IrError::FeatureDisabled("sysmon requires Windows".into()))
     }
 
@@ -112,7 +98,7 @@ impl SysmonReader {
                 }
             }
         }
-        
+
         // Initialize DNS Client record ID if DNS Client is enabled
         if enabled_event_ids.contains(&3008) {
             if let Ok(events) = get_events_from_channel(DNS_CLIENT_CHANNEL, &[3008], None, 1, true) {
@@ -124,7 +110,7 @@ impl SysmonReader {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -135,25 +121,25 @@ impl SysmonReader {
 
     /// Poll for new events since last_record_id.
     #[cfg(windows)]
-    pub fn poll_new_events(
-        &self,
-        enabled_event_ids: &[u32],
-    ) -> Result<Vec<SysmonEvent>, IrError> {
+    pub fn poll_new_events(&self, enabled_event_ids: &[u32]) -> Result<Vec<SysmonEvent>, IrError> {
         let mut all_events = Vec::new();
-        
+
         // Poll Sysmon events
         let last_id = self.last_record_id.load(Ordering::SeqCst);
         match get_events_from_channel(
-            SYSMON_CHANNEL, 
-            enabled_event_ids, 
+            SYSMON_CHANNEL,
+            enabled_event_ids,
             if last_id > 0 { Some(last_id) } else { None },
             MAX_EVENTS_PER_POLL,
-            false
+            false,
         ) {
             Ok(mut events) => {
                 if events.len() >= MAX_EVENTS_PER_POLL {
                     self.backlog.fetch_add(1, Ordering::SeqCst);
-                    warn!("Sysmon poll hit batch limit of {}, backlog may exist", MAX_EVENTS_PER_POLL);
+                    warn!(
+                        "Sysmon poll hit batch limit of {}, backlog may exist",
+                        MAX_EVENTS_PER_POLL
+                    );
                 }
                 if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
                     self.last_record_id.store(max_id, Ordering::SeqCst);
@@ -164,21 +150,24 @@ impl SysmonReader {
                 warn!("Poll Sysmon events error: {}", e);
             }
         }
-        
+
         // Poll DNS Client events if DNS Client is enabled
         if enabled_event_ids.contains(&3008) {
             let last_dns_id = self.last_dns_record_id.load(Ordering::SeqCst);
             match get_events_from_channel(
-                DNS_CLIENT_CHANNEL, 
-                &[3008], 
+                DNS_CLIENT_CHANNEL,
+                &[3008],
                 if last_dns_id > 0 { Some(last_dns_id) } else { None },
                 MAX_EVENTS_PER_POLL,
-                false
+                false,
             ) {
                 Ok(events) => {
                     if events.len() >= MAX_EVENTS_PER_POLL {
                         self.backlog.fetch_add(1, Ordering::SeqCst);
-                        warn!("DNS Client poll hit batch limit of {}, backlog may exist", MAX_EVENTS_PER_POLL);
+                        warn!(
+                            "DNS Client poll hit batch limit of {}, backlog may exist",
+                            MAX_EVENTS_PER_POLL
+                        );
                     }
                     if let Some(max_id) = events.iter().filter_map(|e| e.record_id).max() {
                         self.last_dns_record_id.store(max_id, Ordering::SeqCst);
@@ -195,15 +184,12 @@ impl SysmonReader {
                 }
             }
         }
-        
+
         Ok(all_events)
     }
 
     #[cfg(not(windows))]
-    pub fn poll_new_events(
-        &self,
-        _enabled_event_ids: &[u32],
-    ) -> Result<Vec<SysmonEvent>, IrError> {
+    pub fn poll_new_events(&self, _enabled_event_ids: &[u32]) -> Result<Vec<SysmonEvent>, IrError> {
         Err(IrError::FeatureDisabled("sysmon requires Windows".into()))
     }
 
@@ -284,9 +270,7 @@ fn is_event_channel_available(channel_name: &str) -> bool {
 
     let channel = HSTRING::from(channel_name);
     let query = HSTRING::from("*");
-    unsafe {
-        EvtQuery(None, &channel, &query, EvtQueryChannelPath.0).is_ok()
-    }
+    unsafe { EvtQuery(None, &channel, &query, EvtQueryChannelPath.0).is_ok() }
 }
 
 #[cfg(windows)]
@@ -298,7 +282,9 @@ fn get_events_from_channel(
     reverse: bool,
 ) -> Result<Vec<SysmonEvent>, IrError> {
     use windows::core::HSTRING;
-    use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection, EvtQueryReverseDirection};
+    use windows::Win32::System::EventLog::{
+        EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection, EvtQueryReverseDirection,
+    };
 
     let xpath = build_xpath_query(event_ids, after_record_id);
     let channel = HSTRING::from(channel_name);
@@ -311,13 +297,8 @@ fn get_events_from_channel(
     };
 
     let result_set = unsafe {
-        EvtQuery(
-            None,
-            &channel,
-            &query_str,
-            flags,
-        )
-        .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
+        EvtQuery(None, &channel, &query_str, flags)
+            .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
     };
 
     let mut events = read_events_from_result_set(&result_set, max_events)?;
@@ -330,7 +311,7 @@ fn get_events_from_channel(
     if reverse {
         events.reverse();
     }
-    
+
     Ok(events)
 }
 
@@ -347,9 +328,7 @@ fn read_events_from_result_set(
 
     loop {
         let mut returned: u32 = 0;
-        let result = unsafe {
-            EvtNext(*result_set, &mut event_handles, 0, 0, &mut returned)
-        };
+        let result = unsafe { EvtNext(*result_set, &mut event_handles, 0, 0, &mut returned) };
 
         if returned == 0 {
             break;
@@ -366,16 +345,14 @@ fn read_events_from_result_set(
             }
 
             match render_event_xml(&handle) {
-                Ok(xml) => {
-                    match parser::parse_event_with_record_id(&xml) {
-                        Ok((event, _record_id)) => {
-                            all_events.push(event);
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse event XML: {}", e);
-                        }
+                Ok(xml) => match parser::parse_event_with_record_id(&xml) {
+                    Ok((event, _record_id)) => {
+                        all_events.push(event);
                     }
-                }
+                    Err(e) => {
+                        warn!("Failed to parse event XML: {}", e);
+                    }
+                },
                 Err(e) => {
                     warn!("Failed to render event: {}", e);
                 }
@@ -398,9 +375,7 @@ fn read_events_from_result_set(
 
 /// Render a single event handle to its XML representation.
 #[cfg(windows)]
-fn render_event_xml(
-    event_handle: &windows::Win32::System::EventLog::EVT_HANDLE,
-) -> Result<String, IrError> {
+fn render_event_xml(event_handle: &windows::Win32::System::EventLog::EVT_HANDLE) -> Result<String, IrError> {
     use windows::Win32::System::EventLog::{EvtRender, EvtRenderEventXml};
 
     let mut buffer_used: u32 = 0;
@@ -444,9 +419,7 @@ fn render_event_xml(
     }
 
     // Convert from wide string to Rust String
-    let xml = String::from_utf16_lossy(
-        &buffer[..(new_buffer_used / 2) as usize],
-    );
+    let xml = String::from_utf16_lossy(&buffer[..(new_buffer_used / 2) as usize]);
     Ok(xml.trim_end_matches('\0').to_string())
 }
 
@@ -469,15 +442,22 @@ fn build_xpath_query(event_ids: &[u32], after_record_id: Option<u64>) -> String 
 #[cfg(windows)]
 fn count_events_in_channel(channel_name: &str, event_ids: &[u32]) -> Result<u64, IrError> {
     use windows::core::HSTRING;
-    use windows::Win32::System::EventLog::{EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection, EvtNext, EvtClose};
+    use windows::Win32::System::EventLog::{
+        EvtClose, EvtNext, EvtQuery, EvtQueryChannelPath, EvtQueryForwardDirection,
+    };
 
     let xpath = build_xpath_query(event_ids, None);
     let channel = HSTRING::from(channel_name);
     let query_str = HSTRING::from(&xpath);
 
     let result_set = unsafe {
-        EvtQuery(None, &channel, &query_str, EvtQueryChannelPath.0 | EvtQueryForwardDirection.0)
-            .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
+        EvtQuery(
+            None,
+            &channel,
+            &query_str,
+            EvtQueryChannelPath.0 | EvtQueryForwardDirection.0,
+        )
+        .map_err(|e| IrError::Internal(format!("EvtQuery failed for {}: {}", channel_name, e)))?
     };
 
     let mut count: u64 = 0;
@@ -485,9 +465,7 @@ fn count_events_in_channel(channel_name: &str, event_ids: &[u32]) -> Result<u64,
 
     loop {
         let mut returned: u32 = 0;
-        let result = unsafe {
-            EvtNext(result_set, &mut event_handles, 0, 0, &mut returned)
-        };
+        let result = unsafe { EvtNext(result_set, &mut event_handles, 0, 0, &mut returned) };
 
         if returned == 0 {
             break;
@@ -497,7 +475,9 @@ fn count_events_in_channel(channel_name: &str, event_ids: &[u32]) -> Result<u64,
         for &raw_handle in event_handles.iter().take(returned as usize) {
             let handle = windows::Win32::System::EventLog::EVT_HANDLE(raw_handle);
             if !handle.is_invalid() {
-                unsafe { let _ = EvtClose(handle); }
+                unsafe {
+                    let _ = EvtClose(handle);
+                }
             }
         }
 
@@ -508,7 +488,9 @@ fn count_events_in_channel(channel_name: &str, event_ids: &[u32]) -> Result<u64,
         }
     }
 
-    unsafe { let _ = EvtClose(result_set); }
+    unsafe {
+        let _ = EvtClose(result_set);
+    }
 
     Ok(count)
 }

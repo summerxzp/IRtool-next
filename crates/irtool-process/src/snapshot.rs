@@ -24,15 +24,16 @@ pub fn take_snapshot() -> Result<ProcessSnapshot, IrError> {
         let mut processes = Vec::with_capacity(512);
 
         if Process32FirstW(snap, &mut entry).is_err() {
-            return Ok(ProcessSnapshot {
-                processes,
-                timestamp,
-            });
+            return Ok(ProcessSnapshot { processes, timestamp });
         }
 
         loop {
             let name = String::from_utf16_lossy(
-                &entry.szExeFile[..entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len())]
+                &entry.szExeFile[..entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len())],
             );
 
             processes.push(ProcessEntry {
@@ -47,10 +48,7 @@ pub fn take_snapshot() -> Result<ProcessSnapshot, IrError> {
             }
         }
 
-        Ok(ProcessSnapshot {
-            processes,
-            timestamp,
-        })
+        Ok(ProcessSnapshot { processes, timestamp })
     }
 }
 
