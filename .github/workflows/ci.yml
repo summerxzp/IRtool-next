@@ -9,6 +9,11 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
 
+# 并发控制：同一分支的新提交取消旧的运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     name: Rust check
@@ -74,3 +79,34 @@ jobs:
         run: pnpm build
       - name: Cargo build release
         run: cargo build --release -p irtool-tauri
+
+  # 发布 release 时构建便携版
+  release:
+    name: Build portable package
+    runs-on: windows-latest
+    needs: [tauri-build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - name: Install UI
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+      - name: Build portable
+        shell: pwsh
+        run: |
+          ./scripts/build-portable.ps1
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable
+          path: dist/IRTool-*-portable.zip
