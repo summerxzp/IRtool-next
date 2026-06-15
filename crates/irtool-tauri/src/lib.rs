@@ -28,7 +28,6 @@ use tracing::info;
 pub struct AppInfo {
     pub name: String,
     pub version: String,
-    pub build: String,
     pub is_admin: bool,
 }
 
@@ -38,7 +37,6 @@ fn cmd_app_info() -> AppInfo {
     AppInfo {
         name: "IRtool".into(),
         version: env!("CARGO_PKG_VERSION").into(),
-        build: "alpha".into(),
         is_admin: is_running_as_admin(),
     }
 }

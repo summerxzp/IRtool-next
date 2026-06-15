@@ -13,6 +13,14 @@ async cmdAppInfo() : Promise<AppInfo> {
 async cmdLogFrontend(message: string) : Promise<void> {
     await TAURI_INVOKE("cmd_log_frontend", { message });
 },
+async cmdAppForceQuit() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_app_force_quit") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdNetworkSnapshot() : Promise<Result<NetworkSnapshotPayload, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_network_snapshot") };
@@ -621,7 +629,7 @@ export type AdapterInfo = { name: string; ip: string; description: string }
  */
 export type Alert = { id: number; timestamp: number; rule_name: string; event_type: string; process_name: string; key_field: string; action_taken: string; raw_json: string }
 export type AlertPopupParams = { rule_name: string; key_field: string; event_type: string; process_name: string; protocol: string; timestamp: number; source_addr: string | null; remote_addr: string | null; process_chain: string | null }
-export type AppInfo = { name: string; version: string; build: string; is_admin: boolean }
+export type AppInfo = { name: string; version: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 export type CmdlineStatus = "unknown" | "pending" | "ready" | "denied" | "exited" | "failed"
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
@@ -668,11 +676,11 @@ db_path: string;
 /**
  * 启用 TLS SNI 提取（网络层抓包 TCP:443）
  */
-enable_sni: boolean; 
+enable_sni?: boolean; 
 /**
  * 启用网络层 DNS 抓包（UDP:53）
  */
-enable_dns_pcap: boolean; 
+enable_dns_pcap?: boolean; 
 /**
  * 指定绑定的适配器 IP，None = 自动检测
  */

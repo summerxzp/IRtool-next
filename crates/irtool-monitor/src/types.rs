@@ -106,8 +106,10 @@ pub struct MonitorConfig {
     /// 数据库存储路径，空=使用默认路径（可执行文件同目录/data/monitor.db）
     pub db_path: String,
     /// 启用 TLS SNI 提取（网络层抓包 TCP:443）
+    #[serde(default = "default_true")]
     pub enable_sni: bool,
     /// 启用网络层 DNS 抓包（UDP:53）
+    #[serde(default = "default_true")]
     pub enable_dns_pcap: bool,
     /// 指定绑定的适配器 IP，None = 自动检测
     #[serde(default)]
@@ -125,6 +127,10 @@ pub struct MonitorConfig {
     pub notify_config: NotifyConfig,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_max_size_mb() -> u32 {
     512
 }
@@ -137,8 +143,8 @@ impl Default for MonitorConfig {
             retention_days: 7,
             rules: vec![],
             db_path: String::new(),
-            enable_sni: false,
-            enable_dns_pcap: false,
+            enable_sni: true,    // 默认启用 TLS SNI 提取
+            enable_dns_pcap: true, // 默认启用网络层 DNS 抓包
             adapter_ip: None,
             max_duration_secs: 0,
             load_limit: 1000,

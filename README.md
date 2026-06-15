@@ -1,6 +1,6 @@
 # IRtool
 
-[![Version](https://img.shields.io/badge/v2.0.0-blue.svg)](https://github.com/summerxzp/IRtool-next/releases)
+[![Version](https://img.shields.io/badge/v2.0.1-blue.svg)](https://github.com/summerxzp/IRtool-next/releases)
 [![License](https://img.shields.io/badge/MIT-green.svg)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows%20x64-lightgrey.svg)]()
 

@@ -72,8 +72,10 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
       }
       setEnabledKeys(new Set(keys));
       setLogSizeMb(currentLogSizeMb > 0 ? currentLogSizeMb : 64);
-      setEnableSni(currentPcapConfig?.enable_sni ?? false);
-      setEnableDnsPcap(currentPcapConfig?.enable_dns_pcap ?? false);
+      // 默认勾选 TLS SNI 和 DNS 抓包
+      const hasCurrentPcapConfig = currentPcapConfig !== undefined;
+      setEnableSni(hasCurrentPcapConfig ? (currentPcapConfig?.enable_sni ?? true) : true);
+      setEnableDnsPcap(hasCurrentPcapConfig ? (currentPcapConfig?.enable_dns_pcap ?? true) : true);
       setAdapterIp(currentPcapConfig?.adapter_ip ?? null);
       setMaxDurationSecs(currentPcapConfig?.max_duration_secs ?? 0);
     }

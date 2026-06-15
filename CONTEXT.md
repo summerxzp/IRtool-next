@@ -128,5 +128,24 @@ Sysmon64.exe 的 `-i`/`-c` 参数不支持中文路径。先用 `GetShortPathNam
 
 - Commit message 不添加 Co-Authored-By，仅使用作者 summerxzp
 
+### 版本号管理规范
+
+**单一来源原则**：版本号统一在 `Cargo.toml` 的 `workspace.package.version` 中维护。
+
+| 文件 | 说明 |
+|------|------|
+| `Cargo.toml` | **唯一版本来源**，修改此文件 |
+| `ui/package.json` | 构建时自动同步 |
+| `crates/irtool-tauri/tauri.conf.json` | 构建时自动同步 |
+| `README.md` | 手动更新版本徽章 |
+
+**发布流程**：
+1. 修改 `Cargo.toml` 中的 `version`
+2. 运行 `node scripts/sync-version.js` 同步到其他文件
+3. 更新 `README.md` 中的版本徽章
+4. 提交并打 tag
+
+**前端获取版本号**：通过 `cmdAppInfo()` API 从后端获取，使用 `env!("CARGO_PKG_VERSION")` 自动读取 Cargo.toml 版本。
+
 ## 主题默认浅色
 新用户默认浅色主题。深色主题可选。持久化到 `tauri-plugin-store`。
