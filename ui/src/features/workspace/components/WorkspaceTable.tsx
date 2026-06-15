@@ -9,6 +9,17 @@ import type { SysmonEvent } from "@/features/log-collector/types";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
+function formatDateTime(epoch: number): string {
+  const d = new Date(epoch * 1000);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${y}/${mo}/${day} ${h}:${m}:${s}`;
+}
+
 export function netConnKey(item: NetConn): string {
   return engineNetworkKey(item);
 }
@@ -121,12 +132,12 @@ export function WorkspaceTable({ onRowSelect }: Props) {
         ];
       case "network":
         return [
+          { key: "last_seen", label: t("workspace.columns.time"), width: 140 },
           { key: "proto", label: t("workspace.columns.proto"), width: 60 },
           { key: "remote", label: t("workspace.columns.remote"), width: 200 },
           { key: "state", label: t("workspace.columns.state"), width: 90 },
           { key: "pid", label: t("workspace.columns.pid"), width: 60 },
           { key: "process_name", label: t("workspace.columns.process"), width: 140 },
-          { key: "last_seen", label: t("workspace.columns.time"), width: 140 },
         ];
       case "events":
         return [
@@ -158,7 +169,7 @@ export function WorkspaceTable({ onRowSelect }: Props) {
           case "state": return n.state;
           case "pid": return String(n.pid);
           case "process_name": return n.process_name ?? "";
-          case "last_seen": return n.last_seen ? new Date(n.last_seen * 1000).toLocaleTimeString() : "";
+          case "last_seen": return n.last_seen ? formatDateTime(n.last_seen) : "";
           default: return "";
         }
       }

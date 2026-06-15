@@ -20,7 +20,7 @@ use serde::Serialize;
 use specta::Type;
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
 use tracing::info;
 
@@ -47,6 +47,13 @@ fn cmd_app_info() -> AppInfo {
 #[specta::specta]
 fn cmd_log_frontend(message: String) {
     tracing::warn!("[frontend] {}", message);
+}
+
+#[tauri::command]
+#[specta::specta]
+fn cmd_app_force_quit(app: tauri::AppHandle) {
+    info!("force quit requested, exiting application");
+    app.exit(0);
 }
 
 #[cfg(windows)]
@@ -140,6 +147,7 @@ pub fn run() {
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         cmd_app_info,
         cmd_log_frontend,
+        cmd_app_force_quit,
         cmd_network_snapshot,
         cmd_network_kill_process,
         cmd_network_set_polling,
@@ -256,7 +264,7 @@ pub fn run() {
                 }
             }
 
-            // 拦截窗口关闭：仅后台监测模式时隐藏到托盘，否则退出
+            // 拦截窗口关闭：后台模式时阻止关闭并通知前端弹窗确认
             if let Some(window) = app.get_webview_window("main") {
                 let win_clone = window.clone();
                 let engine = app_state.monitor_engine.clone();
@@ -265,7 +273,7 @@ pub fn run() {
                         let is_background = engine.try_lock().map(|e| e.is_background_mode()).unwrap_or(false);
                         if is_background {
                             api.prevent_close();
-                            let _ = win_clone.hide();
+                            let _ = win_clone.emit(crate::events::EVT_CLOSE_REQUESTED, ());
                         }
                         // else: let the window close normally, app exits
                     }

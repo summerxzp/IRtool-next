@@ -16,3 +16,5 @@ pub const EVT_MONITOR_ALERT: &str = "evt_monitor_alert";
 pub const EVT_PCAP_EVENT: &str = "evt_pcap_event";
 // --- 网络富化 ---
 pub const EVT_NETWORK_ENRICHMENT: &str = "evt_network_enrichment";
+// --- 窗口关闭确认 ---
+pub const EVT_CLOSE_REQUESTED: &str = "evt_close_requested";

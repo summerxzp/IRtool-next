@@ -219,14 +219,14 @@ export default function BackgroundMonitoringPage() {
               </div>
               <div className="flex items-center gap-2">
                 {isBackground ? (
-                  <Button variant="destructive" size="sm" onClick={handleExitBackground} className="h-7 text-xs">
+                  <Button variant="destructive" size="sm" onClick={handleExitBackground} className="h-7 text-xs border-2 border-red-500">
                     <Square className="h-3 w-3 mr-1" />
-                    退出后台
+                    退出后台模式
                   </Button>
                 ) : (
                   <Button size="sm" onClick={() => setConfirmDialogOpen(true)} className="h-7 text-xs">
                     <Play className="h-3 w-3 mr-1" />
-                    进入后台
+                    进入后台模式
                   </Button>
                 )}
               </div>
