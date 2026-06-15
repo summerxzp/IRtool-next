@@ -2024,7 +2024,7 @@ checksum = "cf370abdafd54d13e54a620e8c3e1145f28e46cc9d704bc6d94414559df41763"
 
 [[package]]
 name = "irtool-autoruns"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "base64 0.22.1",
  "csv",
@@ -2047,7 +2047,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "dashmap",
  "dirs",
@@ -2062,7 +2062,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-monitor"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "aho-corasick",
  "chrono",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-net-monitor"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "dashmap",
  "irtool-core",
@@ -2103,7 +2103,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-pcap"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "chrono",
  "irtool-core",
@@ -2118,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-process"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "dashmap",
  "irtool-core",
@@ -2133,7 +2133,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-rules"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "irtool-core",
  "serde",
@@ -2142,7 +2142,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-sysmon"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "chrono",
  "dashmap",
@@ -2159,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-tauri"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "chrono",
  "embed-resource 2.5.2",
@@ -2199,7 +2199,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-threat-intel"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "irtool-core",
@@ -2210,7 +2210,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-tools"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "futures-util",
  "irtool-core",
