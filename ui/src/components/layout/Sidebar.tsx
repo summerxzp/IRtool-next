@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, ScrollText, Repeat, Briefcase, Settings, Database, Radar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { useMonitoringStore } from "@/features/monitoring/store";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const isBackground = useMonitoringStore((s) => s.isBackground);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -68,6 +70,7 @@ export function Sidebar() {
                   path.startsWith("/background-monitoring")
                     ? "text-accent"
                     : "text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2",
+                  isBackground && "border-2 border-red-500",
                 )}
               >
                 {path.startsWith("/background-monitoring") && (
