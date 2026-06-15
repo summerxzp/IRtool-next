@@ -328,7 +328,7 @@
       "loaded": "Loaded"
     },
     "background-mode": {
-      "active": "Background detection mode active, live events paused",
+      "active": "Background monitoring active, live display paused",
       "written": "Written",
       "dropped": "Dropped",
       "last-event": "Last event",

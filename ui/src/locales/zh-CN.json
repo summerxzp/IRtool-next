@@ -328,7 +328,7 @@
       "loaded": "已加载"
     },
     "background-mode": {
-      "active": "后台监测模式运行中，实时事件已暂停",
+      "active": "后台监测模式运行中，实时显示已暂停",
       "written": "已写入",
       "dropped": "已丢弃",
       "last-event": "最后事件",
