@@ -38,6 +38,16 @@ import type { MonitorConfig } from "../api";
 import { useMonitoringStore } from "../store";
 import { formatUptime, formatTimestamp } from "../utils";
 
+// --- 格式化字节数 ---
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const val = bytes / Math.pow(k, i);
+  return `${val.toFixed(val >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
 // --- Preset definitions ---
 interface Preset {
   label: string;
@@ -54,7 +64,7 @@ const SYSMON_EVENT_GROUPS = [
 
 export default function BackgroundMonitoringPage() {
   const { t } = useTranslation();
-  const { isBackground, telemetry, eventCount, setIsBackground, setTelemetry, setEventCount } =
+  const { isBackground, telemetry, eventCount, dbSize, setIsBackground, setTelemetry, setEventCount, setDbSize } =
     useMonitoringStore();
 
   const [config, setConfig] = useState<MonitorConfig>({
@@ -90,10 +100,11 @@ export default function BackgroundMonitoringPage() {
     let mounted = true;
     const poll = async () => {
       try {
-        const [tel, bg, count] = await Promise.all([
+        const [tel, bg, count, size] = await Promise.all([
           api.getTelemetry(),
           api.isBackground(),
           api.getEventCount(),
+          api.getDbSize(),
         ]);
         if (!mounted) return;
         setTelemetry({
@@ -106,6 +117,7 @@ export default function BackgroundMonitoringPage() {
         });
         setIsBackground(bg);
         setEventCount(count);
+        setDbSize(size);
       } catch {}
     };
     poll();
@@ -114,7 +126,7 @@ export default function BackgroundMonitoringPage() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [setTelemetry, setIsBackground, setEventCount]);
+  }, [setTelemetry, setIsBackground, setEventCount, setDbSize]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -247,7 +259,11 @@ export default function BackgroundMonitoringPage() {
                 <span className="text-[10px] text-fg-tertiary">数据库记录</span>
                 <span className="text-xs font-mono">{eventCount}</span>
               </div>
-              <div className="flex flex-col gap-0.5 col-span-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] text-fg-tertiary">数据库大小</span>
+                <span className="text-xs font-mono">{formatBytes(dbSize)}</span>
+              </div>
+              <div className="flex flex-col gap-0.5">
                 <span className="text-[10px] text-fg-tertiary">最后错误</span>
                 <span className="text-xs text-red-400 truncate" title={telemetry?.last_error ?? undefined}>
                   {telemetry?.last_error || "-"}

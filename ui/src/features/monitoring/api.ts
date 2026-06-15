@@ -66,3 +66,7 @@ export async function getTelemetry(): Promise<RuntimeTelemetry> {
 export async function getEventCount(): Promise<number> {
   return invoke("cmd_monitor_get_event_count");
 }
+
+export async function getDbSize(): Promise<number> {
+  return invoke("cmd_monitor_get_db_size");
+}
