@@ -15,12 +15,12 @@ use crate::commands::sysmon::*;
 use crate::commands::tools::*;
 use crate::commands::workspace::*;
 use crate::state::AppState;
-use irtool_core::AppDirs;
+use irtool_core::{AppDirs, IrError};
 use serde::Serialize;
 use specta::Type;
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, State};
 use tauri_specta::{collect_commands, Builder};
 use tracing::info;
 
@@ -51,9 +51,13 @@ fn cmd_log_frontend(message: String) {
 
 #[tauri::command]
 #[specta::specta]
-fn cmd_app_force_quit(app: tauri::AppHandle) {
-    info!("force quit requested, exiting application");
+async fn cmd_app_force_quit(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), IrError> {
+    info!("force quit requested, exiting background mode first");
+    // Exit background mode before quitting so persisted config is reset.
+    // This ensures the app starts in foreground mode on next launch.
+    let _ = state.monitor_engine.lock().await.exit_background_mode();
     app.exit(0);
+    Ok(())
 }
 
 #[cfg(windows)]
