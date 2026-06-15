@@ -91,6 +91,7 @@
       "process": "进程信息",
       "command-line": "命令行",
       "command-line-pending": "无法获取",
+      "refresh-cmdline": "重新获取命令行",
       "first-seen": "首次出现",
       "last-seen": "最近出现",
       "select-row": "请选择一条连接查看详情"
@@ -264,7 +265,10 @@
       "start-module": "起始模块",
       "filename": "文件名",
       "creation-time": "创建时间",
-      "process-chain": "进程链"
+      "process-chain": "进程链",
+      "command-line": "命令行",
+      "create-time": "创建时间",
+      "suspicious": "可疑标记"
     },
     "stats": {
       "collecting": "采集中",

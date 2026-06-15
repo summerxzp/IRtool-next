@@ -40,11 +40,15 @@ export interface DbSearchEvent {
 interface DbSearchState {
   events: DbSearchEvent[];
   selectedEvent: DbSearchEvent | null;
-  totalCount: number;
+  totalCount: number; // 数据库总记录数
+  matchedCount: number; // 搜索匹配的记录数
+  hasFilters: boolean; // 是否有搜索条件
   setEvents: (events: DbSearchEvent[]) => void;
   appendEvents: (events: DbSearchEvent[]) => void;
   setSelectedEvent: (event: DbSearchEvent | null) => void;
   setTotalCount: (count: number) => void;
+  setMatchedCount: (count: number) => void;
+  setHasFilters: (hasFilters: boolean) => void;
   clear: () => void;
 }
 
@@ -52,10 +56,14 @@ export const useDbSearchStore = create<DbSearchState>((set) => ({
   events: [],
   selectedEvent: null,
   totalCount: 0,
+  matchedCount: 0,
+  hasFilters: false,
   setEvents: (events) => set({ events }),
   appendEvents: (newEvents) =>
     set((state) => ({ events: [...state.events, ...newEvents] })),
   setSelectedEvent: (event) => set({ selectedEvent: event }),
   setTotalCount: (count) => set({ totalCount: count }),
-  clear: () => set({ events: [], selectedEvent: null, totalCount: 0 }),
+  setMatchedCount: (count) => set({ matchedCount: count }),
+  setHasFilters: (hasFilters) => set({ hasFilters }),
+  clear: () => set({ events: [], selectedEvent: null, totalCount: 0, matchedCount: 0, hasFilters: false }),
 }));

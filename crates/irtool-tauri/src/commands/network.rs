@@ -150,6 +150,132 @@ pub async fn cmd_network_clear_history(state: State<'_, AppState>) -> Result<(),
     Ok(())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri::AppHandle, pid: u32) -> Result<(), IrError> {
+    info!("manual cmdline refresh requested: pid={}", pid);
+
+    // Perform the query immediately (do NOT clear cache — that would cause the
+    // next polling cycle to reset the status to Pending, creating a flicker).
+    let enricher = state.net_enricher.clone();
+    let app_clone = app.clone();
+
+    tokio::task::spawn_blocking(move || {
+        info!("manual cmdline refresh: starting WMI query for pid={}", pid);
+        let result = irtool_net_monitor::process_info::targeted_query_cmdlines(&[pid]);
+        let now = std::time::Instant::now();
+        info!("manual cmdline refresh: WMI query completed for pid={}, result={:?}", pid, result.as_ref().map(|r| (&r.cmdlines, &r.exited_pids, &r.failed_pids, &r.no_cmdline_pids, &r.query_failed)));
+
+        match result {
+            Some(query_result) => {
+                if query_result.query_failed {
+                    // WMI connection failed
+                    info!("manual cmdline refresh: pid={} WMI query failed (connection error)", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Failed,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Failed,
+                        process_cmdline: None,
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                } else if query_result.failed_pids.contains(&pid) {
+                    // This specific PID query timed out
+                    info!("manual cmdline refresh: pid={} WMI query timed out", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Failed,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Failed,
+                        process_cmdline: None,
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                } else if query_result.exited_pids.contains(&pid) {
+                    // PID not in WMI results — process exited
+                    info!("manual cmdline refresh: pid={} process exited", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Exited,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Exited,
+                        process_cmdline: None,
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                } else if let Some(cmdline) = query_result.cmdlines.get(&pid) {
+                    // Success
+                    info!("manual cmdline refresh: pid={} cmdline found", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: Some(cmdline.clone()),
+                        status: CmdlineStatus::Ready,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Ready,
+                        process_cmdline: Some(cmdline.clone()),
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                } else if query_result.no_cmdline_pids.contains(&pid) {
+                    // PID found in WMI but CommandLine is None (protected process)
+                    info!("manual cmdline refresh: pid={} found but no cmdline (protected)", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Denied,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Denied,
+                        process_cmdline: None,
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                } else {
+                    // PID found in WMI but no CommandLine (system process, etc.)
+                    // This is still "Ready" status, just no cmdline
+                    info!("manual cmdline refresh: pid={} found but no cmdline", pid);
+                    enricher.update(pid, CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Ready,
+                        cached_at: now,
+                    });
+                    let payload = NetworkEnrichmentPayload {
+                        pid,
+                        cmdline_status: CmdlineStatus::Ready,
+                        process_cmdline: None,
+                    };
+                    let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+                }
+            }
+            None => {
+                // WMI query returned None (shouldn't happen with new impl, but handle it)
+                info!("manual cmdline refresh: pid={} WMI query returned None", pid);
+                enricher.update(pid, CmdlineResult {
+                    cmdline: None,
+                    status: CmdlineStatus::Failed,
+                    cached_at: now,
+                });
+                let payload = NetworkEnrichmentPayload {
+                    pid,
+                    cmdline_status: CmdlineStatus::Failed,
+                    process_cmdline: None,
+                };
+                let _ = app_clone.emit(EVT_NETWORK_ENRICHMENT, &payload);
+            }
+        }
+    });
+
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn run_polling_loop(
     collector: std::sync::Arc<irtool_net_monitor::WindowsNetCollector>,
@@ -197,25 +323,27 @@ async fn run_polling_loop(
                             let app_clone = app.clone();
                             let pids = pending.clone();
                             tokio::task::spawn_blocking(move || {
-                                let results = irtool_net_monitor::process_info::targeted_query_cmdlines(&pids);
+                                let result = irtool_net_monitor::process_info::targeted_query_cmdlines(&pids);
                                 let now = std::time::Instant::now();
                                 let mut enrichment_events: Vec<NetworkEnrichmentPayload> = Vec::new();
 
-                                if let Some(cmdline_map) = results {
-                                    for &pid in &pids {
-                                        if let Some(cmdline) = cmdline_map.get(&pid) {
+                                match result {
+                                    Some(query_result) => {
+                                        // Handle failed PIDs (timeout or WMI error)
+                                        for &pid in &query_result.failed_pids {
                                             enricher_clone.update(pid, CmdlineResult {
-                                                cmdline: Some(cmdline.clone()),
-                                                status: CmdlineStatus::Ready,
+                                                cmdline: None,
+                                                status: CmdlineStatus::Failed,
                                                 cached_at: now,
                                             });
                                             enrichment_events.push(NetworkEnrichmentPayload {
                                                 pid,
-                                                cmdline_status: CmdlineStatus::Ready,
-                                                process_cmdline: Some(cmdline.clone()),
+                                                cmdline_status: CmdlineStatus::Failed,
+                                                process_cmdline: None,
                                             });
-                                        } else {
-                                            // PID not in WMI results — process likely exited
+                                        }
+                                        // Handle exited PIDs (not found in WMI)
+                                        for &pid in &query_result.exited_pids {
                                             enricher_clone.update(pid, CmdlineResult {
                                                 cmdline: None,
                                                 status: CmdlineStatus::Exited,
@@ -227,20 +355,48 @@ async fn run_polling_loop(
                                                 process_cmdline: None,
                                             });
                                         }
+                                        // Handle successful results
+                                        for (&pid, cmdline) in &query_result.cmdlines {
+                                            enricher_clone.update(pid, CmdlineResult {
+                                                cmdline: Some(cmdline.clone()),
+                                                status: CmdlineStatus::Ready,
+                                                cached_at: now,
+                                            });
+                                            enrichment_events.push(NetworkEnrichmentPayload {
+                                                pid,
+                                                cmdline_status: CmdlineStatus::Ready,
+                                                process_cmdline: Some(cmdline.clone()),
+                                            });
+                                        }
+                                        // Handle PIDs found in WMI but CommandLine is None
+                                        // (protected processes like AV) - mark as Denied
+                                        for &pid in &query_result.no_cmdline_pids {
+                                            enricher_clone.update(pid, CmdlineResult {
+                                                cmdline: None,
+                                                status: CmdlineStatus::Denied,
+                                                cached_at: now,
+                                            });
+                                            enrichment_events.push(NetworkEnrichmentPayload {
+                                                pid,
+                                                cmdline_status: CmdlineStatus::Denied,
+                                                process_cmdline: None,
+                                            });
+                                        }
                                     }
-                                } else {
-                                    // WMI query failed
-                                    for &pid in &pids {
-                                        enricher_clone.update(pid, CmdlineResult {
-                                            cmdline: None,
-                                            status: CmdlineStatus::Failed,
-                                            cached_at: now,
-                                        });
-                                        enrichment_events.push(NetworkEnrichmentPayload {
-                                            pid,
-                                            cmdline_status: CmdlineStatus::Failed,
-                                            process_cmdline: None,
-                                        });
+                                    None => {
+                                        // WMI query returned None (unsupported platform or fatal error)
+                                        for &pid in &pids {
+                                            enricher_clone.update(pid, CmdlineResult {
+                                                cmdline: None,
+                                                status: CmdlineStatus::Failed,
+                                                cached_at: now,
+                                            });
+                                            enrichment_events.push(NetworkEnrichmentPayload {
+                                                pid,
+                                                cmdline_status: CmdlineStatus::Failed,
+                                                process_cmdline: None,
+                                            });
+                                        }
                                     }
                                 }
 

@@ -40,6 +40,8 @@ impl HistoryStore {
                 existing.is_current = true;
                 existing.process_name = conn.process_name.clone();
                 existing.process_path = conn.process_path.clone();
+                existing.cmdline_status = conn.cmdline_status;
+                existing.process_cmdline = conn.process_cmdline.clone();
             } else {
                 conn.first_seen = now;
                 conn.last_seen = now;

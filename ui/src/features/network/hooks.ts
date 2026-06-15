@@ -33,9 +33,13 @@ export function useNetwork() {
     let unlisten: UnlistenFn | undefined;
     listen<NetworkEnrichmentPayload>("evt_network_enrichment", (e) => {
       const { pid, cmdline_status, process_cmdline } = e.payload;
+      console.log("[Network] Received enrichment event:", pid, cmdline_status, process_cmdline?.slice(0, 50));
       qc.setQueryData<NetworkSnapshotPayload>(QK_NETWORK, (old) => {
-        if (!old) return old;
-        return {
+        if (!old) {
+          console.log("[Network] No cached data to update");
+          return old;
+        }
+        const updated = {
           ...old,
           items: old.items.map((conn) =>
             conn.pid === pid
@@ -43,6 +47,8 @@ export function useNetwork() {
               : conn
           ),
         };
+        console.log("[Network] Updated", updated.items.filter(c => c.pid === pid).length, "connections for pid", pid);
+        return updated;
       });
     }).then((u) => {
       unlisten = u;

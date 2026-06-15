@@ -62,6 +62,22 @@ export function NetworkPage() {
 
   const data = useMemo(() => query.data?.items ?? [], [query.data]);
 
+  // Keep selected in sync with data updates (e.g., cmdline enrichment)
+  const selectedConn = useMemo(() => {
+    if (!selected) return null;
+    // Find the updated connection in data
+    return data.find(
+      (c) =>
+        c.proto === selected.proto &&
+        c.family === selected.family &&
+        c.local.addr === selected.local.addr &&
+        c.local.port === selected.local.port &&
+        c.remote.addr === selected.remote.addr &&
+        c.remote.port === selected.remote.port &&
+        c.pid === selected.pid
+    ) ?? selected;
+  }, [data, selected]);
+
   const handleExport = async () => {
     await exportCsv(
       data.map((c) => ({
@@ -129,9 +145,9 @@ export function NetworkPage() {
         onClearHistory={() => clearMutation.mutate()}
         onRefresh={() => query.refetch()}
         onKillSelected={() => {
-          if (selected) setKillDialogOpen(true);
+          if (selectedConn) setKillDialogOpen(true);
         }}
-        hasSelection={selected != null}
+        hasSelection={selectedConn != null}
         loading={query.isFetching}
       />
 
@@ -142,14 +158,14 @@ export function NetworkPage() {
               data={data}
               onRowSelect={setSelected}
               onRowContextMenu={handleContextMenu}
-              selectedRowId={selected ? `${selected.proto}|${selected.family}|${selected.local.addr}:${selected.local.port}|${selected.remote.addr}:${selected.remote.port}|${selected.pid}` : null}
+              selectedRowId={selectedConn ? `${selectedConn.proto}|${selectedConn.family}|${selectedConn.local.addr}:${selectedConn.local.port}|${selectedConn.remote.addr}:${selectedConn.remote.port}|${selectedConn.pid}` : null}
             />
           </Panel>
-          {selected != null && (
+          {selectedConn != null && (
             <>
               <Separator className={detailPosition === "bottom" ? "h-px" : "w-px"} style={{ backgroundColor: "var(--border)" }} />
               <Panel defaultSize={detailPosition === "bottom" ? 40 : 30} minSize={20}>
-                <NetworkDetail conn={selected} onClose={() => setSelected(null)} />
+                <NetworkDetail conn={selectedConn} onClose={() => setSelected(null)} />
               </Panel>
             </>
           )}
@@ -159,7 +175,7 @@ export function NetworkPage() {
       <NetworkStatsBar data={data} />
 
       <KillProcessDialog
-        conn={selected}
+        conn={selectedConn}
         open={killDialogOpen}
         onOpenChange={setKillDialogOpen}
         onConfirm={handleKill}

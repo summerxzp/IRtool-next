@@ -45,6 +45,14 @@ async cmdNetworkClearHistory() : Promise<Result<null, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async cmdNetworkRefreshCmdline(pid: number) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_refresh_cmdline", { pid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdAutorunsScan(options: ScanOptions) : Promise<Result<number, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_scan", { options }) };

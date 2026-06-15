@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 irtool-core = { path = "../irtool-core" }
+irtool-net-monitor = { path = "../irtool-net-monitor" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 specta = { workspace = true, features = ["derive", "serde"] }

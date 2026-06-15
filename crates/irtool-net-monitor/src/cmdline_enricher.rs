@@ -83,6 +83,12 @@ impl CmdlineEnricher {
         let now = Instant::now();
         self.cache.retain(|_, result| !is_expired(result, now));
     }
+
+    /// Force refresh: remove from pending and cache so next enqueue will process it.
+    pub fn force_refresh(&self, pid: u32) {
+        self.pending_pids.remove(&pid);
+        self.cache.remove(&pid);
+    }
 }
 
 impl Default for CmdlineEnricher {

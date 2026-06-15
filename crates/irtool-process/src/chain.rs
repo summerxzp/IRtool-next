@@ -56,8 +56,30 @@ pub fn get_process_chain(pid: u32) -> Result<ProcessChain, IrError> {
         current_pid = ppid;
     }
 
+    // Batch-fill cmdline via WMI for all PIDs in the chain.
+    fill_cmdlines(&mut nodes);
+
     Ok(ProcessChain { nodes })
 }
+
+/// Batch query WMI for command lines of all PIDs in the chain.
+#[cfg(windows)]
+fn fill_cmdlines(nodes: &mut [ProcessNode]) {
+    let pids: Vec<u32> = nodes.iter().map(|n| n.pid).filter(|&p| p > 4).collect();
+    if pids.is_empty() {
+        return;
+    }
+    if let Some(result) = irtool_net_monitor::process_info::targeted_query_cmdlines(&pids) {
+        for node in nodes.iter_mut() {
+            if let Some(cmdline) = result.cmdlines.get(&node.pid) {
+                node.cmdline = Some(cmdline.clone());
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn fill_cmdlines(_nodes: &mut [ProcessNode]) {}
 
 /// Query the full executable path for a process via OpenProcess + QueryFullProcessImageNameW.
 #[cfg(windows)]
@@ -126,24 +148,61 @@ fn query_create_time(pid: u32) -> Option<String> {
             return None;
         }
 
-        // Convert FILETIME to time-of-day string.
+        // Convert FILETIME to date-time string "YYYY/MM/DD HH:MM:SS".
         // FILETIME is 100-ns intervals since 1601-01-01.
         let ticks = ((creation.dwHighDateTime as u64) << 32) | (creation.dwLowDateTime as u64);
         // Offset from 1601 to 1970 in 100-ns intervals: 116444736000000000
         let unix_micros = ticks.saturating_sub(116444736000000000) / 10;
         let secs = (unix_micros / 1_000_000) as i64;
 
+        // Days since 1970-01-01
+        let days = secs / 86400;
         let time_of_day_secs = secs % 86400;
         let h = time_of_day_secs / 3600;
         let m = (time_of_day_secs % 3600) / 60;
         let s = time_of_day_secs % 60;
-        Some(format!("{:02}:{:02}:{:02}", h, m, s))
+
+        // Convert days since epoch to year/month/day
+        let (year, month, day) = days_to_ymd(days as u32);
+        Some(format!("{}/{:02}/{:02} {:02}:{:02}:{:02}", year, month, day, h, m, s))
     }
 }
 
 #[cfg(not(windows))]
 fn query_create_time(_pid: u32) -> Option<String> {
     None
+}
+
+/// Convert days since 1970-01-01 to (year, month, day).
+fn days_to_ymd(mut days: u32) -> (u32, u32, u32) {
+    let mut year = 1970u32;
+    loop {
+        let days_in_year = if is_leap(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
+    }
+    let leap = is_leap(year);
+    let month_days: [u32; 12] = if leap {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u32;
+    for &md in &month_days {
+        if days < md {
+            break;
+        }
+        days -= md;
+        month += 1;
+    }
+    (year, month, days + 1)
+}
+
+fn is_leap(year: u32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 #[cfg(all(test, windows))]

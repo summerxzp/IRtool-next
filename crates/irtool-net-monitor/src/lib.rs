@@ -11,5 +11,5 @@ pub use cmdline_enricher::{CmdlineEnricher, CmdlineResult};
 pub use collector::{NetCollector, WindowsNetCollector};
 pub use history::{HistoryStore, RetentionPolicy};
 pub use kill::kill_process;
-pub use process_info::{targeted_query_cmdlines, ProcessInfo, ProcessInfoCache};
+pub use process_info::{targeted_query_cmdlines, ProcessInfo, ProcessInfoCache, TargetedQueryResult};
 pub use types::{CmdlineStatus, ConnState, Family, NetConn, NetConnKey, NetEndpoint, Proto};

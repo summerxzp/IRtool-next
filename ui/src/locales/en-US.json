@@ -91,6 +91,7 @@
       "process": "Process Info",
       "command-line": "Command Line",
       "command-line-pending": "Unavailable",
+      "refresh-cmdline": "Refresh command line",
       "first-seen": "First Seen",
       "last-seen": "Last Seen",
       "select-row": "Select a connection to view details"
@@ -264,7 +265,10 @@
       "start-module": "Start Module",
       "filename": "Filename",
       "creation-time": "Creation Time",
-      "process-chain": "Process Chain"
+      "process-chain": "Process Chain",
+      "command-line": "Command Line",
+      "create-time": "Create Time",
+      "suspicious": "Suspicious"
     },
     "stats": {
       "collecting": "Collecting",

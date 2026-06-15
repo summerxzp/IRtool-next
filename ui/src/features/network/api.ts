@@ -25,4 +25,10 @@ export async function clearHistory() {
   return result.data;
 }
 
+export async function refreshCmdline(pid: number) {
+  const result = await commands.cmdNetworkRefreshCmdline(pid);
+  if (result.status === "error") throw result.error;
+  return result.data;
+}
+
 export type { NetConn };

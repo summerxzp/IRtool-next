@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { X, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { NetConn, CmdlineStatus } from "../types";
+import * as api from "../api";
 
 interface Props {
   conn: NetConn | null;
@@ -38,6 +40,19 @@ function cmdlineStatusVariant(status: CmdlineStatus): "default" | "success" | "w
 
 export function NetworkDetail({ conn, onClose }: Props) {
   const { t } = useTranslation();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefreshCmdline = async () => {
+    if (!conn || refreshing) return;
+    setRefreshing(true);
+    try {
+      await api.refreshCmdline(conn.pid);
+    } catch (e) {
+      console.error("Failed to refresh cmdline:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (!conn) {
     return (
@@ -107,6 +122,14 @@ export function NetworkDetail({ conn, onClose }: Props) {
           <Badge variant={cmdlineStatusVariant(conn.cmdline_status)}>
             {cmdlineStatusLabel(conn.cmdline_status)}
           </Badge>
+          <button
+            className="text-fg-tertiary hover:text-fg-primary p-0.5 disabled:opacity-50"
+            onClick={handleRefreshCmdline}
+            disabled={refreshing}
+            title={t("network.detail.refresh-cmdline")}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
         </div>
         <div className="text-xs font-mono text-fg-secondary break-all">
           {conn.process_cmdline || t("network.detail.command-line-pending")}

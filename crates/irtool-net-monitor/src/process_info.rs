@@ -86,15 +86,31 @@ impl ProcessInfoCache {
 #[cfg(windows)]
 use std::collections::HashMap;
 
+/// Result of targeted WMI query for command lines.
+/// - `cmdlines`: successfully retrieved command lines (PID -> cmdline)
+/// - `exited_pids`: PIDs not found in WMI (process exited)
+/// - `failed_pids`: PIDs whose query failed or timed out
+/// - `query_failed`: true if the entire WMI query failed (connection error)
+#[cfg(windows)]
+pub struct TargetedQueryResult {
+    pub cmdlines: HashMap<u32, String>,
+    pub exited_pids: Vec<u32>,
+    pub failed_pids: Vec<u32>,
+    /// PIDs found in WMI but CommandLine is None (protected processes like AV)
+    pub no_cmdline_pids: Vec<u32>,
+    pub query_failed: bool,
+}
+
 /// Targeted WMI query for CommandLine of specific PIDs.
 /// Builds a WHERE clause to avoid scanning all processes.
 /// Chunks PIDs into groups of 50 with a 1500ms timeout per chunk.
 #[cfg(windows)]
-pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
+pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<TargetedQueryResult> {
     use serde::Deserialize;
     use std::sync::mpsc;
     use std::time::Duration;
     use wmi::WMIConnection;
+    use tracing::{debug, info};
 
     #[derive(Deserialize)]
     #[allow(non_snake_case)]
@@ -103,20 +119,34 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
         CommandLine: Option<String>,
     }
 
+    info!("targeted_query_cmdlines: starting query for {:?} PIDs", pids.len());
+
     if pids.is_empty() {
-        return Some(HashMap::new());
+        return Some(TargetedQueryResult {
+            cmdlines: HashMap::new(),
+            exited_pids: Vec::new(),
+            failed_pids: Vec::new(),
+            no_cmdline_pids: Vec::new(),
+            query_failed: false,
+        });
     }
 
-    let mut map = HashMap::new();
+    let mut cmdlines = HashMap::new();
+    let mut exited_pids = Vec::new();
+    let mut failed_pids = Vec::new();
+    let mut no_cmdline_pids = Vec::new();
+    let mut any_chunk_succeeded = false;
     let chunk_size = 50;
 
-    for chunk in pids.chunks(chunk_size) {
+    for (chunk_idx, chunk) in pids.chunks(chunk_size).enumerate() {
         let conditions: Vec<String> = chunk.iter().map(|p| format!("ProcessId = {}", p)).collect();
         let where_clause = conditions.join(" OR ");
         let query = format!(
             "SELECT ProcessId, CommandLine FROM Win32_Process WHERE {}",
             where_clause
         );
+
+        debug!("targeted_query_cmdlines: chunk {} query started", chunk_idx);
 
         // Run WMI query on a separate thread with timeout
         let (tx, rx) = mpsc::channel();
@@ -131,23 +161,55 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<HashMap<u32, String>> {
 
         match rx.recv_timeout(Duration::from_millis(1500)) {
             Ok(Some(results)) => {
+                any_chunk_succeeded = true;
+                debug!("targeted_query_cmdlines: chunk {} succeeded, {} results", chunk_idx, results.len());
+                // Track which PIDs in this chunk were found in WMI
+                let mut found_pids = std::collections::HashSet::new();
                 for proc in results {
+                    found_pids.insert(proc.ProcessId);
                     if let Some(cmdline) = proc.CommandLine {
-                        map.insert(proc.ProcessId, cmdline);
+                        cmdlines.insert(proc.ProcessId, cmdline);
+                    } else {
+                        no_cmdline_pids.push(proc.ProcessId);
+                    }
+                }
+                // PIDs in chunk but not in WMI results: process exited
+                for &pid in chunk {
+                    if !found_pids.contains(&pid) {
+                        exited_pids.push(pid);
                     }
                 }
             }
-            Ok(None) | Err(_) => {
-                // WMI query failed or timed out — skip this chunk
+            Ok(None) => {
+                // WMI connection/query failed for this chunk
+                debug!("targeted_query_cmdlines: chunk {} WMI connection failed", chunk_idx);
+                failed_pids.extend(chunk.iter().copied());
+            }
+            Err(_) => {
+                // Timeout - query took too long
+                debug!("targeted_query_cmdlines: chunk {} timed out", chunk_idx);
+                failed_pids.extend(chunk.iter().copied());
             }
         }
     }
 
-    Some(map)
+    // If all chunks failed, consider the entire query failed
+    let query_failed = !any_chunk_succeeded && !failed_pids.is_empty();
+
+    info!("targeted_query_cmdlines: done, cmdlines={}, exited={}, failed={}, no_cmdline={}, query_failed={}",
+          cmdlines.len(), exited_pids.len(), failed_pids.len(), no_cmdline_pids.len(), query_failed);
+
+    Some(TargetedQueryResult {
+        cmdlines,
+        exited_pids,
+        failed_pids,
+        no_cmdline_pids,
+        query_failed,
+    })
 }
 
 #[cfg(not(windows))]
-pub fn targeted_query_cmdlines(_pids: &[u32]) -> Option<HashMap<u32, String>> {
+pub fn targeted_query_cmdlines(_pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
     None
 }
 
@@ -272,9 +334,11 @@ mod tests {
         assert!(info.cmdline.is_none(), "cmdline should be None on first lookup");
         // Batch WMI query fills it
         cache.get(pid); // insert into cache
-        let cmdlines = targeted_query_cmdlines(&[pid]);
-        assert!(cmdlines.is_some(), "batch WMI query should succeed");
-        let cmdline = cmdlines.unwrap().get(&pid).cloned();
+        let result = targeted_query_cmdlines(&[pid]);
+        assert!(result.is_some(), "batch WMI query should succeed");
+        let query_result = result.unwrap();
+        assert!(!query_result.query_failed, "query should not fail");
+        let cmdline = query_result.cmdlines.get(&pid).cloned();
         assert!(cmdline.is_some(), "cmdline should be found for current process");
         assert!(!cmdline.as_ref().unwrap().is_empty(), "cmdline should not be empty");
         eprintln!("Current process cmdline: {}", cmdline.unwrap());

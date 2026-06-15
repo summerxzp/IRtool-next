@@ -178,36 +178,62 @@ export default function DatabaseSearchPage() {
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
   const [dbSize, setDbSize] = useState<number>(0);
 
-  const { events, selectedEvent, setEvents, appendEvents, setSelectedEvent, totalCount, setTotalCount, clear } = useDbSearchStore();
+  const { events, selectedEvent, setEvents, appendEvents, setSelectedEvent, totalCount, setTotalCount, matchedCount, setMatchedCount, hasFilters, setHasFilters, clear } = useDbSearchStore();
 
-  // 页面卸载时清空数据，初始加载时获取 DB 大小
+  // 检查是否有搜索条件
+  const checkHasFilters = useCallback(() => {
+    return source !== "all" || eventType !== "all" || processName !== "" || keyField !== "" || searchText !== "";
+  }, [source, eventType, processName, keyField, searchText]);
+
+  // 页面卸载时清空数据，初始加载时获取 DB 大小和总记录数
   useEffect(() => {
-    invoke<number>("cmd_monitor_get_db_size").then(setDbSize).catch(() => {});
+    Promise.all([
+      invoke<number>("cmd_monitor_get_db_size"),
+      api.monitorGetEventCount(),
+    ]).then(([size, count]) => {
+      setDbSize(size);
+      setTotalCount(count);
+    }).catch(() => {});
     return () => { clear(); };
-  }, [clear]);
+  }, [clear, setTotalCount]);
 
   const doSearch = useCallback(async (newOffset = 0) => {
     setLoading(true);
+    const filters = checkHasFilters();
+    setHasFilters(filters);
+
     try {
-      const [dbEvents, count, countsArr, size] = await Promise.all([
-        api.monitorSearchEvents(
-          source === "all" ? undefined : source,
-          eventType === "all" ? undefined : eventType,
-          processName || undefined,
-          keyField || undefined,
-          searchText || undefined,
-          loadLimit,
-          newOffset,
-        ),
-        api.monitorGetEventCount(),
+      // 使用 searchEventPage API 获取匹配总数
+      const page = await api.searchEventPage({
+        source: source === "all" ? null : source,
+        event_type: eventType === "all" ? null : eventType,
+        process_name: processName || null,
+        key_field: keyField || null,
+        search_text: searchText || null,
+        limit: loadLimit,
+        offset: newOffset,
+      });
+
+      const dbEvents = page.items;
+      const matchedTotal = page.total;
+
+      // 如果是无条件搜索，matchedTotal 就是总记录数
+      if (!filters) {
+        setTotalCount(matchedTotal);
+      }
+      setMatchedCount(matchedTotal);
+
+      // 获取 DB 大小和类型分布
+      const [countsArr, size] = await Promise.all([
         invoke<[string, number][]>("cmd_monitor_event_type_counts"),
         invoke<number>("cmd_monitor_get_db_size"),
       ]);
+
       setDbSize(size);
-      setTotalCount(count);
       const tc: Record<string, number> = {};
       for (const [k, v] of countsArr) { tc[k] = v; }
       setTypeCounts(tc);
+
       const convertedEvents = dbEvents.map(monitorEventToSysmonEvent);
       if (newOffset === 0) {
         setEvents(convertedEvents);
@@ -216,13 +242,17 @@ export default function DatabaseSearchPage() {
       }
       setOffset(newOffset + dbEvents.length);
       setHasMore(dbEvents.length === loadLimit);
-      toast.success(`数据库中总计 ${count} 条记录，已加载 ${newOffset + convertedEvents.length} 条`);
+
+      const message = filters
+        ? `已匹配 ${matchedTotal} 条记录，已加载 ${newOffset + convertedEvents.length} 条`
+        : `数据库中总计 ${matchedTotal} 条记录，已加载 ${newOffset + convertedEvents.length} 条`;
+      toast.success(message);
     } catch (e) {
       toast.error("搜索事件失败", { description: e instanceof Error ? e.message : "未知错误" });
     } finally {
       setLoading(false);
     }
-  }, [source, eventType, processName, keyField, searchText, loadLimit, setEvents, appendEvents, setTotalCount]);
+  }, [source, eventType, processName, keyField, searchText, loadLimit, setEvents, appendEvents, setTotalCount, setMatchedCount, setHasFilters, checkHasFilters]);
 
   const handleSearch = useCallback(() => {
     doSearch(0);
@@ -242,7 +272,8 @@ export default function DatabaseSearchPage() {
     setOffset(0);
     setHasMore(false);
     setTypeCounts({});
-  }, [clear]);
+    setHasFilters(false);
+  }, [clear, setHasFilters]);
 
   const handleExportCsv = useCallback(async () => {
     const rows = events.map((e) => ({
@@ -305,9 +336,21 @@ export default function DatabaseSearchPage() {
       cell: ({ row }) => <span className="truncate text-fg-primary" title={getDestination(row.original)}>{getDestination(row.original)}</span>,
     },
     {
+      id: "remote_addr",
+      accessorFn: (row) => row.destination_ip && row.destination_port ? `${row.destination_ip}:${row.destination_port}` : (row.destination_ip || "-"),
+      header: "远程地址",
+      size: 140,
+      cell: ({ row }) => {
+        const ip = row.original.destination_ip;
+        const port = row.original.destination_port;
+        const addr = ip && port ? `${ip}:${port}` : (ip || "-");
+        return <span className="truncate text-fg-secondary font-mono text-[11px]" title={addr}>{addr}</span>;
+      },
+    },
+    {
       accessorKey: "process_path",
       header: "路径",
-      size: 300,
+      size: 260,
       cell: ({ getValue }) => <span className="truncate text-fg-secondary" title={getValue() as string}>{getValue() as string}</span>,
     },
   ], []);
@@ -419,7 +462,15 @@ export default function DatabaseSearchPage() {
         </Group>
       </div>
       <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border bg-bg-elev-1 text-[10px] text-fg-tertiary">
-        <span>总计 {totalCount} 条</span>
+        {hasFilters ? (
+          <>
+            <span>已匹配 <span className="text-fg-primary font-medium">{matchedCount}</span> 条</span>
+            <span className="text-fg-tertiary">|</span>
+            <span>数据库总计 <span className="text-fg-secondary">{totalCount}</span> 条</span>
+          </>
+        ) : (
+          <span>总计 <span className="text-fg-primary font-medium">{totalCount}</span> 条</span>
+        )}
         <span className="text-fg-tertiary">|</span>
         <span>DB {formatBytes(dbSize)}</span>
         {Object.entries(typeCounts).map(([type, count]) => (

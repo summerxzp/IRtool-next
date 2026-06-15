@@ -144,6 +144,7 @@ pub fn run() {
         cmd_network_kill_process,
         cmd_network_set_polling,
         cmd_network_clear_history,
+        cmd_network_refresh_cmdline,
         // --- P2 新增 ---
         cmd_autoruns_scan,
         cmd_autoruns_get_result,

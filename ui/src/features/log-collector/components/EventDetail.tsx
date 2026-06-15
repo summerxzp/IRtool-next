@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Copy, X } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { commands } from "@/lib/bindings";
@@ -30,6 +31,7 @@ function FieldRow({ label, value, copyable }: { label: string; value: string; co
 
 function ProcessChain({ pid }: { pid: number }) {
   const { t } = useTranslation();
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const { data: chain } = useQuery({
     queryKey: ["process-chain", pid],
     queryFn: async () => {
@@ -42,22 +44,49 @@ function ProcessChain({ pid }: { pid: number }) {
 
   if (!chain || !chain.nodes || chain.nodes.length <= 1) return null;
 
+  const reversed = [...chain.nodes].reverse();
+  const selectedNode = selectedIdx !== null ? chain.nodes[selectedIdx] : null;
+
   return (
     <div className="mt-2">
       <p className="text-xs font-medium text-fg-secondary mb-1">{t("log-collector.detail.process-chain")}</p>
       <div className="space-y-0.5 pl-2">
-        {[...chain.nodes].reverse().map((node, i) => (
-          <div key={node.pid} className="flex items-center gap-1 text-xs" style={{ paddingLeft: `${i * 12}px` }}>
-            <span className="text-fg-tertiary">└─</span>
-            <span className={node.is_target ? "text-fg-primary font-medium" : "text-fg-secondary"}>
-              {node.name} ({node.pid})
-            </span>
-            {node.is_suspicious && (
-              <span className="text-[10px] text-yellow-500">⚠ {node.suspicious_reason}</span>
-            )}
-          </div>
-        ))}
+        {reversed.map((node, i) => {
+          const originalIdx = chain.nodes.length - 1 - i;
+          const isSelected = selectedIdx === originalIdx;
+          return (
+            <div
+              key={node.pid}
+              className={`flex items-center gap-1 text-xs cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-secondary ${isSelected ? "bg-bg-secondary" : ""}`}
+              style={{ paddingLeft: `${i * 12 + 4}px` }}
+              onClick={() => setSelectedIdx(isSelected ? null : originalIdx)}
+            >
+              <span className="text-fg-tertiary">└─</span>
+              <span className={node.is_target ? "text-fg-primary font-medium" : "text-fg-secondary"}>
+                {node.name} ({node.pid})
+              </span>
+              {node.is_suspicious && (
+                <span className="text-[10px] text-yellow-500">⚠ {node.suspicious_reason}</span>
+              )}
+            </div>
+          );
+        })}
       </div>
+      {selectedNode && (
+        <div className="mt-2 ml-2 pl-2 border-l-2 border-border space-y-1">
+          <FieldRow label={t("log-collector.detail.process")} value={`${selectedNode.name} (${selectedNode.pid})`} />
+          <FieldRow label={t("log-collector.detail.path")} value={selectedNode.exe ?? ""} copyable />
+          {selectedNode.cmdline && (
+            <FieldRow label={t("log-collector.detail.command-line")} value={selectedNode.cmdline} copyable />
+          )}
+          {selectedNode.create_time && (
+            <FieldRow label={t("log-collector.detail.create-time")} value={selectedNode.create_time} />
+          )}
+          {selectedNode.is_suspicious && selectedNode.suspicious_reason && (
+            <FieldRow label={t("log-collector.detail.suspicious")} value={selectedNode.suspicious_reason} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

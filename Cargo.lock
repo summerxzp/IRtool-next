@@ -2122,6 +2122,7 @@ version = "2.0.0"
 dependencies = [
  "dashmap",
  "irtool-core",
+ "irtool-net-monitor",
  "serde",
  "serde_json",
  "specta",

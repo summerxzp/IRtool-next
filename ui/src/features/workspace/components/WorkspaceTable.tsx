@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceStore } from "../store";
@@ -6,6 +6,8 @@ import { networkKey as engineNetworkKey, eventKey as engineEventKey } from "../r
 import type { AutorunItem } from "@/features/autoruns/types";
 import type { NetConn } from "@/features/network/types";
 import type { SysmonEvent } from "@/features/log-collector/types";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
+import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
 export function netConnKey(item: NetConn): string {
   return engineNetworkKey(item);
@@ -120,22 +122,23 @@ export function WorkspaceTable({ onRowSelect }: Props) {
       case "network":
         return [
           { key: "proto", label: t("workspace.columns.proto"), width: 60 },
-          { key: "remote", label: t("workspace.columns.remote"), width: 220 },
-          { key: "state", label: t("workspace.columns.state"), width: 100 },
+          { key: "remote", label: t("workspace.columns.remote"), width: 200 },
+          { key: "state", label: t("workspace.columns.state"), width: 90 },
           { key: "pid", label: t("workspace.columns.pid"), width: 60 },
-          { key: "process_name", label: t("workspace.columns.process"), width: 150 },
+          { key: "process_name", label: t("workspace.columns.process"), width: 140 },
+          { key: "last_seen", label: t("workspace.columns.time"), width: 140 },
         ];
       case "events":
         return [
-          { key: "event_type", label: t("workspace.columns.type"), width: 120 },
-          { key: "timestamp", label: t("workspace.columns.time"), width: 160 },
-          { key: "destination", label: t("workspace.columns.destination"), width: 220 },
-          { key: "process_name", label: t("workspace.columns.process"), width: 150 },
+          { key: "timestamp", label: t("workspace.columns.time"), width: 140 },
+          { key: "event_type", label: t("workspace.columns.type"), width: 100 },
+          { key: "destination", label: t("workspace.columns.destination"), width: 200 },
+          { key: "process_name", label: t("workspace.columns.process"), width: 140 },
         ];
     }
   }, [activeTab, t]);
 
-  const getCellValue = (item: AutorunItem | NetConn | SysmonEvent, colKey: string): string => {
+  const getCellValue = (item: AutorunItem | NetConn | SysmonEvent, colKey: string): React.ReactNode => {
     switch (activeTab) {
       case "autoruns": {
         const a = item as AutorunItem;
@@ -155,15 +158,23 @@ export function WorkspaceTable({ onRowSelect }: Props) {
           case "state": return n.state;
           case "pid": return String(n.pid);
           case "process_name": return n.process_name ?? "";
+          case "last_seen": return n.last_seen ? new Date(n.last_seen * 1000).toLocaleTimeString() : "";
           default: return "";
         }
       }
       case "events": {
         const e = item as SysmonEvent;
         switch (colKey) {
-          case "event_type": return e.event_type;
           case "timestamp": return e.timestamp;
-          case "destination": return e.query_name || e.destination_ip || e.target_filename || "";
+          case "event_type": {
+            const et = e.event_type as ExtendedSysmonEventType;
+            return (
+              <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et] || ""}`}>
+                {EVENT_TYPE_LABELS[et] || e.event_type}
+              </span>
+            );
+          }
+          case "destination": return e.query_name || (e.destination_ip ? `${e.destination_ip}:${e.destination_port}` : "") || e.target_filename || "";
           case "process_name": return e.process_name;
           default: return "";
         }
