@@ -77,8 +77,8 @@ export default function SettingsPage() {
       popup_duration_secs: 10,
     },
     db_path: "",
-    enable_sni: false,
-    enable_dns_pcap: false,
+    enable_sni: true, // 默认勾选 TLS SNI 提取
+    enable_dns_pcap: true, // 默认勾选网络层 DNS 抓包
     adapter_ip: null,
     max_duration_secs: 0,
     load_limit: 1000,

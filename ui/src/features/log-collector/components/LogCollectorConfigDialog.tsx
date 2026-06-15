@@ -224,9 +224,9 @@ export function LogCollectorConfigDialog({ open, onOpenChange, eventConfigs, onA
                           </Label>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs max-w-sm">
+                      <TooltipContent side="left" className="text-xs max-w-md whitespace-pre-wrap">
                         <p>{t(`log-collector.config-dialog.${extraKey}-desc`)}</p>
-                        <p className="mt-0.5 text-fg-tertiary">{t(`log-collector.config-dialog.${extraKey}-source`)}</p>
+                        <p className="mt-1 text-fg-tertiary text-[10px]">{t(`log-collector.config-dialog.${extraKey}-source`)}</p>
                       </TooltipContent>
                     </Tooltip>
                   ))}

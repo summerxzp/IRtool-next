@@ -277,11 +277,18 @@ impl AutorunsScanner {
 
     /// Run sigcheck64.exe on a single file and return the output
     pub fn sigcheck_file(sigcheck_path: &Path, file_path: &Path) -> Result<String, IrError> {
-        let output = std::process::Command::new(sigcheck_path)
-            .args(["-accepteula", "-nobanner"])
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new(sigcheck_path);
+        cmd.args(["-accepteula", "-nobanner"])
             .arg(file_path)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        #[cfg(windows)]
+        {
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        let output = cmd
             .output()
             .map_err(|e| IrError::Io(format!("sigcheck 启动失败: {}", e)))?;
 
@@ -377,6 +384,8 @@ pub fn open_in_explorer(path: &str) -> Result<(), IrError> {
 
 /// Open regedit and navigate to a registry key
 pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
     let escaped = registry_path.replace('\\', "\\\\");
     let reg_content = format!(
         "Windows Registry Editor Version 5.00\n\n\
@@ -387,10 +396,21 @@ pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
     let tmp_dir = std::env::temp_dir();
     let tmp_path = tmp_dir.join(format!("irtool_regedit_nav_{}.reg", std::process::id()));
     std::fs::write(&tmp_path, &reg_content).map_err(|e| IrError::Io(format!("写入临时文件失败: {}", e)))?;
-    std::process::Command::new("regedit")
-        .args(["/s", tmp_path.to_str().unwrap_or("")])
-        .spawn()
-        .map_err(|e| IrError::Io(format!("导入注册表失败: {}", e)))?;
+    #[cfg(windows)]
+    {
+        std::process::Command::new("regedit")
+            .args(["/s", tmp_path.to_str().unwrap_or("")])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn()
+            .map_err(|e| IrError::Io(format!("导入注册表失败: {}", e)))?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("regedit")
+            .args(["/s", tmp_path.to_str().unwrap_or("")])
+            .spawn()
+            .map_err(|e| IrError::Io(format!("导入注册表失败: {}", e)))?;
+    }
     std::process::Command::new("regedit")
         .spawn()
         .map_err(|e| IrError::Io(format!("打开注册表编辑器失败: {}", e)))?;
@@ -399,10 +419,22 @@ pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
 
 /// Open Windows Services manager
 pub fn open_services_msc() -> Result<(), IrError> {
-    std::process::Command::new("cmd")
-        .args(["/c", "services.msc"])
-        .spawn()
-        .map_err(|e| IrError::Io(format!("无法打开服务管理器: {}", e)))?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("cmd")
+            .args(["/c", "services.msc"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn()
+            .map_err(|e| IrError::Io(format!("无法打开服务管理器: {}", e)))?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "services.msc"])
+            .spawn()
+            .map_err(|e| IrError::Io(format!("无法打开服务管理器: {}", e)))?;
+    }
     Ok(())
 }
 

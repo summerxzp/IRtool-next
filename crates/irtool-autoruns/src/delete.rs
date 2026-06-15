@@ -170,9 +170,11 @@ mod win_impls {
     }
 
     fn delete_scheduled_task(item: &AutorunItem) -> Result<DeleteResult, IrError> {
+        use std::os::windows::process::CommandExt;
         let task_name = &item.entry;
         let output = std::process::Command::new("schtasks")
             .args(["/Delete", "/TN", task_name, "/F"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output()
             .map_err(|e| IrError::Io(format!("schtasks 执行失败: {}", e)))?;
 

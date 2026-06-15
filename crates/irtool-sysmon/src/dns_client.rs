@@ -18,9 +18,13 @@ impl DnsClientLogManager {
 
     #[cfg(windows)]
     pub fn enable(&mut self) -> Result<(), IrError> {
+        use std::os::windows::process::CommandExt;
         info!("Checking DNS Client event log state...");
 
-        let check_result = Command::new("wevtutil").args(["get-log", DNS_CLIENT_CHANNEL]).output();
+        let check_result = Command::new("wevtutil")
+            .args(["get-log", DNS_CLIENT_CHANNEL])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output();
 
         match check_result {
             Ok(output) => {
@@ -41,6 +45,7 @@ impl DnsClientLogManager {
 
         let result = Command::new("wevtutil")
             .args(["sl", DNS_CLIENT_CHANNEL, "/e:true"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output();
 
         match result {
@@ -67,6 +72,7 @@ impl DnsClientLogManager {
 
     #[cfg(windows)]
     pub fn restore(&mut self) -> Result<(), IrError> {
+        use std::os::windows::process::CommandExt;
         if self.was_enabled {
             info!("DNS Client event log was already enabled, no need to restore");
             return Ok(());
@@ -76,6 +82,7 @@ impl DnsClientLogManager {
 
         let result = Command::new("wevtutil")
             .args(["sl", DNS_CLIENT_CHANNEL, "/e:false"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .output();
 
         match result {
