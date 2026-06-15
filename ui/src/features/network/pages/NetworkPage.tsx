@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
+import { AlertTriangle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,15 @@ import { NetworkStatsBar } from "../components/NetworkStatsBar";
 import { KillProcessDialog } from "../components/KillProcessDialog";
 import { exportCsv } from "@/lib/csv";
 import { useUIStore } from "@/stores/ui-store";
+import { invoke } from "@tauri-apps/api/core";
 import type { NetConn } from "../types";
+
+// Background mode telemetry type
+interface BackgroundTelemetry {
+  events_written: number;
+  events_dropped: number;
+  last_event_at: number | null;
+}
 
 export function NetworkPage() {
   const { t } = useTranslation();
@@ -27,6 +36,29 @@ export function NetworkPage() {
   const [killDialogOpen, setKillDialogOpen] = useState(false);
   const [contextRow, setContextRow] = useState<NetConn | null>(null);
   const [contextPos, setContextPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Background mode state
+  const [isBackground, setIsBackground] = useState(false);
+  const [bgTelemetry, setBgTelemetry] = useState<BackgroundTelemetry | null>(null);
+
+  // Check background mode on mount and periodically
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const bg = await invoke<boolean>("cmd_monitor_is_background");
+        setIsBackground(bg);
+        if (bg) {
+          const tel = await invoke<BackgroundTelemetry>("cmd_monitor_get_telemetry");
+          setBgTelemetry(tel);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const data = useMemo(() => query.data?.items ?? [], [query.data]);
 
@@ -69,6 +101,29 @@ export function NetworkPage() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Background mode banner */}
+      {isBackground && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-600 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{t("log-collector.background-mode.active")}</span>
+          {bgTelemetry && (
+            <span className="text-amber-500/80">
+              {t("log-collector.background-mode.written")}: {bgTelemetry.events_written}
+              {bgTelemetry.events_dropped > 0 && (
+                <span className="text-red-500 ml-2">
+                  {t("log-collector.background-mode.dropped")}: {bgTelemetry.events_dropped}
+                </span>
+              )}
+              {bgTelemetry.last_event_at && (
+                <span className="ml-2">
+                  {t("log-collector.background-mode.last-event")}: {new Date(bgTelemetry.last_event_at).toLocaleTimeString()}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
+
       <NetworkToolbar
         onExport={handleExport}
         onClearHistory={() => clearMutation.mutate()}
