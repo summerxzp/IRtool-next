@@ -135,15 +135,16 @@ Sysmon64.exe 的 `-i`/`-c` 参数不支持中文路径。先用 `GetShortPathNam
 | 文件 | 说明 |
 |------|------|
 | `Cargo.toml` | **唯一版本来源**，修改此文件 |
-| `ui/package.json` | 构建时自动同步 |
-| `crates/irtool-tauri/tauri.conf.json` | 构建时自动同步 |
-| `README.md` | 手动更新版本徽章 |
+| `ui/package.json` | 运行 sync-version.js 同步 |
+| `crates/irtool-tauri/tauri.conf.json` | 运行 sync-version.js 同步 |
+| `crates/irtool-tauri/irtool.manifest` | 运行 sync-version.js 同步 |
+| `README.md` 版本徽章 | 运行 sync-version.js 同步 |
+| 前端左上角版本号 | 运行时从 API 自动获取，无需维护 |
 
 **发布流程**：
 1. 修改 `Cargo.toml` 中的 `version`
 2. 运行 `node scripts/sync-version.js` 同步到其他文件
-3. 更新 `README.md` 中的版本徽章
-4. 提交并打 tag
+3. 提交并打 tag
 
 **前端获取版本号**：通过 `cmdAppInfo()` API 从后端获取，使用 `env!("CARGO_PKG_VERSION")` 自动读取 Cargo.toml 版本。
 
