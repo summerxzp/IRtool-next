@@ -1,0 +1,20 @@
+#!/bin/sh
+# commit-msg hook: strip Co-Authored-By trailers added by AI tools
+#
+# Usage:
+#   Option A: Copy to .git/hooks/commit-msg
+#   Option B: git config core.hooksPath scripts/git-hooks
+#
+# This hook automatically removes Co-Authored-By lines added by
+# Claude, Copilot, or other AI coding assistants.
+
+MSG_FILE="$1"
+
+# Remove Co-Authored-By lines containing anthropic/claude (case-insensitive)
+sed -i '/^[Cc]o-[Aa]uthored-[Bb]y:.*[Aa]nthropic/d' "$MSG_FILE"
+sed -i '/^[Cc]o-[Aa]uthored-[Bb]y:.*[Cc]laude/d' "$MSG_FILE"
+
+# Clean up trailing blank lines
+sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$MSG_FILE"
+
+exit 0
