@@ -7,11 +7,13 @@ import { useAlertStore } from "@/stores/alert-store";
 import { AlertPanel } from "./AlertPanel";
 import { useRouterState } from "@tanstack/react-router";
 import { useUIStore } from "@/stores/ui-store";
+import { commands, type AppInfo } from "@/lib/bindings";
 
 export function TopBar() {
   const { resolvedTheme, setTheme } = useThemeStore();
   const [_isMaximized, setIsMaximized] = useState(false);
   const [alertPanelOpen, setAlertPanelOpen] = useState(false);
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const unreadCount = useAlertStore((s) => s.unreadCount);
   const alertPanelAutoOpen = useAlertStore((s) => s.alertPanelAutoOpen);
   const setAlertPanelAutoOpen = useAlertStore((s) => s.setAlertPanelAutoOpen);
@@ -32,6 +34,10 @@ export function TopBar() {
   useEffect(() => {
     const window = getCurrentWebviewWindow();
     window.isMaximized().then(setIsMaximized);
+  }, []);
+
+  useEffect(() => {
+    commands.cmdAppInfo().then(setAppInfo).catch(() => null);
   }, []);
 
   // Auto-open alert panel when notification is clicked
@@ -66,7 +72,9 @@ export function TopBar() {
         <span className="text-sm font-semibold text-fg-primary">
           IRtool
         </span>
-        <span className="text-xs text-fg-tertiary">v2.0.0-alpha.1</span>
+        {appInfo && (
+          <span className="text-xs text-fg-tertiary">v{appInfo.version}</span>
+        )}
       </div>
 
       {/* 中间：拖拽区域 */}
