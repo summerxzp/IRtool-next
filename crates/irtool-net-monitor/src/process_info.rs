@@ -109,8 +109,8 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<TargetedQueryResult> {
     use serde::Deserialize;
     use std::sync::mpsc;
     use std::time::Duration;
-    use wmi::WMIConnection;
     use tracing::{debug, info};
+    use wmi::WMIConnection;
 
     #[derive(Deserialize)]
     #[allow(non_snake_case)]
@@ -162,7 +162,11 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<TargetedQueryResult> {
         match rx.recv_timeout(Duration::from_millis(1500)) {
             Ok(Some(results)) => {
                 any_chunk_succeeded = true;
-                debug!("targeted_query_cmdlines: chunk {} succeeded, {} results", chunk_idx, results.len());
+                debug!(
+                    "targeted_query_cmdlines: chunk {} succeeded, {} results",
+                    chunk_idx,
+                    results.len()
+                );
                 // Track which PIDs in this chunk were found in WMI
                 let mut found_pids = std::collections::HashSet::new();
                 for proc in results {
@@ -196,8 +200,14 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<TargetedQueryResult> {
     // If all chunks failed, consider the entire query failed
     let query_failed = !any_chunk_succeeded && !failed_pids.is_empty();
 
-    info!("targeted_query_cmdlines: done, cmdlines={}, exited={}, failed={}, no_cmdline={}, query_failed={}",
-          cmdlines.len(), exited_pids.len(), failed_pids.len(), no_cmdline_pids.len(), query_failed);
+    info!(
+        "targeted_query_cmdlines: done, cmdlines={}, exited={}, failed={}, no_cmdline={}, query_failed={}",
+        cmdlines.len(),
+        exited_pids.len(),
+        failed_pids.len(),
+        no_cmdline_pids.len(),
+        query_failed
+    );
 
     Some(TargetedQueryResult {
         cmdlines,

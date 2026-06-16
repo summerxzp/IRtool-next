@@ -152,7 +152,11 @@ pub async fn cmd_network_clear_history(state: State<'_, AppState>) -> Result<(),
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri::AppHandle, pid: u32) -> Result<(), IrError> {
+pub async fn cmd_network_refresh_cmdline(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    pid: u32,
+) -> Result<(), IrError> {
     info!("manual cmdline refresh requested: pid={}", pid);
 
     // Perform the query immediately (do NOT clear cache — that would cause the
@@ -164,18 +168,34 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
         info!("manual cmdline refresh: starting WMI query for pid={}", pid);
         let result = irtool_net_monitor::process_info::targeted_query_cmdlines(&[pid]);
         let now = std::time::Instant::now();
-        info!("manual cmdline refresh: WMI query completed for pid={}, result={:?}", pid, result.as_ref().map(|r| (&r.cmdlines, &r.exited_pids, &r.failed_pids, &r.no_cmdline_pids, &r.query_failed)));
+        info!(
+            "manual cmdline refresh: WMI query completed for pid={}, result={:?}",
+            pid,
+            result.as_ref().map(|r| (
+                &r.cmdlines,
+                &r.exited_pids,
+                &r.failed_pids,
+                &r.no_cmdline_pids,
+                &r.query_failed
+            ))
+        );
 
         match result {
             Some(query_result) => {
                 if query_result.query_failed {
                     // WMI connection failed
-                    info!("manual cmdline refresh: pid={} WMI query failed (connection error)", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: None,
-                        status: CmdlineStatus::Failed,
-                        cached_at: now,
-                    });
+                    info!(
+                        "manual cmdline refresh: pid={} WMI query failed (connection error)",
+                        pid
+                    );
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: None,
+                            status: CmdlineStatus::Failed,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Failed,
@@ -185,11 +205,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
                 } else if query_result.failed_pids.contains(&pid) {
                     // This specific PID query timed out
                     info!("manual cmdline refresh: pid={} WMI query timed out", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: None,
-                        status: CmdlineStatus::Failed,
-                        cached_at: now,
-                    });
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: None,
+                            status: CmdlineStatus::Failed,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Failed,
@@ -199,11 +222,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
                 } else if query_result.exited_pids.contains(&pid) {
                     // PID not in WMI results — process exited
                     info!("manual cmdline refresh: pid={} process exited", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: None,
-                        status: CmdlineStatus::Exited,
-                        cached_at: now,
-                    });
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: None,
+                            status: CmdlineStatus::Exited,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Exited,
@@ -213,11 +239,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
                 } else if let Some(cmdline) = query_result.cmdlines.get(&pid) {
                     // Success
                     info!("manual cmdline refresh: pid={} cmdline found", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: Some(cmdline.clone()),
-                        status: CmdlineStatus::Ready,
-                        cached_at: now,
-                    });
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: Some(cmdline.clone()),
+                            status: CmdlineStatus::Ready,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Ready,
@@ -227,11 +256,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
                 } else if query_result.no_cmdline_pids.contains(&pid) {
                     // PID found in WMI but CommandLine is None (protected process)
                     info!("manual cmdline refresh: pid={} found but no cmdline (protected)", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: None,
-                        status: CmdlineStatus::Denied,
-                        cached_at: now,
-                    });
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: None,
+                            status: CmdlineStatus::Denied,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Denied,
@@ -242,11 +274,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
                     // PID found in WMI but no CommandLine (system process, etc.)
                     // This is still "Ready" status, just no cmdline
                     info!("manual cmdline refresh: pid={} found but no cmdline", pid);
-                    enricher.update(pid, CmdlineResult {
-                        cmdline: None,
-                        status: CmdlineStatus::Ready,
-                        cached_at: now,
-                    });
+                    enricher.update(
+                        pid,
+                        CmdlineResult {
+                            cmdline: None,
+                            status: CmdlineStatus::Ready,
+                            cached_at: now,
+                        },
+                    );
                     let payload = NetworkEnrichmentPayload {
                         pid,
                         cmdline_status: CmdlineStatus::Ready,
@@ -258,11 +293,14 @@ pub async fn cmd_network_refresh_cmdline(state: State<'_, AppState>, app: tauri:
             None => {
                 // WMI query returned None (shouldn't happen with new impl, but handle it)
                 info!("manual cmdline refresh: pid={} WMI query returned None", pid);
-                enricher.update(pid, CmdlineResult {
-                    cmdline: None,
-                    status: CmdlineStatus::Failed,
-                    cached_at: now,
-                });
+                enricher.update(
+                    pid,
+                    CmdlineResult {
+                        cmdline: None,
+                        status: CmdlineStatus::Failed,
+                        cached_at: now,
+                    },
+                );
                 let payload = NetworkEnrichmentPayload {
                     pid,
                     cmdline_status: CmdlineStatus::Failed,

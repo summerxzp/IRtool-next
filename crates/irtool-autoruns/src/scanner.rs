@@ -576,9 +576,7 @@ fn extract_service_name_from_path(path: &str) -> Option<String> {
     let cleaned = path.trim().trim_matches('"');
     // Find the .exe/.sys/.dll portion and extract the filename before it
     static EXT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re = EXT_RE.get_or_init(|| {
-        regex::Regex::new(r#"(?:^|.*[\\/])([^\\/"\s]+?)(?:\.(?:exe|sys|dll))"#).unwrap()
-    });
+    let re = EXT_RE.get_or_init(|| regex::Regex::new(r#"(?:^|.*[\\/])([^\\/"\s]+?)(?:\.(?:exe|sys|dll))"#).unwrap());
     if let Some(caps) = re.captures(cleaned) {
         if let Some(m) = caps.get(1) {
             let name = m.as_str().to_owned();

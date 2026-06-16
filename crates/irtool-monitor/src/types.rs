@@ -143,7 +143,7 @@ impl Default for MonitorConfig {
             retention_days: 7,
             rules: vec![],
             db_path: String::new(),
-            enable_sni: true,    // 默认启用 TLS SNI 提取
+            enable_sni: true,      // 默认启用 TLS SNI 提取
             enable_dns_pcap: true, // 默认启用网络层 DNS 抓包
             adapter_ip: None,
             max_duration_secs: 0,

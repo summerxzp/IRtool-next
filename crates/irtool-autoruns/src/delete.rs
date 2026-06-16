@@ -229,21 +229,11 @@ mod win_impls {
     }
 
     fn delete_boot_execute(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
-        delete_lsa_multi_sz_at(
-            hive,
-            subkey,
-            "BootExecute",
-            &item.entry,
-        )
+        delete_lsa_multi_sz_at(hive, subkey, "BootExecute", &item.entry)
     }
 
     fn delete_appinit_dlls(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
-        delete_lsa_multi_sz_at(
-            hive,
-            subkey,
-            "AppInit_DLLs",
-            &item.entry,
-        )
+        delete_lsa_multi_sz_at(hive, subkey, "AppInit_DLLs", &item.entry)
     }
 
     fn delete_ifeo(item: &AutorunItem, hive: HKEY, parent_subkey: &str) -> Result<DeleteResult, IrError> {
@@ -285,7 +275,7 @@ mod win_impls {
         let clsid = super::extract_clsid_from_item(item);
         if let Some(ref clsid) = clsid {
             // Delete the BHO registration subkey
-            let bho_subkey = format!(r"{}\{}",  subkey, clsid);
+            let bho_subkey = format!(r"{}\{}", subkey, clsid);
             let _ = super::delete_registry_key_fallback(hive, &bho_subkey);
             // Also delete the CLSID class registration
             let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
@@ -301,7 +291,7 @@ mod win_impls {
         let clsid = super::extract_clsid_from_item(item);
         if let Some(ref clsid) = clsid {
             // For shell extensions, the CLSID is typically a subkey name
-            let full_subkey = format!(r"{}\{}",  subkey, clsid);
+            let full_subkey = format!(r"{}\{}", subkey, clsid);
             let result = super::delete_registry_key_fallback(hive, &full_subkey);
             if result.is_ok() {
                 // Also try to remove the CLSID class registration
@@ -770,11 +760,7 @@ mod tests {
 
     #[test]
     fn dispatch_winsock_category() {
-        let item = make_item(
-            "Winsock",
-            r"HKLM\SYSTEM\CurrentControlSet\Services\WinSock",
-            "LspEntry",
-        );
+        let item = make_item("Winsock", r"HKLM\SYSTEM\CurrentControlSet\Services\WinSock", "LspEntry");
         let result = delete_entry(&item);
         // Winsock should return unsupported (not panic)
         assert!(result.is_ok());
