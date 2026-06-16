@@ -2,6 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import AlertPopupWindow from "./components/AlertPopupWindow";
 
+// Disable default WebView context menu globally
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 // Sync theme from main window's localStorage
 try {
   const theme = localStorage.getItem("irtool-theme");

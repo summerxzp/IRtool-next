@@ -98,7 +98,7 @@ impl AutorunsScanner {
                     None => (true, None),
                 };
 
-                let service_name = if raw.category == "Services" {
+                let service_name = if raw.category == "Services" || raw.category == "Drivers" {
                     Some(extract_service_name(&raw))
                 } else {
                     None
@@ -548,11 +548,8 @@ fn check_files_batch(entries: &[RawEntry]) -> std::collections::HashMap<String, 
 }
 
 fn extract_service_name(raw: &RawEntry) -> String {
-    if !raw.launch_string.is_empty() {
-        if let Some(name) = extract_service_name_from_path(&raw.launch_string) {
-            return name;
-        }
-    }
+    // Primary: extract from registry location (authoritative Windows service key name)
+    // e.g. HKLM\System\CurrentControlSet\Services\BitCometService → "BitCometService"
     static SERVICE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     if let Some(caps) = SERVICE_RE
         .get_or_init(|| regex::Regex::new(r"(?i)Services\\([^\\]+)").unwrap())
@@ -562,13 +559,38 @@ fn extract_service_name(raw: &RawEntry) -> String {
             return m.as_str().to_owned();
         }
     }
+
+    // Fallback: extract from launch_string binary path
+    if !raw.launch_string.is_empty() {
+        if let Some(name) = extract_service_name_from_path(&raw.launch_string) {
+            return name;
+        }
+    }
+
     raw.entry.clone()
 }
 
 fn extract_service_name_from_path(path: &str) -> Option<String> {
+    // Strip surrounding quotes and anything after the executable extension
+    // e.g. '"C:\Program Files\BitComet\BitCometService.exe" -service' → 'BitCometService'
+    let cleaned = path.trim().trim_matches('"');
+    // Find the .exe/.sys/.dll portion and extract the filename before it
+    static EXT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = EXT_RE.get_or_init(|| {
+        regex::Regex::new(r#"(?:^|.*[\\/])([^\\/"\s]+?)(?:\.(?:exe|sys|dll))"#).unwrap()
+    });
+    if let Some(caps) = re.captures(cleaned) {
+        if let Some(m) = caps.get(1) {
+            let name = m.as_str().to_owned();
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+    }
+    // Fallback: last path component without extension
     static PATH_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re = PATH_RE.get_or_init(|| regex::Regex::new(r"\\([^\\]+)\s*$").unwrap());
-    let m = re.captures(path)?.get(1)?;
+    let re2 = PATH_RE.get_or_init(|| regex::Regex::new(r"\\([^\\]+)\s*$").unwrap());
+    let m = re2.captures(path)?.get(1)?;
     let mut name = m.as_str().to_owned();
     for ext in &[".sys", ".dll", ".exe"] {
         if name.to_lowercase().ends_with(ext) {
@@ -603,5 +625,17 @@ mod tests {
     fn extract_service_name_empty_path() {
         let name = extract_service_name_from_path("");
         assert_eq!(name, None);
+    }
+
+    #[test]
+    fn extract_service_name_quoted_with_args() {
+        let name = extract_service_name_from_path(r#""C:\Program Files\BitComet\BitCometService.exe" -service"#);
+        assert_eq!(name, Some("BitCometService".into()));
+    }
+
+    #[test]
+    fn extract_service_name_unquoted_with_args() {
+        let name = extract_service_name_from_path(r"C:\Program Files\MyApp\service.exe --daemon");
+        assert_eq!(name, Some("service".into()));
     }
 }

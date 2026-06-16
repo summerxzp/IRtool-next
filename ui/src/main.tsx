@@ -8,6 +8,9 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Toaster } from "sonner";
 import { router } from "./router";
 
+// Disable default WebView context menu globally
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 // Log unhandled JS errors to Rust backend
 window.addEventListener("error", (e) => {
   console.error("[unhandled]", e.error ?? e.message);

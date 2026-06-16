@@ -77,12 +77,12 @@ mod win_impls {
 
         // 3. Boot Execute — LSA_MULTI_SZ at HKLM\System\CurrentControlSet\Control\Session Manager
         if category == "boot execute" {
-            return delete_boot_execute(item);
+            return delete_boot_execute(item, hive, &subkey);
         }
 
         // 4. AppInit DLLs — LSA_MULTI_SZ at HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows
         if category == "appinit" {
-            return delete_appinit_dlls(item);
+            return delete_appinit_dlls(item, hive, &subkey);
         }
 
         // 5. Image File Execution Options (IFEO)
@@ -90,14 +90,16 @@ mod win_impls {
             return delete_ifeo(item, hive, &subkey);
         }
 
-        // 6. LSA Security Packages — LSA_MULTI_SZ
+        // 6. LSA Security Packages — MULTI_SZ value named "Security Packages"
+        //    entry is the package name (data within the MULTI_SZ), NOT the value name
         if category == "lsa security packages" {
-            return delete_lsa_multi_sz(item, hive, &subkey, value_name);
+            return delete_lsa_multi_sz_at(hive, &subkey, "Security Packages", &item.entry);
         }
 
-        // 7. Known DLLs — LSA_MULTI_SZ
+        // 7. Known DLLs — MULTI_SZ value named "KnownDLLs"
+        //    entry is the DLL filename (data within the MULTI_SZ), NOT the value name
         if category == "known dlls" {
-            return delete_lsa_multi_sz(item, hive, &subkey, value_name);
+            return delete_lsa_multi_sz_at(hive, &subkey, "KnownDLLs", &item.entry);
         }
 
         // 8. Winlogon — LSA_MULTI_SZ (Userinit, Shell, Taskman, System)
@@ -116,6 +118,35 @@ mod win_impls {
         // 10. Office addins / COM — CLSID-based
         if category == "office" || category == "com object" {
             return delete_com_or_office(item, hive, &subkey);
+        }
+
+        // 13. Internet Explorer addons / BHOs — CLSID-based subkey deletion
+        if category == "internet explorer" || category == "ie" || category == "internet addons" {
+            return delete_ie_addon(item, hive, &subkey);
+        }
+
+        // 14. Explorer shell extensions — may contain CLSID-based entries
+        if category == "explorer" {
+            return delete_explorer_addon(item, hive, &subkey);
+        }
+
+        // 15. Winsock LSP / Network Providers — complex chain-based
+        //     Generic delete may work for simple cases; chain removal requires LspFix-style logic
+        if category == "winsock" || category == "network providers" {
+            return Ok(DeleteResult {
+                success: false,
+                message: "Winsock/网络提供程序项结构复杂，建议使用专用工具手动处理".into(),
+            });
+        }
+
+        // 16. Print Monitors — registry value + driver file, value-based delete covers registry part
+        if category == "print monitors" || category == "printer monitors" {
+            return delete_registry_value(hive, &subkey, value_name);
+        }
+
+        // 17. Sidebar Gadgets (Vista/7) — rare, generic value delete
+        if category == "sidebar gadgets" || category == "gadgets" {
+            return delete_registry_value(hive, &subkey, value_name);
         }
 
         // 12. Generic registry value delete (Logon, Explorer, Codecs, etc.)
@@ -145,6 +176,7 @@ mod win_impls {
             let service = match OpenServiceW(scm, &service_name_wide, 0x00010000 | 0x00000020) {
                 Ok(s) => s,
                 Err(e) => {
+                    let _ = CloseServiceHandle(scm);
                     return Ok(DeleteResult {
                         success: false,
                         message: format!("无法打开服务 '{}': {}", service_name, e),
@@ -156,7 +188,7 @@ mod win_impls {
             let mut status = SERVICE_STATUS::default();
             let _ = ControlService(service, 0x00000001, &mut status);
 
-            match DeleteService(service) {
+            let result = match DeleteService(service) {
                 Ok(()) => Ok(DeleteResult {
                     success: true,
                     message: format!("服务 '{}' 已删除", service_name),
@@ -165,7 +197,11 @@ mod win_impls {
                     success: false,
                     message: format!("删除服务 '{}' 失败: {}", service_name, e),
                 }),
-            }
+            };
+
+            let _ = CloseServiceHandle(service);
+            let _ = CloseServiceHandle(scm);
+            result
         }
     }
 
@@ -192,19 +228,19 @@ mod win_impls {
         }
     }
 
-    fn delete_boot_execute(item: &AutorunItem) -> Result<DeleteResult, IrError> {
+    fn delete_boot_execute(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
         delete_lsa_multi_sz_at(
-            HKEY_LOCAL_MACHINE,
-            r"System\CurrentControlSet\Control\Session Manager",
+            hive,
+            subkey,
             "BootExecute",
             &item.entry,
         )
     }
 
-    fn delete_appinit_dlls(item: &AutorunItem) -> Result<DeleteResult, IrError> {
+    fn delete_appinit_dlls(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
         delete_lsa_multi_sz_at(
-            HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows",
+            hive,
+            subkey,
             "AppInit_DLLs",
             &item.entry,
         )
@@ -228,7 +264,8 @@ mod win_impls {
     }
 
     fn delete_com_or_office(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
-        if let Some(clsid) = super::extract_clsid(&item.location) {
+        let clsid = super::extract_clsid_from_item(item);
+        if let Some(ref clsid) = clsid {
             let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
             return delete_registry_key(hive, &clsid_path);
         }
@@ -239,6 +276,46 @@ mod win_impls {
                 message: "COM/Office 项无法自动删除，请手动处理".into(),
             });
         }
+        delete_registry_value(hive, subkey, &item.entry)
+    }
+
+    /// IE BHOs: the CLSID is registered as a subkey under ...\Browser Helper Objects\{CLSID}
+    /// We delete both the BHO subkey and the CLSID class registration.
+    fn delete_ie_addon(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
+        let clsid = super::extract_clsid_from_item(item);
+        if let Some(ref clsid) = clsid {
+            // Delete the BHO registration subkey
+            let bho_subkey = format!(r"{}\{}",  subkey, clsid);
+            let _ = super::delete_registry_key_fallback(hive, &bho_subkey);
+            // Also delete the CLSID class registration
+            let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
+            return delete_registry_key(hive, &clsid_path);
+        }
+        // No CLSID found, try generic value delete as fallback
+        delete_registry_value(hive, subkey, &item.entry)
+    }
+
+    /// Explorer shell extensions: entries may be CLSID-based (context menu handlers,
+    /// approved shell extensions) or plain value names.
+    fn delete_explorer_addon(item: &AutorunItem, hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
+        let clsid = super::extract_clsid_from_item(item);
+        if let Some(ref clsid) = clsid {
+            // For shell extensions, the CLSID is typically a subkey name
+            let full_subkey = format!(r"{}\{}",  subkey, clsid);
+            let result = super::delete_registry_key_fallback(hive, &full_subkey);
+            if result.is_ok() {
+                // Also try to remove the CLSID class registration
+                let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
+                let _ = super::delete_registry_key_fallback(hive, &clsid_path);
+                return Ok(DeleteResult {
+                    success: true,
+                    message: format!("Explorer 扩展 '{}' 已删除", clsid),
+                });
+            }
+            // If subkey delete failed, it might be a value name containing the CLSID
+            return delete_registry_value(hive, subkey, clsid);
+        }
+        // No CLSID, treat as plain registry value
         delete_registry_value(hive, subkey, &item.entry)
     }
 
@@ -265,6 +342,7 @@ mod win_impls {
             }
 
             let result = RegDeleteValueW(h_key, &value_name_wide);
+            let _ = RegCloseKey(h_key);
             // ERROR_FILE_NOT_FOUND (2): value already gone — treat as success
             if result.is_err() && result.0 != 2 {
                 Ok(DeleteResult {
@@ -318,6 +396,7 @@ mod win_impls {
             let existing = match super::read_multi_sz(h_key, &value_name_wide) {
                 Some(strings) => strings,
                 None => {
+                    let _ = RegCloseKey(h_key);
                     return Ok(DeleteResult {
                         success: false,
                         message: format!("无法读取 MULTI_SZ 值 '{}'", value_name),
@@ -330,6 +409,7 @@ mod win_impls {
             let new_strings: Vec<&String> = existing.iter().filter(|s| s.to_lowercase() != entry_lower).collect();
 
             if new_strings.len() == existing.len() {
+                let _ = RegCloseKey(h_key);
                 return Ok(DeleteResult {
                     success: false,
                     message: format!("在 '{}' 中未找到 '{}'", value_name, entry_to_remove),
@@ -347,6 +427,7 @@ mod win_impls {
                 Some(new_data.as_ptr() as *const _),
                 (new_data.len() * 2) as u32,
             );
+            let _ = RegCloseKey(h_key);
 
             if result.is_err() {
                 Ok(DeleteResult {
@@ -504,6 +585,11 @@ fn extract_clsid(text: &str) -> Option<String> {
     Some(caps.as_str().to_owned())
 }
 
+/// Extract CLSID from an AutorunItem — tries `location` first, then `entry`.
+fn extract_clsid_from_item(item: &AutorunItem) -> Option<String> {
+    extract_clsid(&item.location).or_else(|| extract_clsid(&item.entry))
+}
+
 #[cfg(windows)]
 fn delete_registry_key_fallback(
     hive: windows::Win32::System::Registry::HKEY,
@@ -623,6 +709,88 @@ mod tests {
     fn extract_clsid_no_match() {
         let clsid = extract_clsid("no clsid here");
         assert_eq!(clsid, None);
+    }
+
+    #[test]
+    fn extract_clsid_from_item_location() {
+        let item = make_item(
+            "COM Object",
+            r"HKLM\SOFTWARE\Classes\CLSID\{AABBCCDD-1234-5678-9ABC-DEF012345678}\InprocServer32",
+            "MyAddon",
+        );
+        assert_eq!(
+            extract_clsid_from_item(&item),
+            Some("{AABBCCDD-1234-5678-9ABC-DEF012345678}".into())
+        );
+    }
+
+    #[test]
+    fn extract_clsid_from_item_entry_fallback() {
+        let item = make_item(
+            "Internet Explorer",
+            r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects",
+            "{11223344-5566-7788-99AA-BBCCDDEEFF00}",
+        );
+        assert_eq!(
+            extract_clsid_from_item(&item),
+            Some("{11223344-5566-7788-99AA-BBCCDDEEFF00}".into())
+        );
+    }
+
+    #[test]
+    fn extract_clsid_from_item_none() {
+        let item = make_item("Logon", r"HKLM\SOFTWARE\Microsoft\Windows\Run", "malware.exe");
+        assert_eq!(extract_clsid_from_item(&item), None);
+    }
+
+    // --- Category dispatch tests ---
+    // These test that the category string routes to the correct handler.
+    // On non-Windows, the stub impls return a fixed "unsupported" message,
+    // so we only verify the dispatch doesn't panic.
+
+    #[test]
+    fn dispatch_ie_category() {
+        let item = make_item(
+            "Internet Explorer",
+            r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects\{12345678-1234-1234-1234-123456789ABC}",
+            "BHO",
+        );
+        let _ = delete_entry(&item);
+    }
+
+    #[test]
+    fn dispatch_explorer_category() {
+        let item = make_item(
+            "Explorer",
+            r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved",
+            "ShellExt",
+        );
+        let _ = delete_entry(&item);
+    }
+
+    #[test]
+    fn dispatch_winsock_category() {
+        let item = make_item(
+            "Winsock",
+            r"HKLM\SYSTEM\CurrentControlSet\Services\WinSock",
+            "LspEntry",
+        );
+        let result = delete_entry(&item);
+        // Winsock should return unsupported (not panic)
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(!r.success);
+        assert!(r.message.contains("Winsock"));
+    }
+
+    #[test]
+    fn dispatch_wmi_category() {
+        let item = make_item("WMI", r"HKLM\SOFTWARE\WMI", "SomeEntry");
+        let result = delete_entry(&item);
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(!r.success);
+        assert!(r.message.contains("WMI"));
     }
 
     #[test]

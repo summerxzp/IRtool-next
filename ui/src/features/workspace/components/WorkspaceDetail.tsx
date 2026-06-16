@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { X, Trash2, ExternalLink, FolderOpen, Terminal, Link } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,16 @@ import type { SysmonEvent } from "@/features/log-collector/types";
 import type { WorkspaceTab, Rule } from "../types";
 import { networkKey, eventKey } from "../rules/engine";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   onAssociation: () => void;
@@ -34,6 +46,10 @@ export function WorkspaceDetail({ onAssociation }: Props) {
   const unhideMutation = useUnhidePath();
   const takeOwnershipMutation = useTakeOwnership();
   const sampleMutation = useSamplePath();
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AutorunItem | null>(null);
+  const qc = useQueryClient();
 
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const autorunItems = useWorkspaceStore((s) => s.autorunItems);
@@ -88,14 +104,27 @@ export function WorkspaceDetail({ onAssociation }: Props) {
     );
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     const item = selectedItem as AutorunItem;
+    setDeleteTarget(item);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await api.deleteEntry(item.id);
-      toast.success(t("workspace.detail.deleted"));
-      handleClose();
+      const result = await api.deleteEntry(deleteTarget.id);
+      if (result.success) {
+        toast.success(t("workspace.detail.deleted"));
+        qc.invalidateQueries({ queryKey: ["autoruns", "items"] });
+        handleClose();
+      } else {
+        toast.error(result.message);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -190,6 +219,25 @@ export function WorkspaceDetail({ onAssociation }: Props) {
         onSample={handleSample}
         onAssociation={onAssociation}
       />
+
+      {deleteTarget && (
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("autoruns.delete-confirm.title")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("autoruns.delete-confirm.message", { entry: deleteTarget.entry, category: deleteTarget.category })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction className="bg-danger text-white hover:bg-danger/90" onClick={handleConfirmDelete}>
+                {t("autoruns.delete-confirm.confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
