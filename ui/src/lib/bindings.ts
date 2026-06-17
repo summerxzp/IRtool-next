@@ -189,9 +189,6 @@ async cmdProcessChain(pid: number) : Promise<Result<ProcessChain, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get Sysmon installation/service status.
- */
 async cmdSysmonStatus() : Promise<Result<SysmonStatus, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_status") };
@@ -200,9 +197,6 @@ async cmdSysmonStatus() : Promise<Result<SysmonStatus, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Check if the Sysmon event channel is available.
- */
 async cmdSysmonIsChannelAvailable() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_is_channel_available") };
@@ -211,9 +205,6 @@ async cmdSysmonIsChannelAvailable() : Promise<Result<boolean, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Install Sysmon with the given config.
- */
 async cmdSysmonInstall(acceptEula: boolean) : Promise<Result<[boolean, string], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_install", { acceptEula }) };
@@ -222,9 +213,6 @@ async cmdSysmonInstall(acceptEula: boolean) : Promise<Result<[boolean, string], 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Uninstall Sysmon.
- */
 async cmdSysmonUninstall() : Promise<Result<[boolean, string], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_uninstall") };
@@ -233,9 +221,6 @@ async cmdSysmonUninstall() : Promise<Result<[boolean, string], IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Update Sysmon configuration.
- */
 async cmdSysmonUpdateConfig() : Promise<Result<[boolean, string], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_update_config") };
@@ -244,9 +229,6 @@ async cmdSysmonUpdateConfig() : Promise<Result<[boolean, string], IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get existing (historical) events from the Sysmon channel.
- */
 async cmdSysmonGetExistingEvents(limit: number, enabledEventIds: number[]) : Promise<Result<SysmonEvent[], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_existing_events", { limit, enabledEventIds }) };
@@ -255,9 +237,6 @@ async cmdSysmonGetExistingEvents(limit: number, enabledEventIds: number[]) : Pro
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get the default event configurations.
- */
 async cmdSysmonDefaultEventConfigs() : Promise<Result<EventConfigEntry[], IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_default_event_configs") };
@@ -266,9 +245,6 @@ async cmdSysmonDefaultEventConfigs() : Promise<Result<EventConfigEntry[], IrErro
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Generate Sysmon XML config from enabled events list and write to disk.
- */
 async cmdSysmonGenerateConfig(enabledEvents: string[]) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_generate_config", { enabledEvents }) };
@@ -277,10 +253,6 @@ async cmdSysmonGenerateConfig(enabledEvents: string[]) : Promise<Result<string, 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Start real-time Sysmon event subscription.
- * Events are pushed to the frontend via `evt_sysmon_event` Tauri event.
- */
 async cmdSysmonStartSubscription(enabledEventIds: number[], pollIntervalMs: number | null) : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_start_subscription", { enabledEventIds, pollIntervalMs }) };
@@ -289,9 +261,6 @@ async cmdSysmonStartSubscription(enabledEventIds: number[], pollIntervalMs: numb
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Stop real-time Sysmon event subscription.
- */
 async cmdSysmonStopSubscription() : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_stop_subscription") };
@@ -300,9 +269,6 @@ async cmdSysmonStopSubscription() : Promise<Result<null, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Check if Sysmon subscription is currently active.
- */
 async cmdSysmonIsSubscribing() : Promise<Result<boolean, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_is_subscribing") };
@@ -311,9 +277,6 @@ async cmdSysmonIsSubscribing() : Promise<Result<boolean, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Count total events in the Sysmon and DNS Client channels.
- */
 async cmdSysmonGetEventCount(enabledEventIds: number[]) : Promise<Result<number, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_event_count", { enabledEventIds }) };
@@ -322,9 +285,6 @@ async cmdSysmonGetEventCount(enabledEventIds: number[]) : Promise<Result<number,
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get the Sysmon event log maximum size in MB.
- */
 async cmdSysmonGetLogMaxSize() : Promise<Result<number, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_get_log_max_size") };
@@ -333,9 +293,6 @@ async cmdSysmonGetLogMaxSize() : Promise<Result<number, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Set the Sysmon event log maximum size in MB.
- */
 async cmdSysmonSetLogMaxSize(sizeMb: number) : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_sysmon_set_log_max_size", { sizeMb }) };
@@ -472,10 +429,6 @@ async cmdMonitorGetDbSize() : Promise<Result<number, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Execute a system command and return its stdout output.
- * Used for command-template-based disposal operations (attrib, takeown, 7z, etc.).
- */
 async cmdWorkspaceRunCommand(program: string, args: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_run_command", { program, args }) };
@@ -484,9 +437,6 @@ async cmdWorkspaceRunCommand(program: string, args: string) : Promise<Result<str
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Unhide a file or directory (remove hidden attribute)
- */
 async cmdWorkspaceUnhidePath(path: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_unhide_path", { path }) };
@@ -495,9 +445,6 @@ async cmdWorkspaceUnhidePath(path: string) : Promise<Result<string, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Take ownership of a file or directory
- */
 async cmdWorkspaceTakeOwnership(path: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_take_ownership", { path }) };
@@ -506,9 +453,6 @@ async cmdWorkspaceTakeOwnership(path: string) : Promise<Result<string, IrError>>
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Sample a file (zip with password protection)
- */
 async cmdWorkspaceSamplePath(path: string, outputDir: string, password: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_sample_path", { path, outputDir, password }) };
@@ -517,9 +461,6 @@ async cmdWorkspaceSamplePath(path: string, outputDir: string, password: string) 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Open a path in explorer
- */
 async cmdWorkspaceOpenPath(path: string) : Promise<Result<string, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_workspace_open_path", { path }) };

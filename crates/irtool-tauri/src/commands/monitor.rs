@@ -1,101 +1,93 @@
-use crate::state::AppState;
 use irtool_core::IrError;
-use irtool_monitor::{Alert, EventPage, EventQuery, MonitorConfig, RuntimeTelemetry};
-use irtool_pcap::PcapConfig;
-use tauri::Emitter;
-use tauri::Manager;
+use irtool_monitor::{Alert, EventPage, EventQuery, MonitorConfig, MonitorEvent, RuntimeTelemetry};
+use irtool_pcap::{AdapterInfo, PcapConfig, PcapCountersSnapshot};
+use irtool_service::context::AppContext;
+use irtool_service::services::monitor::MonitorService;
+use irtool_service::services::pcap::PcapService;
 use tauri::State;
 
+// --- Monitor commands ---
+
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_config(state: State<'_, AppState>) -> Result<MonitorConfig, IrError> {
-    Ok(state.monitor_engine.lock().await.get_config())
+pub async fn cmd_monitor_get_config(ctx: State<'_, AppContext>) -> Result<MonitorConfig, IrError> {
+    MonitorService { ctx: &ctx }.get_config().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_update_config(state: State<'_, AppState>, config: MonitorConfig) -> Result<(), IrError> {
-    state.monitor_engine.lock().await.update_config(config)
+pub async fn cmd_monitor_update_config(ctx: State<'_, AppContext>, config: MonitorConfig) -> Result<(), IrError> {
+    MonitorService { ctx: &ctx }.update_config(config).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_enter_background(state: State<'_, AppState>) -> Result<(), IrError> {
-    let app_dir = state.app_dirs.root().to_path_buf();
-    tracing::info!("cmd_monitor_enter_background: app_dir={}", app_dir.display());
-    let result = state.monitor_engine.lock().await.enter_background_mode(&app_dir);
-    if let Err(ref e) = result {
-        tracing::error!("cmd_monitor_enter_background failed: {}", e);
-    }
-    result
+pub async fn cmd_monitor_enter_background(ctx: State<'_, AppContext>) -> Result<(), IrError> {
+    MonitorService { ctx: &ctx }.enter_background().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_exit_background(state: State<'_, AppState>) -> Result<(), IrError> {
-    let result = state.monitor_engine.lock().await.exit_background_mode();
-    if let Err(ref e) = result {
-        tracing::error!("cmd_monitor_exit_background failed: {}", e);
-    }
-    result
+pub async fn cmd_monitor_exit_background(ctx: State<'_, AppContext>) -> Result<(), IrError> {
+    MonitorService { ctx: &ctx }.exit_background().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_alerts(state: State<'_, AppState>, limit: u32) -> Result<Vec<Alert>, IrError> {
-    state.monitor_engine.lock().await.get_recent_alerts(limit)
+pub async fn cmd_monitor_get_alerts(ctx: State<'_, AppContext>, limit: u32) -> Result<Vec<Alert>, IrError> {
+    MonitorService { ctx: &ctx }.get_alerts(limit).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_is_background(state: State<'_, AppState>) -> Result<bool, IrError> {
-    Ok(state.monitor_engine.lock().await.is_background_mode())
+pub async fn cmd_monitor_is_background(ctx: State<'_, AppContext>) -> Result<bool, IrError> {
+    MonitorService { ctx: &ctx }.is_background().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_clear_alerts(state: State<'_, AppState>) -> Result<u64, IrError> {
-    state.monitor_engine.lock().await.clear_alerts()
+pub async fn cmd_monitor_clear_alerts(ctx: State<'_, AppContext>) -> Result<u64, IrError> {
+    MonitorService { ctx: &ctx }.clear_alerts().await
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_monitor_get_events(
-    state: State<'_, AppState>,
+    ctx: State<'_, AppContext>,
     limit: u32,
-) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
-    state.monitor_engine.lock().await.get_recent_events(limit)
+) -> Result<Vec<MonitorEvent>, IrError> {
+    MonitorService { ctx: &ctx }.get_events(limit).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_event_count(state: State<'_, AppState>) -> Result<u64, IrError> {
-    state.monitor_engine.lock().await.get_event_count()
+pub async fn cmd_monitor_get_event_count(ctx: State<'_, AppContext>) -> Result<u64, IrError> {
+    MonitorService { ctx: &ctx }.get_event_count().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_clear_events(state: State<'_, AppState>) -> Result<u64, IrError> {
-    state.monitor_engine.lock().await.clear_events()
+pub async fn cmd_monitor_clear_events(ctx: State<'_, AppContext>) -> Result<u64, IrError> {
+    MonitorService { ctx: &ctx }.clear_events().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_event_type_counts(state: State<'_, AppState>) -> Result<Vec<(String, u64)>, IrError> {
-    state.monitor_engine.lock().await.get_event_type_counts()
+pub async fn cmd_monitor_event_type_counts(ctx: State<'_, AppContext>) -> Result<Vec<(String, u64)>, IrError> {
+    MonitorService { ctx: &ctx }.event_type_counts().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_db_size(state: State<'_, AppState>) -> Result<u64, IrError> {
-    state.monitor_engine.lock().await.get_db_size()
+pub async fn cmd_monitor_get_db_size(ctx: State<'_, AppContext>) -> Result<u64, IrError> {
+    MonitorService { ctx: &ctx }.get_db_size().await
 }
 
 #[tauri::command]
 #[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn cmd_monitor_search_events(
-    state: State<'_, AppState>,
+    ctx: State<'_, AppContext>,
     source: Option<String>,
     event_type: Option<String>,
     process_name: Option<String>,
@@ -103,114 +95,78 @@ pub async fn cmd_monitor_search_events(
     search_text: Option<String>,
     limit: u32,
     offset: u32,
-) -> Result<Vec<irtool_monitor::MonitorEvent>, IrError> {
-    let query = irtool_monitor::EventQuery {
-        source,
-        event_type,
-        process_name,
-        key_field,
-        is_external: None,
-        search_text,
-        limit,
-        offset,
-    };
-    state.monitor_engine.lock().await.search_events(&query)
+) -> Result<Vec<MonitorEvent>, IrError> {
+    MonitorService { ctx: &ctx }
+        .search_events(source, event_type, process_name, key_field, search_text, limit, offset)
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_monitor_search_event_page(
-    state: State<'_, AppState>,
+    ctx: State<'_, AppContext>,
     query: EventQuery,
 ) -> Result<EventPage, IrError> {
-    state.monitor_engine.lock().await.search_events_page(&query)
+    MonitorService { ctx: &ctx }.search_event_page(query).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_telemetry(state: State<'_, AppState>) -> Result<RuntimeTelemetry, IrError> {
-    Ok(state.monitor_engine.lock().await.get_telemetry())
+pub async fn cmd_monitor_get_telemetry(ctx: State<'_, AppContext>) -> Result<RuntimeTelemetry, IrError> {
+    MonitorService { ctx: &ctx }.get_telemetry().await
 }
-
-// --- P6 新增 ---
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_monitor_test_feishu(webhook_url: String) -> Result<(), IrError> {
-    irtool_monitor::notify::test_feishu_webhook(&webhook_url).await
+    MonitorService::test_feishu(webhook_url).await
 }
+
+// --- Pcap commands ---
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_pcap_is_available() -> Result<bool, IrError> {
-    Ok(irtool_pcap::PcapCollector::is_available())
+    Ok(PcapService::is_available())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn cmd_pcap_start(
-    state: State<'_, AppState>,
-    app: tauri::AppHandle,
+    ctx: State<'_, AppContext>,
     config: PcapConfig,
 ) -> Result<(), IrError> {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<irtool_pcap::PcapEvent>();
-
-    {
-        let mut collector = state.pcap_collector.lock().await;
-        collector.start(config, tx)?;
-    }
-
-    // Forward pcap events: rule engine + frontend emit
-    let monitor_engine = state.monitor_engine.clone();
-    tokio::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            // 规则引擎始终处理
-            let alerts = monitor_engine.lock().await.process_pcap_event(&event).await;
-            for alert in &alerts {
-                let _ = app.emit(crate::events::EVT_MONITOR_ALERT, alert);
-            }
-            // 只在非后台模式时 emit pcap 事件到前端
-            let is_background = monitor_engine.lock().await.is_background_mode();
-            if !is_background {
-                let _ = app.emit(crate::events::EVT_PCAP_EVENT, &event);
-            }
-        }
-    });
-
-    Ok(())
+    PcapService { ctx: &ctx }.start(config).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_pcap_stop(state: State<'_, AppState>) -> Result<(), IrError> {
-    let mut collector = state.pcap_collector.lock().await;
-    collector.stop();
-    Ok(())
+pub async fn cmd_pcap_stop(ctx: State<'_, AppContext>) -> Result<(), IrError> {
+    PcapService { ctx: &ctx }.stop().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_pcap_is_running(state: State<'_, AppState>) -> Result<bool, IrError> {
-    let collector = state.pcap_collector.lock().await;
-    Ok(collector.is_running())
+pub async fn cmd_pcap_is_running(ctx: State<'_, AppContext>) -> Result<bool, IrError> {
+    PcapService { ctx: &ctx }.is_running().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_pcap_list_adapters() -> Result<Vec<irtool_pcap::AdapterInfo>, IrError> {
-    Ok(irtool_pcap::PcapCollector::list_adapters())
+pub async fn cmd_pcap_list_adapters() -> Result<Vec<AdapterInfo>, IrError> {
+    PcapService::list_adapters()
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_pcap_get_counters(state: State<'_, AppState>) -> Result<irtool_pcap::PcapCountersSnapshot, IrError> {
-    let collector = state.pcap_collector.lock().await;
-    Ok(collector.counters().snapshot())
+pub async fn cmd_pcap_get_counters(ctx: State<'_, AppContext>) -> Result<PcapCountersSnapshot, IrError> {
+    PcapService { ctx: &ctx }.get_counters().await
 }
 
-// --- Alert Popup Window ---
+// --- Alert Popup Window (Tauri-specific, stays here) ---
 
 use std::sync::atomic::{AtomicU32, Ordering};
+use tauri::{Emitter, Manager};
 
 static POPUP_COUNT: AtomicU32 = AtomicU32::new(0);
 
@@ -231,10 +187,10 @@ pub struct AlertPopupParams {
 #[specta::specta]
 pub async fn cmd_show_alert_popup(
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
+    ctx: State<'_, AppContext>,
     params: AlertPopupParams,
 ) -> Result<(), String> {
-    let popup_duration = state
+    let popup_duration = ctx
         .monitor_engine
         .lock()
         .await
@@ -283,7 +239,6 @@ fn show_alert_popup_window(
     let margin = 20.0_f64;
     let gap = 8.0_f64;
 
-    // Atomically get current popup count for stacking, then increment
     let popup_index = POPUP_COUNT.fetch_add(1, Ordering::SeqCst);
 
     let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("alert-popup.html".into()))
@@ -296,7 +251,6 @@ fn show_alert_popup_window(
         .visible(false)
         .build()?;
 
-    // Position in bottom-right corner of work area (excludes taskbar)
     if let Some(monitor) = window.primary_monitor().ok().flatten() {
         let work_area = monitor.work_area();
         let scale = monitor.scale_factor();
@@ -309,10 +263,6 @@ fn show_alert_popup_window(
         window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))?;
     }
 
-    // Don't show window yet — the frontend will show it after receiving popup data.
-    // This avoids a white flash from the empty React shell being visible before content arrives.
-
-    // Decrement popup counter when this window is destroyed
     let label_clone = label.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
@@ -321,9 +271,6 @@ fn show_alert_popup_window(
         }
     });
 
-    // Emit event to the popup window with alert data.
-    // IMPORTANT: delay 500ms to give React time to mount and register its event listener.
-    // Without this, emit_to fires before the WebView has loaded the JS, and the event is lost.
     let alert_key = format!("{event_type}-{timestamp}");
     let app_emit = app.clone();
     let label_emit = label.clone();
@@ -356,15 +303,12 @@ fn show_alert_popup_window(
         );
     });
 
-    // Auto-close after configured duration (0 = no auto-close)
     if popup_duration_secs > 0 {
         let app_clone = app.clone();
         let label_clone = label.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_secs(popup_duration_secs as u64));
-            // Signal the popup to animate out
             let _ = app_clone.emit_to(&label_clone, "evt_close_alert_popup", ());
-            // Give animation time, then close the window
             std::thread::sleep(std::time::Duration::from_millis(500));
             if let Some(win) = app_clone.get_webview_window(&label_clone) {
                 let _ = win.close();

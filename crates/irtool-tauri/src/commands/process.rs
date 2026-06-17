@@ -1,18 +1,16 @@
 use irtool_core::IrError;
-use irtool_process::{get_process_chain, take_snapshot, ProcessChain, ProcessSnapshot};
+use irtool_service::context::AppContext;
+use irtool_service::services::process::ProcessService;
+use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_process_snapshot() -> Result<ProcessSnapshot, IrError> {
-    tokio::task::spawn_blocking(take_snapshot)
-        .await
-        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+pub async fn cmd_process_snapshot(ctx: State<'_, AppContext>) -> Result<irtool_process::ProcessSnapshot, IrError> {
+    ProcessService { ctx: &ctx }.snapshot().await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_process_chain(pid: u32) -> Result<ProcessChain, IrError> {
-    tokio::task::spawn_blocking(move || get_process_chain(pid))
-        .await
-        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+pub async fn cmd_process_chain(ctx: State<'_, AppContext>, pid: u32) -> Result<irtool_process::ProcessChain, IrError> {
+    ProcessService { ctx: &ctx }.chain(pid).await
 }

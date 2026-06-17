@@ -2,7 +2,6 @@ mod commands;
 mod events;
 mod logger;
 mod single_instance;
-mod state;
 mod tray;
 #[allow(dead_code)]
 mod types;
@@ -14,46 +13,34 @@ use crate::commands::process::*;
 use crate::commands::sysmon::*;
 use crate::commands::tools::*;
 use crate::commands::workspace::*;
-use crate::state::AppState;
+use crate::events::start_event_bridge;
 use irtool_core::{AppDirs, IrError};
-use serde::Serialize;
-use specta::Type;
+use irtool_service::context::AppContext;
+use irtool_service::dto::app::AppInfo;
+use irtool_service::services::app::AppService;
+use irtool_service::services::network::NetworkService;
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri::{Emitter, Manager, State};
 use tauri_specta::{collect_commands, Builder};
 use tracing::info;
 
-#[derive(Serialize, Type)]
-pub struct AppInfo {
-    pub name: String,
-    pub version: String,
-    pub is_admin: bool,
-}
-
 #[tauri::command]
 #[specta::specta]
 fn cmd_app_info() -> AppInfo {
-    AppInfo {
-        name: "IRtool".into(),
-        version: env!("CARGO_PKG_VERSION").into(),
-        is_admin: is_running_as_admin(),
-    }
+    AppService::app_info(is_running_as_admin())
 }
 
 #[tauri::command]
 #[specta::specta]
 fn cmd_log_frontend(message: String) {
-    tracing::warn!("[frontend] {}", message);
+    AppService::log_frontend(message);
 }
 
 #[tauri::command]
 #[specta::specta]
-async fn cmd_app_force_quit(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), IrError> {
-    info!("force quit requested, exiting background mode first");
-    // Exit background mode before quitting so persisted config is reset.
-    // This ensures the app starts in foreground mode on next launch.
-    let _ = state.monitor_engine.lock().await.exit_background_mode();
+async fn cmd_app_force_quit(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Result<(), IrError> {
+    AppService { ctx: &ctx }.force_quit().await?;
     app.exit(0);
     Ok(())
 }
@@ -88,39 +75,6 @@ fn is_running_as_admin() -> bool {
     false
 }
 
-#[cfg(windows)]
-fn elevate_and_restart() -> Result<(), Box<dyn std::error::Error>> {
-    use windows::core::PCWSTR;
-    use windows::Win32::UI::Shell::ShellExecuteW;
-    use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
-
-    let exe = std::env::current_exe()?;
-    let verb: Vec<u16> = "runas\0".encode_utf16().collect();
-    let file: Vec<u16> = exe
-        .to_string_lossy()
-        .as_ref()
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
-
-    unsafe {
-        let result = ShellExecuteW(
-            None,
-            PCWSTR(verb.as_ptr()),
-            PCWSTR(file.as_ptr()),
-            PCWSTR::null(),
-            PCWSTR::null(),
-            SW_NORMAL,
-        );
-        // ShellExecuteW returns a value > 32 on success
-        if result.0 as isize <= 32 {
-            return Err(format!("ShellExecuteW 'runas' failed with code {}", result.0 as isize).into());
-        }
-    }
-
-    Ok(())
-}
-
 pub fn run() {
     let app_dirs = AppDirs::detect();
 
@@ -134,16 +88,7 @@ pub fn run() {
     info!("============================================");
 
     if !is_running_as_admin() {
-        info!("Not running as admin, requesting elevation...");
-        match elevate_and_restart() {
-            Ok(()) => {
-                info!("Elevated instance launched, exiting current instance");
-                std::process::exit(0);
-            }
-            Err(e) => {
-                tracing::warn!("Elevation failed: {}, continuing in limited mode", e);
-            }
-        }
+        tracing::warn!("Not running as admin, some features will be limited");
     }
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
@@ -155,7 +100,7 @@ pub fn run() {
         cmd_network_set_polling,
         cmd_network_clear_history,
         cmd_network_refresh_cmdline,
-        // --- P2 新增 ---
+        // --- P2 ---
         cmd_autoruns_scan,
         cmd_autoruns_get_result,
         cmd_autoruns_verify_signatures,
@@ -170,10 +115,10 @@ pub fn run() {
         cmd_autoruns_extract_icon,
         cmd_autoruns_batch_extract_icons,
         cmd_autoruns_is_scanning,
-        // --- P3 新增 ---
+        // --- P3 ---
         cmd_process_snapshot,
         cmd_process_chain,
-        // --- P4 新增 ---
+        // --- P4 ---
         cmd_sysmon_status,
         cmd_sysmon_is_channel_available,
         cmd_sysmon_install,
@@ -188,7 +133,7 @@ pub fn run() {
         cmd_sysmon_get_event_count,
         cmd_sysmon_get_log_max_size,
         cmd_sysmon_set_log_max_size,
-        // --- P5 新增 ---
+        // --- P5 ---
         cmd_monitor_get_config,
         cmd_monitor_update_config,
         cmd_monitor_enter_background,
@@ -205,13 +150,13 @@ pub fn run() {
         cmd_monitor_clear_events,
         cmd_monitor_event_type_counts,
         cmd_monitor_get_db_size,
-        // --- P3 工作台 ---
+        // --- P3 workspace ---
         cmd_workspace_run_command,
         cmd_workspace_unhide_path,
         cmd_workspace_take_ownership,
         cmd_workspace_sample_path,
         cmd_workspace_open_path,
-        // --- P6 新增 ---
+        // --- P6 ---
         cmd_pcap_is_available,
         cmd_pcap_start,
         cmd_pcap_stop,
@@ -238,10 +183,10 @@ pub fn run() {
             .expect("failed to export bindings.ts");
     }
 
-    let app_state = AppState::new(app_dirs.clone());
+    let app_ctx = AppContext::new(app_dirs.clone());
 
     tauri::Builder::default()
-        .manage(app_state.clone())
+        .manage(app_ctx.clone())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             single_instance::handle_second_instance(app, args, cwd);
         }))
@@ -254,35 +199,39 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            commands::network::start_default_polling(&app_state, app.handle());
 
-            // 创建系统托盘
+            // Start EventBus -> Tauri event bridge
+            start_event_bridge(&app_ctx, app.handle().clone());
+
+            // Start default network polling
+            NetworkService { ctx: &app_ctx }.start_default_polling(|fut| { tauri::async_runtime::spawn(fut); });
+
+            // Create system tray
             crate::tray::create_tray(app.handle())?;
 
-            // 设置窗口图标（确保任务栏显示自定义图标，尤其 decorations=false 时）
+            // Set window icon
             if let Some(window) = app.get_webview_window("main") {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = window.set_icon(icon.clone());
                 }
             }
 
-            // 拦截窗口关闭：后台模式时阻止关闭并通知前端弹窗确认
+            // Intercept window close: in background mode, prevent close and emit event
             if let Some(window) = app.get_webview_window("main") {
                 let win_clone = window.clone();
-                let engine = app_state.monitor_engine.clone();
+                let engine = app_ctx.monitor_engine.clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         let is_background = engine.try_lock().map(|e| e.is_background_mode()).unwrap_or(false);
                         if is_background {
                             api.prevent_close();
-                            let _ = win_clone.emit(crate::events::EVT_CLOSE_REQUESTED, ());
+                            let _ = win_clone.emit("evt_close_requested", ());
                         }
-                        // else: let the window close normally, app exits
                     }
                 });
             }
 
-            // Re-apply window icon on focus gain (desktop refresh from tools like autorunsc can reset taskbar icon)
+            // Re-apply window icon on focus gain
             let icon_data = app
                 .default_window_icon()
                 .map(|icon| (icon.rgba().to_vec(), icon.width(), icon.height()));

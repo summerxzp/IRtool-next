@@ -10,6 +10,7 @@ members = [
     "crates/irtool-threat-intel",
     "crates/irtool-process",
     "crates/irtool-tools",
+    "crates/irtool-service",
     "crates/irtool-tauri",
 ]
 resolver = "2"

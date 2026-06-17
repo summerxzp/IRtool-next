@@ -15,6 +15,7 @@ embed-resource = "2"
 
 [dependencies]
 irtool-core = { path = "../irtool-core" }
+irtool-service = { path = "../irtool-service" }
 irtool-net-monitor = { path = "../irtool-net-monitor" }
 irtool-autoruns = { path = "../irtool-autoruns" }
 irtool-sysmon = { path = "../irtool-sysmon" }

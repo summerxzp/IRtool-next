@@ -1,0 +1,28 @@
+[package]
+name = "irtool-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+irtool-core = { path = "../irtool-core" }
+irtool-net-monitor = { path = "../irtool-net-monitor" }
+irtool-autoruns = { path = "../irtool-autoruns" }
+irtool-sysmon = { path = "../irtool-sysmon" }
+irtool-rules = { path = "../irtool-rules" }
+irtool-threat-intel = { path = "../irtool-threat-intel" }
+irtool-process = { path = "../irtool-process" }
+irtool-monitor = { path = "../irtool-monitor" }
+irtool-pcap = { path = "../irtool-pcap" }
+irtool-tools = { path = "../irtool-tools" }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+specta = { workspace = true, features = ["derive", "serde"] }
+parking_lot = "0.12"
+rayon = "1.10"
+chrono = { workspace = true }

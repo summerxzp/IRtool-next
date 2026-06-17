@@ -2141,6 +2141,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "irtool-service"
+version = "2.0.1"
+dependencies = [
+ "chrono",
+ "irtool-autoruns",
+ "irtool-core",
+ "irtool-monitor",
+ "irtool-net-monitor",
+ "irtool-pcap",
+ "irtool-process",
+ "irtool-rules",
+ "irtool-sysmon",
+ "irtool-threat-intel",
+ "irtool-tools",
+ "parking_lot",
+ "rayon",
+ "serde",
+ "serde_json",
+ "specta",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "irtool-sysmon"
 version = "2.0.1"
 dependencies = [
@@ -2170,6 +2195,7 @@ dependencies = [
  "irtool-pcap",
  "irtool-process",
  "irtool-rules",
+ "irtool-service",
  "irtool-sysmon",
  "irtool-threat-intel",
  "irtool-tools",
