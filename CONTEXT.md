@@ -128,6 +128,35 @@ Sysmon64.exe 的 `-i`/`-c` 参数不支持中文路径。先用 `GetShortPathNam
 
 - Commit message 不添加 Co-Authored-By，仅使用作者 summerxzp
 
+### 远程仓库配置
+
+双远程推送：`git push` 同时推送到 GitHub 和 Gitee。
+
+| Remote | 用途 |
+|--------|------|
+| `https://github.com/summerxzp/IRtool-next.git` | 主仓库，fetch + push |
+| `git@gitee.com:summerxzp/IRtool-next.git` | 镜像，仅 push |
+
+**配置方式**（已配置）：
+```bash
+git remote set-url --add --push origin https://github.com/summerxzp/IRtool-next.git
+git remote set-url --add --push origin git@gitee.com:summerxzp/IRtool-next.git
+```
+
+**发布 Release**：
+1. `git push --tags` 同步 tags 到两边
+2. GitHub release 通过 `gh release create` 或网页创建
+3. Gitee release 通过 API 创建（需 `GITEE_TOKEN` 环境变量）
+
+**Gitee Release API**：
+```bash
+curl -X POST "https://gitee.com/api/v5/repos/summerxzp/IRtool-next/releases" \
+  -H "Content-Type: application/json" \
+  -d '{"access_token": "$GITEE_TOKEN", "tag_name": "vX.X.X", "name": "vX.X.X", "body": "...", "target_commitish": "main"}'
+```
+
+**环境变量**：`GITEE_TOKEN` - Gitee 私人令牌（已配置）
+
 ### 版本号管理规范
 
 **单一来源原则**：版本号统一在 `Cargo.toml` 的 `workspace.package.version` 中维护。
