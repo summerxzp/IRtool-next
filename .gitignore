@@ -51,3 +51,6 @@ tmp_*.csv
 
 # Docs (local planning) - now tracked
 # docs/
+
+# IDE / tool temp dirs
+.workbuddy/
