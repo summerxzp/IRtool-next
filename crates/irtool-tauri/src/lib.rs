@@ -204,7 +204,7 @@ pub fn run() {
             start_event_bridge(&app_ctx, app.handle().clone());
 
             // Start default network polling
-            NetworkService { ctx: &app_ctx }.start_default_polling(|fut| { tauri::async_runtime::spawn(fut); });
+            NetworkService { ctx: &app_ctx }.start_default_polling(tauri::async_runtime::handle().inner().clone());
 
             // Create system tray
             crate::tray::create_tray(app.handle())?;

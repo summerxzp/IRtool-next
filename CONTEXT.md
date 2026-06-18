@@ -109,8 +109,37 @@
 ### 权限模型：默认请求管理员
 Manifest 声明 `requireAdministrator`，启动即提权。原因：Sysmon 安装、Autoruns 删除条目等核心操作均需管理员权限，运行中弹 UAC 或重启应用会丢失内存数据（事件、网络历史等），打断工作流。非管理员环境下各模块降级运行，功能受限但不崩溃。
 
-### 运行时依赖：系统 WebView2
-依赖用户系统已安装的 WebView2 Runtime（Win10/11 通常预装），不嵌入 Fixed Runtime（+150MB）也不做 Bootstrapper 自动安装。便携版体积优先，缺失时弹错误提示并退出。NSIS 安装包同理，不在安装流程中捆绑 WebView2。
+### 运行时依赖：系统 WebView2 + egui Fallback
+依赖用户系统已安装的 WebView2 Runtime（Win10/11 通常预装），不嵌入 Fixed Runtime（+150MB）也不做 Bootstrapper 自动安装。便携版体积优先。**缺失时不再退出，而是 fallback 到 egui 原生前端**（通过 `egui-fallback` feature flag 编译进主二进制）。NSIS 安装包同理，不在安装流程中捆绑 WebView2。
+
+### 前后端分层规范
+业务逻辑与 UI 严格解耦，`irtool-service` 是唯一的业务边界层。
+
+```
+irtool-tauri ──┐
+               ├──► irtool-service ──► 业务 crates (net-monitor, autoruns, ...)
+irtool-egui ───┘
+```
+
+**硬性规则**：
+- `irtool-service` 不依赖 `tauri` / `eframe`，只依赖业务 crates + tokio + serde
+- `irtool-egui` **只依赖 `irtool-service`**，禁止直接依赖业务 crate（如 `irtool-net-monitor`）
+- 业务 crate 的公共类型通过 `irtool-service::types` re-export 暴露给前端
+- `dto/` 只放"跨 crate 组合的输入/输出参数"（如 `NetworkPollingControl`），核心数据类型（如 `NetConn`）走 re-export
+- 事件流统一走 `EventBus`（`tokio::sync::broadcast<AppEvent>`），业务层 `publish`，前端 `subscribe`，业务层不知道谁在订阅
+
+### AppContext 生命周期
+`AppContext` 内部所有字段均为 `Arc<...>`，已实现 `Clone`，`ctx.clone()` 是廉价的引用计数递增。**创建一次，clone 共享**，Tauri 和 egui 不要各自创建 `AppContext`，否则配置、EventBus、数据库连接会分裂。
+
+### Fallback 启动机制：单二进制 feature flag
+采用单二进制 + `egui-fallback` feature flag 模式，而非子进程模式。主二进制 `irtool-tauri` 启动时检测 WebView2（注册表 `pv` 值校验），缺失则同进程调用 `irtool_egui::run(StartupMode::Fallback)`。
+
+- **开发构建**：不启用 `egui-fallback`，避免 egui 依赖拖慢编译
+- **发布构建**：必须启用 `cargo tauri build --features irtool-tauri/egui-fallback`
+- **降级标识**：通过 `StartupMode` enum 传递（类型安全，优于环境变量），egui TopBar 显示黄色"降级模式"徽章
+- **不覆盖场景**：注册表检测通过但 WebView2 运行时损坏（`panic = "abort"` 无法 catch），极少见，接受此风险
+
+详见 `docs/fallback机制与分层优化设计方案.md`。
 
 ### 便携版设计：portable.flag 双模式
 `portable.flag` 文件存在于 exe 同目录 → 便携模式，所有数据（config/data/logs/tools）存放在 exe 目录下；不存在 → 安装模式，数据存 `%APPDATA%/IRtool/`。首次启动自动创建子目录。设置存储用 `tauri-plugin-store`（JSON 文件）而非 localStorage，确保便携版数据随 exe 移动。

@@ -176,12 +176,7 @@ impl<'a> NetworkService<'a> {
     }
 
     /// Start the default polling loop (called from frontend setup).
-    /// Accepts a spawner function so the caller can provide the correct async runtime
-    /// (e.g. `tauri::async_runtime::spawn` from Tauri's setup callback).
-    pub fn start_default_polling(
-        &self,
-        spawner: impl FnOnce(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + 'static,
-    ) {
+    pub fn start_default_polling(&self, handle: tokio::runtime::Handle) {
         let token = CancellationToken::new();
         let (retention, interval, paused) = {
             let mut polling = self.ctx.net_polling.lock();
@@ -198,7 +193,7 @@ impl<'a> NetworkService<'a> {
         let shared_retention = Arc::new(Mutex::new(retention));
         let monitor_engine = self.ctx.monitor_engine.clone();
         let event_bus = self.ctx.event_bus.clone();
-        spawner(Box::pin(async move {
+        handle.spawn(async move {
             run_polling_loop(
                 collector,
                 history,
@@ -210,7 +205,7 @@ impl<'a> NetworkService<'a> {
                 monitor_engine,
             )
             .await;
-        }));
+        });
     }
 }
 
