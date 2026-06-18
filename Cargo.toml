@@ -12,6 +12,7 @@ members = [
     "crates/irtool-tools",
     "crates/irtool-service",
     "crates/irtool-tauri",
+    "crates/irtool-egui",
 ]
 resolver = "2"
 

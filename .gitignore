@@ -49,5 +49,5 @@ ui/test-results/
 # Temp files
 tmp_*.csv
 
-# Docs (local planning)
-docs/
+# Docs (local planning) - now tracked
+# docs/
