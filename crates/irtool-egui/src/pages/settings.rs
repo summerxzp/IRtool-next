@@ -381,10 +381,10 @@ impl SettingsPageState {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("导入").clicked() {
-                    self.import_rules();
+                    self.import_rules(ctx);
                 }
                 if ui.button("导出").clicked() {
-                    self.export_rules();
+                    self.export_rules(ctx);
                 }
                 if ui.button("添加").clicked() {
                     self.add_rule();
@@ -835,7 +835,7 @@ impl SettingsPageState {
 
     // ── Tab 4: 导入导出 ──────────────────────────────────
 
-    fn render_import_export(&mut self, ui: &mut egui::Ui, _ctx: &AppContext, _rt: &tokio::runtime::Handle) {
+    fn render_import_export(&mut self, ui: &mut egui::Ui, ctx: &AppContext, _rt: &tokio::runtime::Handle) {
         ui.label(
             egui::RichText::new("导入导出")
                 .color(theme::FG_PRIMARY)
@@ -852,30 +852,28 @@ impl SettingsPageState {
 
         ui.horizontal(|ui| {
             if ui.button("导出配置").clicked() {
-                self.export_config();
+                self.export_config(ctx);
             }
             if ui.button("导入配置").clicked() {
-                self.import_config();
+                self.import_config(ctx);
             }
             if ui.button("导出规则").clicked() {
-                self.export_rules();
+                self.export_rules(ctx);
             }
             if ui.button("导入规则").clicked() {
-                self.import_rules();
+                self.import_rules(ctx);
             }
         });
     }
 
     // ── 导入导出操作 ──────────────────────────────────────
 
-    fn export_config(&self) {
+    fn export_config(&self, ctx: &AppContext) {
         let json = serde_json::to_string_pretty(&self.config).unwrap_or_default();
-        let path = std::env::current_dir()
-            .unwrap_or_default()
-            .join(format!(
-                "irtool-config-{}.json",
-                chrono::Utc::now().format("%Y%m%d")
-            ));
+        let path = ctx.app_dirs.config_dir().join(format!(
+            "irtool-config-{}.json",
+            chrono::Utc::now().format("%Y%m%d")
+        ));
         match std::fs::write(&path, &json) {
             Ok(()) => {
                 if let Some(tx) = &self.refresh_tx {
@@ -896,11 +894,9 @@ impl SettingsPageState {
         }
     }
 
-    fn import_config(&mut self) {
-        // 简化：从当前目录读取 irtool-config.json
-        let path = std::env::current_dir()
-            .unwrap_or_default()
-            .join("irtool-config.json");
+    fn import_config(&mut self, ctx: &AppContext) {
+        // 简化：从配置目录读取 irtool-config.json
+        let path = ctx.app_dirs.config_dir().join("irtool-config.json");
         match std::fs::read_to_string(&path) {
             Ok(text) => {
                 match serde_json::from_str::<MonitorConfig>(&text) {
@@ -940,14 +936,12 @@ impl SettingsPageState {
         }
     }
 
-    fn export_rules(&self) {
+    fn export_rules(&self, ctx: &AppContext) {
         let json = serde_json::to_string_pretty(&self.config.rules).unwrap_or_default();
-        let path = std::env::current_dir()
-            .unwrap_or_default()
-            .join(format!(
-                "irtool-alert-rules-{}.json",
-                chrono::Utc::now().format("%Y%m%d")
-            ));
+        let path = ctx.app_dirs.config_dir().join(format!(
+            "irtool-alert-rules-{}.json",
+            chrono::Utc::now().format("%Y%m%d")
+        ));
         match std::fs::write(&path, &json) {
             Ok(()) => {
                 if let Some(tx) = &self.refresh_tx {
@@ -968,10 +962,8 @@ impl SettingsPageState {
         }
     }
 
-    fn import_rules(&mut self) {
-        let path = std::env::current_dir()
-            .unwrap_or_default()
-            .join("irtool-alert-rules.json");
+    fn import_rules(&mut self, ctx: &AppContext) {
+        let path = ctx.app_dirs.config_dir().join("irtool-alert-rules.json");
         match std::fs::read_to_string(&path) {
             Ok(text) => {
                 match serde_json::from_str::<Vec<irtool_service::types::MonitorRule>>(&text) {
@@ -1021,8 +1013,15 @@ fn mask_url(url: &str) -> String {
     if url.is_empty() {
         return String::new();
     }
-    if url.len() <= 12 {
-        return format!("{}****", &url[..url.len().min(4)]);
+    let head_end = url.char_indices().nth(4).map(|(i, _)| i).unwrap_or(url.len());
+    if url.chars().count() <= 12 {
+        return format!("{}****", &url[..head_end]);
     }
-    format!("{}****{}", &url[..4], &url[url.len() - 4..])
+    let tail_start = url
+        .char_indices()
+        .rev()
+        .nth(3)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    format!("{}****{}", &url[..head_end], &url[tail_start..])
 }

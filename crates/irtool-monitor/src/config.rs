@@ -106,6 +106,7 @@ pub fn load_config(path: &Path) -> Result<MonitorConfig, IrError> {
                 max_duration_secs: 0,
                 load_limit: old_config.load_limit,
                 max_size_mb: old_config.max_size_mb,
+                cmdline_enrich: 0,
                 notify_config: NotifyConfig {
                     popup_rule_ids,
                     feishu_rule_ids,

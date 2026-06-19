@@ -88,10 +88,23 @@ pub struct IrtoolApp {
     force_exit_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// 标记 set_event_handler 是否已设置。
     tray_handler_set: bool,
+    /// 日志 non_blocking guard，进程退出时 drop 以 flush 缓冲区。
+    #[allow(dead_code)]
+    log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
+    /// 单实例互斥锁 guard，进程退出前持有以防止多实例。
+    #[allow(dead_code)]
+    single_instance_guard: Option<crate::single_instance::SingleInstanceGuard>,
 }
 
 impl IrtoolApp {
-    pub fn new(ctx: AppContext, event_bridge: EventBridge, rt: tokio::runtime::Runtime, mode: StartupMode) -> Self {
+    pub fn new(
+        ctx: AppContext,
+        event_bridge: EventBridge,
+        rt: tokio::runtime::Runtime,
+        mode: StartupMode,
+        log_guard: tracing_appender::non_blocking::WorkerGuard,
+        single_instance_guard: crate::single_instance::SingleInstanceGuard,
+    ) -> Self {
         let is_admin = is_running_as_admin();
         let (autoruns_refresh_tx, autoruns_refresh_rx) = std::sync::mpsc::channel::<Vec<AutorunItem>>();
         let (sysmon_refresh_tx, sysmon_refresh_rx) = std::sync::mpsc::channel::<SysmonRefresh>();
@@ -179,10 +192,12 @@ impl IrtoolApp {
             tray_quit_id,
             force_exit_flag,
             tray_handler_set: false,
+            log_guard: Some(log_guard),
+            single_instance_guard: Some(single_instance_guard),
         }
     }
 
-    fn handle_event(&mut self, event: AppEvent) {
+    fn handle_event(&mut self, event: AppEvent, ctx: &egui::Context) {
         match event {
             AppEvent::NetworkSnapshot(payload) => {
                 self.network.handle_snapshot(payload);
@@ -259,7 +274,8 @@ impl IrtoolApp {
                 });
             }
             AppEvent::CloseRequested => {
-                // TODO: handle close
+                tracing::info!("close requested, shutting down");
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
     }
@@ -570,6 +586,8 @@ impl eframe::App for IrtoolApp {
             let quit_id = self.tray_quit_id.clone();
 
             // 托盘图标事件（双击恢复窗口）
+            // 注意：set_event_handler 是进程级全局静态函数，后续调用会静默替换之前的处理器。
+            // tray_handler_set 标志仅防止同一实例重复设置，无法阻止外部代码覆盖。
             tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
                 if let tray_icon::TrayIconEvent::DoubleClick { button: tray_icon::MouseButton::Left, .. } = event {
                     show_and_activate_window();
@@ -597,7 +615,7 @@ impl eframe::App for IrtoolApp {
 
         // 1. Drain events from EventBus
         for event in self.event_bridge.drain() {
-            self.handle_event(event);
+            self.handle_event(event, ctx);
         }
 
         // 1b. Drain autoruns data refresh results
@@ -754,7 +772,7 @@ impl eframe::App for IrtoolApp {
         self.render_tools_check(ctx);
 
         // 7. Request periodic repaint for polling updates
-        ctx.request_repaint_after(Duration::from_millis(500));
+        ctx.request_repaint_after(Duration::from_millis(1000));
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -781,7 +799,7 @@ fn is_running_as_admin() -> bool {
         }
         let mut elevation = TOKEN_ELEVATION::default();
         let mut size = 0u32;
-        GetTokenInformation(
+        let result = GetTokenInformation(
             token,
             TokenElevation,
             Some(&mut elevation as *mut _ as *mut _),
@@ -789,7 +807,9 @@ fn is_running_as_admin() -> bool {
             &mut size,
         )
         .is_ok()
-            && elevation.TokenIsElevated != 0
+            && elevation.TokenIsElevated != 0;
+        let _ = windows::Win32::Foundation::CloseHandle(token);
+        result
     }
 }
 
@@ -808,7 +828,7 @@ fn show_and_activate_window() {
     };
     use windows::core::w;
     unsafe {
-        if let Ok(hwnd) = FindWindowW(None, w!("IRtool")) {
+        if let Ok(hwnd) = FindWindowW(w!("winit-window-class-name"), w!("IRtool")) {
             let _ = ShowWindow(hwnd, SW_SHOW);
             let _ = SetForegroundWindow(hwnd);
         }
@@ -826,7 +846,7 @@ fn post_close_to_window() {
     use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, PostMessageW, WM_CLOSE};
     use windows::core::w;
     unsafe {
-        if let Ok(hwnd) = FindWindowW(None, w!("IRtool")) {
+        if let Ok(hwnd) = FindWindowW(w!("winit-window-class-name"), w!("IRtool")) {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM::default(), LPARAM::default());
         }
     }

@@ -92,7 +92,7 @@ pub const TABLE_ROW_SELECTED: Color32 = Color32::from_rgba_premultiplied(0x25, 0
 
 // ── Layout ──────────────────────────────────────────────────
 pub const TOPBAR_HEIGHT: f32 = 32.0;
-pub const SIDEBAR_WIDTH: f32 = 140.0;
+pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
 pub const PANEL_PADDING: f32 = 12.0;
 pub const ELEMENT_GAP: f32 = 8.0;
@@ -109,9 +109,20 @@ pub fn apply_light_theme(ctx: &egui::Context) {
         ctx.set_pixels_per_point(1.15);
     }
 
-    // ── Load CJK font (Microsoft YaHei) ──
-    let font_path = std::path::Path::new(r"C:\Windows\Fonts\msyh.ttc");
-    if let Ok(font_data) = std::fs::read(font_path) {
+    // ── Load CJK font ──
+    // Try multiple candidate paths so Chinese renders on N-edition Windows
+    // or systems where msyh.ttc is unavailable.
+    let font_candidates = [
+        r"C:\Windows\Fonts\msyh.ttc",    // Microsoft YaHei
+        r"C:\Windows\Fonts\msyhbd.ttc",  // Microsoft YaHei Bold
+        r"C:\Windows\Fonts\simsun.ttc",  // SimSun
+        r"C:\Windows\Fonts\msjh.ttc",    // Microsoft JhengHei
+        r"C:\Windows\Fonts\msgothic.ttc", // MS Gothic
+    ];
+    let font_data = font_candidates.iter().find_map(|path| {
+        std::fs::read(path).ok().map(|data| (path, data))
+    });
+    if let Some((_font_path, font_data)) = font_data {
         let mut fonts = egui::FontDefinitions::default();
 
         fonts.font_data.insert(
@@ -140,7 +151,10 @@ pub fn apply_light_theme(ctx: &egui::Context) {
 
         ctx.set_fonts(fonts);
     } else {
-        tracing::warn!("CJK font msyh.ttc not found, Chinese text may not render correctly");
+        tracing::warn!(
+            "No CJK font found in candidates {:?}, Chinese text may not render correctly",
+            font_candidates
+        );
     }
 
     // ── Light visuals ──

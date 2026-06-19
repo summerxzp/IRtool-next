@@ -8,7 +8,7 @@ use windows::Win32::System::Registry::HKEY;
 fn main() {
     #[cfg(feature = "egui-fallback")]
     if !is_webview2_available() {
-        tracing::warn!("WebView2 not available, falling back to egui frontend");
+        eprintln!("WebView2 not available, falling back to egui frontend");
         irtool_egui::run(irtool_egui::StartupMode::Fallback);
         return;
     }

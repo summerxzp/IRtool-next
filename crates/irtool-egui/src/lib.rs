@@ -27,17 +27,18 @@ pub fn run(mode: StartupMode) {
     let app_dirs = AppDirs::detect();
 
     // Initialize logger (reuse irtool-tauri's logger pattern)
-    init_logger(app_dirs.logs_dir());
+    let log_guard = init_logger(app_dirs.logs_dir());
 
     info!("============================================");
     info!("IRtool v{} starting (egui frontend)", env!("CARGO_PKG_VERSION"));
     info!("Root: {}", app_dirs.root().display());
     info!("Startup mode: {:?}", mode);
 
-    // Check for existing instance
-    if single_instance::check_and_acquire().is_none() {
-        std::process::exit(1);
-    }
+    // Check for existing instance (guard must be held for process lifetime)
+    let single_instance_guard = match single_instance::check_and_acquire() {
+        Some(g) => g,
+        None => std::process::exit(1),
+    };
 
     info!("============================================");
 
@@ -59,7 +60,7 @@ pub fn run(mode: StartupMode) {
 
     // Build egui app
     let app_ctx = ctx.clone();
-    let app = app::IrtoolApp::new(app_ctx, bridge, rt, mode);
+    let app = app::IrtoolApp::new(app_ctx, bridge, rt, mode, log_guard, single_instance_guard);
 
     // Launch eframe
     let icon = load_icon();
@@ -77,7 +78,7 @@ pub fn run(mode: StartupMode) {
     });
 }
 
-fn init_logger(log_dir: std::path::PathBuf) {
+fn init_logger(log_dir: std::path::PathBuf) -> tracing_appender::non_blocking::WorkerGuard {
     use tracing_appender::rolling::{RollingFileAppender, Rotation};
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
@@ -108,7 +109,7 @@ fn init_logger(log_dir: std::path::PathBuf) {
             std::process::exit(1);
         });
 
-    let (app_nb, _guard) = tracing_appender::non_blocking(app_appender);
+    let (app_nb, guard) = tracing_appender::non_blocking(app_appender);
 
     let app_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,irtool=debug"));
 
@@ -137,8 +138,7 @@ fn init_logger(log_dir: std::path::PathBuf) {
         .with(console_layer)
         .init();
 
-    // Leak the guard so the logger stays alive for the app lifetime
-    std::mem::forget(_guard);
+    guard
 }
 
 /// 加载窗口图标：编译时嵌入 icon.png，运行时解码为 RGBA 像素数据。

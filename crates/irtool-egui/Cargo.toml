@@ -8,11 +8,13 @@ license.workspace = true
 [dependencies]
 irtool-core = { path = "../irtool-core" }
 irtool-service = { path = "../irtool-service" }
-irtool-pcap = { path = "../irtool-pcap" }
 
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts"] }
 egui_extras = "0.31"
 egui = "0.31"
+
+arboard = "3"
+regex = { workspace = true }
 
 image = { version = "0.25", default-features = false, features = ["png"] }
 

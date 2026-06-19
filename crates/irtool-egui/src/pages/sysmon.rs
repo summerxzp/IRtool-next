@@ -1,9 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use irtool_pcap::PcapConfig;
+use irtool_service::types::PcapConfig;
 use irtool_service::context::AppContext;
 use irtool_service::services::monitor::MonitorService;
 use irtool_service::services::pcap::PcapService;
@@ -30,13 +30,15 @@ pub struct SysmonRefresh {
 
 const MAX_EVENTS: usize = 10000;
 // Synthetic record_id base for pcap-derived events (avoids collision with real sysmon record ids).
+// pcap_seq 在应用生命周期内不会接近 u64::MAX，无需担心溢出。
+// 即使每秒处理 100 万事件，也需要约 584 年才能溢出。
 const PCAP_ID_BASE: u64 = 1_000_000_000;
 
 // ── SysmonPageState ───────────────────────────────────────
 
 pub struct SysmonPageState {
     // Data
-    pub events: Vec<SysmonEvent>,
+    pub events: VecDeque<SysmonEvent>,
     pub collecting: bool,
     pub start_time: Option<Instant>,
     pub sysmon_status: Option<SysmonStatus>,
@@ -70,7 +72,7 @@ pub struct SysmonPageState {
 impl Default for SysmonPageState {
     fn default() -> Self {
         Self {
-            events: Vec::new(),
+            events: VecDeque::new(),
             collecting: false,
             start_time: None,
             sysmon_status: None,
@@ -104,7 +106,7 @@ impl SysmonPageState {
     // ── Event handling ─────────────────────────────────────
 
     pub fn handle_sysmon_event(&mut self, event: SysmonEvent) {
-        self.events.push(event);
+        self.events.push_back(event);
         self.trim_events();
         self.mark_cache_dirty();
     }
@@ -112,15 +114,14 @@ impl SysmonPageState {
     pub fn handle_pcap_event(&mut self, event: PcapEvent) {
         let id = PCAP_ID_BASE + self.pcap_seq;
         self.pcap_seq += 1;
-        self.events.push(pcap_to_sysmon_event(event, id));
+        self.events.push_back(pcap_to_sysmon_event(event, id));
         self.trim_events();
         self.mark_cache_dirty();
     }
 
     fn trim_events(&mut self) {
-        if self.events.len() > MAX_EVENTS {
-            let excess = self.events.len() - MAX_EVENTS;
-            self.events.drain(0..excess);
+        while self.events.len() > MAX_EVENTS {
+            self.events.pop_front();
         }
     }
 
@@ -144,7 +145,7 @@ impl SysmonPageState {
             self.log_max_size_mb = s;
         }
         if let Some(e) = r.events {
-            self.events = e;
+            self.events = e.into();
             self.cache_dirty = true;
         }
         if let Some(c) = r.chain {
@@ -1107,7 +1108,7 @@ impl SysmonPageState {
     }
 
     fn export_csv(&self, ctx: &AppContext, rt: &tokio::runtime::Handle) {
-        let events = self.events.clone();
+        let events: Vec<SysmonEvent> = self.events.iter().cloned().collect();
         let dir = ctx.app_dirs.root().to_path_buf();
         let secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

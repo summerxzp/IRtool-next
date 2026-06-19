@@ -438,7 +438,10 @@ impl DatabasePageState {
 
     fn render_table(&mut self, ui: &mut egui::Ui) {
         let sel_id = self.selected_event.as_ref().map(|e| e.record_id);
-        let items = self.events.clone();
+        // Borrow instead of cloning the whole Vec every frame. The table body
+        // closure only reads `events` (and `sel_id`); all `&mut self` mutations
+        // happen after `body.rows` returns, so there is no borrow conflict.
+        let items = &self.events;
 
         if items.is_empty() {
             ui.add_space(80.0);

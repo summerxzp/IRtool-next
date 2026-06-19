@@ -122,6 +122,9 @@ pub struct MonitorConfig {
     /// 数据库最大大小（MB），0=不限制
     #[serde(default = "default_max_size_mb")]
     pub max_size_mb: u32,
+    /// 命令行富化模式（0=关闭，1=后台）
+    #[serde(default)]
+    pub cmdline_enrich: u32,
     /// 通知配置（与告警规则分离）
     #[serde(default)]
     pub notify_config: NotifyConfig,
@@ -149,6 +152,7 @@ impl Default for MonitorConfig {
             max_duration_secs: 0,
             load_limit: 1000,
             max_size_mb: 512,
+            cmdline_enrich: 0,
             notify_config: NotifyConfig::default(),
         }
     }

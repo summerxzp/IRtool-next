@@ -7,6 +7,7 @@ use irtool_service::context::AppContext;
 use irtool_service::dto::network::NetworkSnapshotPayload;
 use irtool_service::services::autoruns::AutorunsService;
 use irtool_service::services::network::NetworkService;
+use irtool_service::services::sysmon::SysmonService;
 use irtool_service::services::workspace::WorkspaceService;
 use irtool_service::types::{AutorunItem, ConnState, NetConn, RiskLevel, SysmonEvent, SysmonEventType};
 
@@ -205,16 +206,15 @@ fn get_event_field(item: &SysmonEvent, field: &str) -> String {
 // ── Match Functions ───────────────────────────────────────
 
 /// Match a single line against a pattern.
-/// For Regex, uses case-insensitive substring matching as a simplified fallback
-/// (full regex requires the `regex` crate which is not in irtool-egui's dependencies).
+/// For Regex, uses the `regex` crate for full regular expression matching.
 fn match_single_line(s: &str, pattern: &str, cond_type: &ConditionType) -> bool {
     match cond_type {
         ConditionType::Contains => s.to_lowercase().contains(&pattern.to_lowercase()),
         ConditionType::Equals => s.eq_ignore_ascii_case(pattern),
         ConditionType::Regex => {
-            // Simplified: case-insensitive substring match.
-            // Full regex support requires adding `regex` to Cargo.toml.
-            s.to_lowercase().contains(&pattern.to_lowercase())
+            regex::Regex::new(pattern)
+                .map(|re| re.is_match(s))
+                .unwrap_or(false)
         }
     }
 }
@@ -420,6 +420,7 @@ pub enum WorkspaceTab {
 pub struct WorkspaceRefresh {
     pub autorun_items: Option<Vec<AutorunItem>>,
     pub network_items: Option<Vec<NetConn>>,
+    pub event_items: Option<Vec<SysmonEvent>>,
     pub error: Option<String>,
 }
 
@@ -523,6 +524,10 @@ impl WorkspacePageState {
             self.network_items = items;
             self.loading = false;
         }
+        if let Some(items) = r.event_items {
+            self.event_items = items;
+            self.loading = false;
+        }
         if let Some(err) = r.error {
             self.last_error = Some(err);
             self.loading = false;
@@ -569,6 +574,27 @@ impl WorkspacePageState {
                 }
                 Err(e) => {
                     let _ = tx2.send(WorkspaceRefresh {
+                        error: Some(e.to_string()),
+                        ..Default::default()
+                    });
+                }
+            }
+        });
+
+        // Fetch sysmon events
+        let ctx3 = ctx.clone();
+        let tx3 = tx.clone();
+        rt.spawn(async move {
+            let svc = SysmonService { ctx: &ctx3 };
+            match svc.get_existing_events(1000, Vec::new()).await {
+                Ok(events) => {
+                    let _ = tx3.send(WorkspaceRefresh {
+                        event_items: Some(events),
+                        ..Default::default()
+                    });
+                }
+                Err(e) => {
+                    let _ = tx3.send(WorkspaceRefresh {
                         error: Some(e.to_string()),
                         ..Default::default()
                     });
@@ -630,7 +656,7 @@ impl WorkspacePageState {
 
         // Dialogs
         if self.rule_manager_open {
-            self.render_rule_manager(ui);
+            self.render_rule_manager(ui, ctx);
         }
         if self.rule_edit_open {
             self.render_rule_edit(ui);
@@ -1685,7 +1711,7 @@ impl WorkspacePageState {
 
     // ── Rule Manager Dialog ────────────────────────────────
 
-    fn render_rule_manager(&mut self, ui: &mut egui::Ui) {
+    fn render_rule_manager(&mut self, ui: &mut egui::Ui, ctx: &AppContext) {
         let mut open = self.rule_manager_open;
         let mut add_rule = false;
         let mut edit_rule: Option<Rule> = None;
@@ -1710,9 +1736,8 @@ impl WorkspacePageState {
                     if ui.button("导出").clicked() {
                         export_rules = true;
                     }
-                    if ui.button("导入").clicked() {
-                        // TODO: import rules from JSON file
-                    }
+                    ui.add_enabled(false, egui::Button::new("导入"))
+                        .on_hover_text("导入功能尚未实现");
                 });
                 ui.separator();
 
@@ -1803,7 +1828,7 @@ impl WorkspacePageState {
             self.rules.retain(|r| r.id != id);
         }
         if export_rules {
-            self.export_rules_json();
+            self.export_rules_json(ctx);
         }
 
         self.rule_manager_open = open;
@@ -2143,15 +2168,12 @@ impl WorkspacePageState {
 
     fn export_csv(&self, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         let dir = ctx.app_dirs.root().to_path_buf();
-        let secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
         match self.active_tab {
             WorkspaceTab::Autoruns => {
                 let items = self.autorun_items.clone();
-                let path = dir.join(format!("workspace_autoruns_{}.csv", secs));
+                let path = dir.join(format!("workspace_autoruns_{}.csv", timestamp));
                 rt.spawn_blocking(move || {
                     if let Err(e) = write_autoruns_csv(&path, &items) {
                         tracing::error!("csv export failed: {}", e);
@@ -2162,7 +2184,7 @@ impl WorkspacePageState {
             }
             WorkspaceTab::Network => {
                 let items = self.network_items.clone();
-                let path = dir.join(format!("workspace_network_{}.csv", secs));
+                let path = dir.join(format!("workspace_network_{}.csv", timestamp));
                 rt.spawn_blocking(move || {
                     if let Err(e) = write_network_csv(&path, &items) {
                         tracing::error!("csv export failed: {}", e);
@@ -2173,7 +2195,7 @@ impl WorkspacePageState {
             }
             WorkspaceTab::Events => {
                 let items = self.event_items.clone();
-                let path = dir.join(format!("workspace_events_{}.csv", secs));
+                let path = dir.join(format!("workspace_events_{}.csv", timestamp));
                 rt.spawn_blocking(move || {
                     if let Err(e) = write_events_csv(&path, &items) {
                         tracing::error!("csv export failed: {}", e);
@@ -2185,7 +2207,7 @@ impl WorkspacePageState {
         }
     }
 
-    fn export_rules_json(&self) {
+    fn export_rules_json(&self, ctx: &AppContext) {
         let json = match serde_json::to_string_pretty(&self.rules.iter().map(|r| RuleJson {
             id: r.id.clone(),
             name: r.name.clone(),
@@ -2207,8 +2229,11 @@ impl WorkspacePageState {
                 return;
             }
         };
-        let dir = std::env::temp_dir();
-        let path = dir.join("irtool_rules_export.json");
+        let dir = ctx.app_dirs.root().to_path_buf();
+        let path = dir.join(format!(
+            "irtool_rules_export_{}.json",
+            chrono::Local::now().format("%Y%m%d_%H%M%S")
+        ));
         if let Err(e) = std::fs::write(&path, json) {
             tracing::error!("write rules export: {}", e);
         } else {

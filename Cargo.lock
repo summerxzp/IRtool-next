@@ -2560,16 +2560,17 @@ dependencies = [
 name = "irtool-egui"
 version = "2.0.5"
 dependencies = [
+ "arboard",
  "chrono",
  "eframe",
  "egui",
  "egui_extras",
  "image",
  "irtool-core",
- "irtool-pcap",
  "irtool-service",
  "muda",
  "parking_lot",
+ "regex",
  "serde",
  "serde_json",
  "tokio",

@@ -71,6 +71,8 @@ pub struct AutorunsPageState {
     // Context menu
     pub ctx_menu_visible: bool,
     pub ctx_menu_pos: Option<egui::Pos2>,
+    /// 标记菜单刚在本帧打开，跳过点击外部关闭检查。
+    pub ctx_menu_just_opened: bool,
 
     // Delete confirmation dialog (DESIGN.md 4.10)
     pub delete_confirm_open: bool,
@@ -113,6 +115,7 @@ impl Default for AutorunsPageState {
             detail_visible: false,
             ctx_menu_visible: false,
             ctx_menu_pos: None,
+            ctx_menu_just_opened: false,
             delete_confirm_open: false,
             pending_delete_id: None,
             refresh_tx: None,
@@ -568,6 +571,7 @@ impl AutorunsPageState {
 
         if row_right_click.is_some() {
             self.ctx_menu_visible = true;
+            self.ctx_menu_just_opened = true;
         }
 
         if let Some(col) = sort_toggle {
@@ -655,8 +659,12 @@ impl AutorunsPageState {
                 });
             });
 
-        // Click outside closes menu
-        if ui.input(|i| i.pointer.any_click() && !close_menu) {
+        // Click outside closes menu.
+        // Skip close check on the frame the menu was just opened, because
+        // the right-click that opened the menu also triggers any_click().
+        if self.ctx_menu_just_opened {
+            self.ctx_menu_just_opened = false;
+        } else if ui.input(|i| i.pointer.any_click() && !close_menu) {
             if let Some(hover) = ui.ctx().memory(|m| m.area_rect(egui::Id::new("autoruns_ctx_menu"))) {
                 if !hover.contains(ui.input(|i| i.pointer.interact_pos()).unwrap_or(pos)) {
                     close_menu = true;
@@ -1185,10 +1193,14 @@ fn signature_badge(ui: &mut egui::Ui, sig: &SignatureStatus) {
 }
 
 fn paint_row_bg(ui: &mut egui::Ui, color: egui::Color32, alpha: f32) {
-    let _ = (color, alpha);
-    // Row tinting handled via row.set_selected; this is a placeholder for
-    // custom background which egui_extras doesn't expose easily.
-    let _ = ui;
+    let bg = egui::Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        (255.0 * alpha) as u8,
+    );
+    let rect = ui.max_rect();
+    ui.painter().rect_filled(rect, 0.0, bg);
 }
 
 fn format_size(bytes: u64) -> String {
@@ -1247,18 +1259,12 @@ fn sig_filter_label(f: SignatureFilter) -> &'static str {
 }
 
 fn ui_copy_to_clipboard(_rt: &tokio::runtime::Handle, text: String) {
-    // Best-effort clipboard copy via arboard; fall back to log.
-    // We avoid adding a new dependency by using the OS command.
+    // 使用 arboard 直接操作剪贴板，避免通过 shell 命令导致的注入风险
     #[cfg(windows)]
     {
-        use std::process::Command;
-        let _ = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!("Set-Clipboard -Value '{}'", text.replace('\'', "''")),
-            ])
-            .spawn();
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            let _ = clipboard.set_text(text);
+        }
     }
     #[cfg(not(windows))]
     {

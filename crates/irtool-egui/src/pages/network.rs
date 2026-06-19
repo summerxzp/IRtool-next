@@ -52,6 +52,14 @@ const ALL_STATES: &[ConnState] = &[
     ConnState::DeleteTcb,
 ];
 
+/// Parse "addr:port" into (addr, port). Uses rfind(':') to handle IPv6 addresses like "[::1]:8080".
+fn parse_endpoint(s: &str) -> Option<(&str, u16)> {
+    let idx = s.rfind(':')?;
+    let addr = &s[..idx];
+    let port = s[idx + 1..].parse().ok()?;
+    Some((addr, port))
+}
+
 // ── NetworkPageState ───────────────────────────────────────
 
 pub struct NetworkPageState {
@@ -133,8 +141,16 @@ impl NetworkPageState {
 
     pub fn handle_snapshot(&mut self, payload: NetworkSnapshotPayload) {
         // B3: refresh selected_conn cache from new snapshot
-        if let Some(pid) = self.selected_pid {
-            self.selected_conn = payload.items.iter().find(|c| c.pid == pid).cloned();
+        if let (Some(pid), Some(ref local), Some(ref remote)) =
+            (self.selected_pid, &self.selected_local, &self.selected_remote)
+        {
+            let local_ep = parse_endpoint(local);
+            let remote_ep = parse_endpoint(remote);
+            self.selected_conn = payload.items.iter().find(|c| {
+                c.pid == pid
+                    && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
+                    && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
+            }).cloned();
         }
         self.snapshot = Some(payload);
         self.last_error = None;
@@ -159,8 +175,16 @@ impl NetworkPageState {
         // B3: refresh selected_conn cache if it matches the enriched pid
         if let Some(ref sel) = self.selected_conn {
             if sel.pid == enrichment.pid {
-                if let Some(ref snap) = self.snapshot {
-                    self.selected_conn = snap.items.iter().find(|c| c.pid == enrichment.pid).cloned();
+                if let (Some(ref snap), Some(ref local), Some(ref remote)) =
+                    (&self.snapshot, &self.selected_local, &self.selected_remote)
+                {
+                    let local_ep = parse_endpoint(local);
+                    let remote_ep = parse_endpoint(remote);
+                    self.selected_conn = snap.items.iter().find(|c| {
+                        c.pid == enrichment.pid
+                            && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
+                            && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
+                    }).cloned();
                 }
             }
         }
@@ -431,6 +455,8 @@ impl NetworkPageState {
         let sel_pid = self.selected_pid;
         let sel_local = self.selected_local.clone();
         let sel_remote = self.selected_remote.clone();
+        let sel_local_ep = sel_local.as_deref().and_then(parse_endpoint);
+        let sel_remote_ep = sel_remote.as_deref().and_then(parse_endpoint);
 
         let items = self.get_filtered_sorted_items();
 
@@ -540,12 +566,10 @@ impl NetworkPageState {
                     let conn = &items[row.index()];
                     // B2: use extracted fields to avoid borrowing self
                     let is_selected = (sel_pid == Some(conn.pid))
-                        && sel_local
-                            .as_deref()
-                            .is_none_or(|l| l == format!("{}:{}", conn.local.addr, conn.local.port))
-                        && sel_remote
-                            .as_deref()
-                            .is_none_or(|r| r == format!("{}:{}", conn.remote.addr, conn.remote.port));
+                        && sel_local_ep
+                            .is_none_or(|(addr, port)| conn.local.addr == addr && conn.local.port == port)
+                        && sel_remote_ep
+                            .is_none_or(|(addr, port)| conn.remote.addr == addr && conn.remote.port == port);
                     let is_history = !conn.is_current;
                     let local_ep = format!("{}:{}", conn.local.addr, conn.local.port);
                     let remote_ep = format!("{}:{}", conn.remote.addr, conn.remote.port);
@@ -1004,8 +1028,14 @@ impl NetworkPageState {
                     .cmp(&b.remote.addr)
                     .then(a.remote.port.cmp(&b.remote.port)),
                 SortColumn::State => a.state.as_str().cmp(b.state.as_str()),
-                SortColumn::Proto => format!("{:?}", a.proto).cmp(&format!("{:?}", b.proto)),
-                SortColumn::Family => format!("{:?}", a.family).cmp(&format!("{:?}", b.family)),
+                SortColumn::Proto => {
+                    let proto_key = |p: &Proto| match p {
+                        Proto::Tcp => "tcp",
+                        Proto::Udp => "udp",
+                    };
+                    proto_key(&a.proto).cmp(&proto_key(&b.proto))
+                }
+                SortColumn::Family => (a.family as u8).cmp(&(b.family as u8)),
                 SortColumn::Path => a
                     .process_path
                     .as_deref()

@@ -70,6 +70,7 @@ impl MonitorPageState {
     /// Apply an async refresh payload.
     pub fn apply_refresh(&mut self, r: MonitorRefresh) {
         if let Some(c) = r.config {
+            self.cmdline_enrich = c.cmdline_enrich;
             self.config = c;
             self.saving = false;
         }
@@ -114,69 +115,23 @@ impl MonitorPageState {
             Some(t) => t,
             None => return,
         };
-
-        // Telemetry
-        let ctx1 = ctx.clone();
-        let tx1 = tx.clone();
+        let ctx_clone = ctx.clone();
         rt.spawn(async move {
-            let svc = MonitorService { ctx: &ctx1 };
-            match svc.get_telemetry().await {
-                Ok(t) => {
-                    let _ = tx1.send(MonitorRefresh {
-                        telemetry: Some(t),
-                        ..Default::default()
-                    });
-                }
-                Err(e) => tracing::error!("monitor get_telemetry: {}", e),
-            }
-        });
-
-        // is_background
-        let ctx2 = ctx.clone();
-        let tx2 = tx.clone();
-        rt.spawn(async move {
-            let svc = MonitorService { ctx: &ctx2 };
-            match svc.is_background().await {
-                Ok(b) => {
-                    let _ = tx2.send(MonitorRefresh {
-                        is_background: Some(b),
-                        ..Default::default()
-                    });
-                }
-                Err(e) => tracing::error!("monitor is_background: {}", e),
-            }
-        });
-
-        // event_count
-        let ctx3 = ctx.clone();
-        let tx3 = tx.clone();
-        rt.spawn(async move {
-            let svc = MonitorService { ctx: &ctx3 };
-            match svc.get_event_count().await {
-                Ok(c) => {
-                    let _ = tx3.send(MonitorRefresh {
-                        event_count: Some(c),
-                        ..Default::default()
-                    });
-                }
-                Err(e) => tracing::error!("monitor get_event_count: {}", e),
-            }
-        });
-
-        // db_size
-        let ctx4 = ctx.clone();
-        let tx4 = tx;
-        rt.spawn(async move {
-            let svc = MonitorService { ctx: &ctx4 };
-            match svc.get_db_size().await {
-                Ok(s) => {
-                    let _ = tx4.send(MonitorRefresh {
-                        db_size: Some(s),
-                        ..Default::default()
-                    });
-                }
-                Err(e) => tracing::error!("monitor get_db_size: {}", e),
-            }
+            let svc = MonitorService { ctx: &ctx_clone };
+            let (telemetry, is_background, event_count, db_size) = tokio::join!(
+                svc.get_telemetry(),
+                svc.is_background(),
+                svc.get_event_count(),
+                svc.get_db_size(),
+            );
+            let refresh = MonitorRefresh {
+                telemetry: telemetry.ok(),
+                is_background: is_background.ok(),
+                event_count: event_count.ok(),
+                db_size: db_size.ok(),
+                ..Default::default()
+            };
+            let _ = tx.send(refresh);
         });
     }
 
@@ -744,7 +699,8 @@ impl MonitorPageState {
 
     fn save_config(&mut self, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         self.saving = true;
-        let config = self.config.clone();
+        let mut config = self.config.clone();
+        config.cmdline_enrich = self.cmdline_enrich;
         let ctx_clone = ctx.clone();
         let tx = self.refresh_tx.clone();
         rt.spawn(async move {

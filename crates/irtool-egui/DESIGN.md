@@ -631,12 +631,12 @@ if self.is_fallback {
 | 页面 | Tauri | egui | 说明 |
 |------|-------|------|------|
 | Network | ✅ | ✅ | 已实现 |
-| Autoruns | ✅ | ❌ TODO | 核心功能，必须实现 |
-| Sysmon | ✅ | ❌ TODO | 核心功能，必须实现 |
-| Monitor | ✅ | ❌ TODO | 后台监控，egui 下可简化 |
-| Database | ✅ | ❌ TODO | 数据库检索，egui 下可简化 |
-| Workspace | ✅ | ❌ TODO | 工作台，egui 下可简化 |
-| Settings | ✅ | ❌ TODO | 设置，egui 下可简化 |
+| Autoruns | ✅ | ✅ | 已实现 |
+| Sysmon | ✅ | ✅ | 已实现 |
+| Monitor | ✅ | ✅ | 已实现 |
+| Database | ✅ | ✅ | 已实现 |
+| Workspace | ✅ | ✅ | 已实现 |
+| Settings | ✅ | ✅ | 已实现 |
 
 **优先级**：Network → Autoruns → Sysmon → Monitor → 其他。前三个是 IR 核心功能，fallback 必须支持。
 
