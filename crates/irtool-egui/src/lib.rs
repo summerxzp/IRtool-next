@@ -5,6 +5,7 @@ mod nav;
 mod pages;
 mod theme;
 mod widgets;
+mod single_instance;
 
 use irtool_core::AppDirs;
 use irtool_service::context::AppContext;
@@ -32,6 +33,12 @@ pub fn run(mode: StartupMode) {
     info!("IRtool v{} starting (egui frontend)", env!("CARGO_PKG_VERSION"));
     info!("Root: {}", app_dirs.root().display());
     info!("Startup mode: {:?}", mode);
+
+    // Check for existing instance
+    if single_instance::check_and_acquire().is_none() {
+        std::process::exit(1);
+    }
+
     info!("============================================");
 
     // Create tokio runtime in a dedicated thread

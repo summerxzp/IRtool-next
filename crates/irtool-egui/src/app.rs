@@ -96,6 +96,7 @@ impl eframe::App for IrtoolApp {
         if !self.theme_applied {
             theme::apply_light_theme(ctx);
             self.theme_applied = true;
+            self.event_bridge.attach_context(ctx.clone());
         }
 
         // 1. Drain events from EventBus
@@ -139,7 +140,7 @@ impl eframe::App for IrtoolApp {
         });
 
         // 6. Request periodic repaint for polling updates
-        ctx.request_repaint_after(Duration::from_millis(100));
+        ctx.request_repaint_after(Duration::from_millis(500));
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
