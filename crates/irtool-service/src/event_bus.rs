@@ -25,9 +25,14 @@ pub enum AppEvent {
     AutorunsProgress(ScanProgress),
     AutorunsSignatureProgress(SignatureProgress),
     AutorunsHashProgress(SignatureProgress),
-    AutorunsScanComplete { count: usize },
+    AutorunsScanComplete {
+        count: usize,
+    },
     AutorunsScanCancelled(u64),
-    AutorunsScanFailed { task_id: u64, error: String },
+    AutorunsScanFailed {
+        task_id: u64,
+        error: String,
+    },
 
     // Sysmon
     SysmonEvent(SysmonEvent),
@@ -39,9 +44,18 @@ pub enum AppEvent {
     PcapEvent(PcapEvent),
 
     // Tools
-    ToolsDownloadProgress { tool_id: String, downloaded: u64, total: u64 },
-    ToolsDownloadError { tool_id: String, error: String },
-    ToolsDownloadComplete { errors: usize },
+    ToolsDownloadProgress {
+        tool_id: String,
+        downloaded: u64,
+        total: u64,
+    },
+    ToolsDownloadError {
+        tool_id: String,
+        error: String,
+    },
+    ToolsDownloadComplete {
+        errors: usize,
+    },
 
     // Window
     CloseRequested,

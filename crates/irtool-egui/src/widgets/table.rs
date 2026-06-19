@@ -28,12 +28,7 @@ impl SortDir {
 /// A sortable column header for `egui_extras::TableBuilder`.
 ///
 /// Returns `Some(column_id)` if the user clicked the header (to toggle sort).
-pub fn sortable_header(
-    ui: &mut egui::Ui,
-    label: &str,
-    is_sorted: bool,
-    dir: SortDir,
-) -> bool {
+pub fn sortable_header(ui: &mut egui::Ui, label: &str, is_sorted: bool, dir: SortDir) -> bool {
     let text = if is_sorted {
         format!("{}{}", label, dir.arrow())
     } else {
@@ -46,16 +41,10 @@ pub fn sortable_header(
         egui::FontId::proportional(12.0)
     };
 
-    let color = if is_sorted {
-        theme::ACCENT
-    } else {
-        theme::FG_SECONDARY
-    };
+    let color = if is_sorted { theme::ACCENT } else { theme::FG_SECONDARY };
 
-    let response = ui.add(
-        egui::Label::new(egui::RichText::new(text).font(font).color(color))
-            .sense(egui::Sense::click()),
-    );
+    let response =
+        ui.add(egui::Label::new(egui::RichText::new(text).font(font).color(color)).sense(egui::Sense::click()));
 
     response.clicked()
 }

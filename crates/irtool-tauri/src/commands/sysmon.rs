@@ -41,7 +41,9 @@ pub async fn cmd_sysmon_get_existing_events(
     limit: u32,
     enabled_event_ids: Vec<u32>,
 ) -> Result<Vec<SysmonEvent>, IrError> {
-    SysmonService { ctx: &ctx }.get_existing_events(limit, enabled_event_ids).await
+    SysmonService { ctx: &ctx }
+        .get_existing_events(limit, enabled_event_ids)
+        .await
 }
 
 #[tauri::command]

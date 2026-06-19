@@ -5,25 +5,26 @@
 //! This ensures the service layer remains the single dependency boundary.
 
 // ── Network ──
-pub use irtool_net_monitor::{
-    NetConn, ConnState, Proto, CmdlineStatus, CmdlineResult, RetentionPolicy,
-};
+pub use irtool_net_monitor::{CmdlineResult, CmdlineStatus, ConnState, NetConn, Proto, RetentionPolicy};
 
 // ── Autoruns ──
 pub use irtool_autoruns::{
-    AutorunItem, ScanOptions, ScanProgress, ScanPhase,
-    SignatureProgress, DeleteResult,
-    RiskLevel, SignatureStatus,
+    AutorunItem, DeleteResult, RiskLevel, ScanOptions, ScanPhase, ScanProgress, SignatureProgress, SignatureStatus,
 };
 
 // ── Sysmon ──
-pub use irtool_sysmon::{SysmonEvent};
+pub use irtool_sysmon::{EventConfigEntry, SysmonEvent, SysmonEventType, SysmonStatus};
 
 // ── Monitor ──
 pub use irtool_monitor::{
-    Alert, MonitorEvent, MonitorConfig, EventQuery, EventPage,
-    EventSource, RuntimeTelemetry,
+    Alert, EventPage, EventQuery, EventSource, MonitorConfig, MonitorEvent, MonitorRule, NotifyConfig, RuntimeTelemetry,
 };
 
 // ── Pcap ──
-pub use irtool_pcap::{PcapEvent};
+pub use irtool_pcap::{AdapterInfo, PcapConfig, PcapCountersSnapshot, PcapEvent, PcapEventKind};
+
+// ── Process ──
+pub use irtool_process::{ProcessChain, ProcessNode};
+
+// ── Tools ──
+pub use irtool_tools::ToolStatus;

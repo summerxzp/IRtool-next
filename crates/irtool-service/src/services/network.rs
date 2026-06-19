@@ -146,7 +146,10 @@ impl<'a> NetworkService<'a> {
             match result {
                 Some(query_result) => {
                     if query_result.query_failed {
-                        info!("manual cmdline refresh: pid={} WMI query failed (connection error)", pid);
+                        info!(
+                            "manual cmdline refresh: pid={} WMI query failed (connection error)",
+                            pid
+                        );
                         emit(CmdlineStatus::Failed, None);
                     } else if query_result.failed_pids.contains(&pid) {
                         info!("manual cmdline refresh: pid={} WMI query timed out", pid);

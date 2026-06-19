@@ -1,5 +1,69 @@
 use eframe::egui::{self, Color32};
 
+// ── Time formatting (UTC+8, DESIGN.md 4.8) ──────────────────
+
+/// Format an epoch (seconds) as UTC+8 string: `2026/06/19,06:21:47`.
+pub fn fmt_time(epoch: u64) -> String {
+    if epoch == 0 {
+        return "-".to_string();
+    }
+    let cst = chrono::FixedOffset::east_opt(8 * 3600).unwrap(); // UTC+8
+    chrono::DateTime::from_timestamp(epoch as i64, 0)
+        .map(|dt| dt.with_timezone(&cst).format("%Y/%m/%d,%H:%M:%S").to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+/// Format epoch milliseconds as UTC+8 string: `2026/06/19,06:21:47`.
+pub fn fmt_time_millis(millis: i64) -> String {
+    let secs = millis / 1000;
+    let cst = chrono::FixedOffset::east_opt(8 * 3600).unwrap(); // UTC+8
+    chrono::DateTime::from_timestamp(secs, 0)
+        .map(|dt| dt.with_timezone(&cst).format("%Y/%m/%d,%H:%M:%S").to_string())
+        .unwrap_or_else(|| millis.to_string())
+}
+
+/// Format bytes as human-readable string: `1.5 GB`.
+pub fn fmt_bytes(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let i = (bytes.ilog2() / 10) as usize; // 2^10 = 1024
+    let i = i.min(UNITS.len() - 1);
+    let val = bytes as f64 / (1024_u64.pow(i as u32) as f64);
+    let val_str = if val >= 100.0 {
+        format!("{:.0}", val)
+    } else {
+        format!("{:.1}", val)
+    };
+    format!("{} {}", val_str, UNITS[i])
+}
+
+/// Format uptime from epoch-millis start time: `1天2时`, `3分4秒`, etc.
+pub fn fmt_uptime(started_at_millis: Option<i64>) -> String {
+    let Some(started) = started_at_millis else {
+        return "-".to_string();
+    };
+    if started <= 0 {
+        return "-".to_string();
+    }
+    let now = chrono::Utc::now().timestamp_millis();
+    let elapsed = (now - started).max(0) / 1000;
+    let days = elapsed / 86400;
+    let hours = (elapsed % 86400) / 3600;
+    let mins = (elapsed % 3600) / 60;
+    let secs = elapsed % 60;
+    if days > 0 {
+        format!("{}天{}时", days, hours)
+    } else if hours > 0 {
+        format!("{}时{}分", hours, mins)
+    } else if mins > 0 {
+        format!("{}分{}秒", mins, secs)
+    } else {
+        format!("{}秒", secs)
+    }
+}
+
 // ── Background (Light Theme) ────────────────────────────────
 pub const BG_PRIMARY: Color32 = Color32::WHITE;
 pub const BG_SECONDARY: Color32 = Color32::from_rgb(0xf5, 0xf5, 0xf5);
@@ -28,17 +92,23 @@ pub const TABLE_ROW_SELECTED: Color32 = Color32::from_rgba_premultiplied(0x25, 0
 
 // ── Layout ──────────────────────────────────────────────────
 pub const TOPBAR_HEIGHT: f32 = 32.0;
-pub const SIDEBAR_WIDTH: f32 = 180.0;
-pub const DETAIL_PANEL_WIDTH: f32 = 300.0;
-#[allow(dead_code)]
+pub const SIDEBAR_WIDTH: f32 = 140.0;
+pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
 pub const PANEL_PADDING: f32 = 12.0;
-#[allow(dead_code)]
 pub const ELEMENT_GAP: f32 = 8.0;
 pub const TABLE_ROW_HEIGHT: f32 = 22.0;
 pub const TABLE_HEADER_HEIGHT: f32 = 24.0;
 
 /// Apply the light theme and CJK font to an egui context.
 pub fn apply_light_theme(ctx: &egui::Context) {
+    // ── Scale up for high-DPI displays ──
+    // egui defaults to 1.0x which looks tiny on high-resolution screens.
+    // Use 1.15x as a comfortable baseline; users can Ctrl+/- to adjust.
+    let scale = ctx.pixels_per_point();
+    if scale <= 1.0 {
+        ctx.set_pixels_per_point(1.15);
+    }
+
     // ── Load CJK font (Microsoft YaHei) ──
     let font_path = std::path::Path::new(r"C:\Windows\Fonts\msyh.ttc");
     if let Ok(font_data) = std::fs::read(font_path) {
@@ -46,22 +116,22 @@ pub fn apply_light_theme(ctx: &egui::Context) {
 
         fonts.font_data.insert(
             "msyh".to_owned(),
-            std::sync::Arc::new(
-                egui::FontData::from_owned(font_data).tweak(egui::FontTweak {
-                    scale: 0.88,
-                    ..Default::default()
-                }),
-            ),
+            std::sync::Arc::new(egui::FontData::from_owned(font_data).tweak(egui::FontTweak {
+                scale: 1.0,
+                ..Default::default()
+            })),
         );
 
-        // Add as fallback for proportional text
+        // Insert msyh at the front of Proportional so that symbol characters
+        // (✓ ✕ ⚠ etc.) are rendered by msyh instead of Hack, which may lack
+        // proper glyphs for these codepoints and show tofu boxes.
         fonts
             .families
             .entry(egui::FontFamily::Proportional)
             .or_default()
-            .push("msyh".to_owned());
+            .insert(0, "msyh".to_owned());
 
-        // Add as fallback for monospace text
+        // Add as fallback for monospace text (keep Hack primary for code)
         fonts
             .families
             .entry(egui::FontFamily::Monospace)
@@ -94,4 +164,15 @@ pub fn apply_light_theme(ctx: &egui::Context) {
     visuals.selection.bg_fill = TABLE_ROW_SELECTED;
 
     ctx.set_visuals(visuals);
+
+    // ── Disable selectable labels globally (DESIGN.md 4.3 Label Convention) ──
+    // All ui.label() calls should not enter text-selection mode.
+    ctx.options_mut(|o| {
+        std::sync::Arc::make_mut(&mut o.dark_style)
+            .interaction
+            .selectable_labels = false;
+        std::sync::Arc::make_mut(&mut o.light_style)
+            .interaction
+            .selectable_labels = false;
+    });
 }

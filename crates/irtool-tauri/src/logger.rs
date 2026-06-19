@@ -5,6 +5,16 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
 
+/// 本地时间计时器（UTC+8），用于日志时间戳格式化。
+struct LocalTimer;
+
+impl fmt::time::FormatTime for LocalTimer {
+    fn format_time(&self, w: &mut fmt::format::Writer<'_>) -> std::fmt::Result {
+        let now = chrono::Local::now();
+        write!(w, "{}", now.format("%Y/%m/%d %H:%M:%S%.3f"))
+    }
+}
+
 pub struct LoggerGuard {
     _app_guard: WorkerGuard,
     _monitor_guard: WorkerGuard,
@@ -44,6 +54,7 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
+        .with_timer(LocalTimer)
         .with_filter(app_filter);
 
     // --- monitor.log: irtool_monitor crate only ---
@@ -73,6 +84,7 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
+        .with_timer(LocalTimer)
         .with_filter(monitor_filter);
 
     // --- tools.log: irtool_tools crate only ---
@@ -102,11 +114,12 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
+        .with_timer(LocalTimer)
         .with_filter(tools_filter);
 
     // --- console layer (debug builds only) ---
     let console_layer = if cfg!(debug_assertions) {
-        Some(fmt::layer().with_target(true).with_ansi(true).compact().with_filter(
+        Some(fmt::layer().with_target(true).with_ansi(true).with_timer(LocalTimer).compact().with_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
         ))
     } else {

@@ -35,7 +35,16 @@ pub struct MonitorEngine {
 impl MonitorEngine {
     pub fn new(app_dir: &std::path::Path) -> Self {
         let config_path = app_dir.join("config").join("monitor.toml");
-        let config = config::load_config(&config_path).unwrap_or_default();
+        let mut config = config::load_config(&config_path).unwrap_or_default();
+
+        // 启动时强制重置 background_mode=false，防止上次异常退出（如被
+        // 任务管理器杀进程）导致配置文件中 background_mode 残留为 true，
+        // 使得本次启动后关闭窗口总是进入后台而非退出。
+        if config.background_mode {
+            config.background_mode = false;
+            let _ = config::save_config(&config_path, &config);
+        }
+
         let db_path = if config.db_path.is_empty() {
             app_dir.join("data").join("monitor.db")
         } else {

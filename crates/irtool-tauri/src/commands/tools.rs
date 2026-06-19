@@ -12,10 +12,7 @@ pub async fn cmd_tools_check(ctx: State<'_, AppContext>) -> Result<Vec<ToolStatu
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_tools_download(
-    ctx: State<'_, AppContext>,
-    tool_ids: Vec<String>,
-) -> Result<(), IrError> {
+pub async fn cmd_tools_download(ctx: State<'_, AppContext>, tool_ids: Vec<String>) -> Result<(), IrError> {
     ToolsService { ctx: &ctx }.download(tool_ids).await
 }
 

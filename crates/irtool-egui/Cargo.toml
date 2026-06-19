@@ -8,10 +8,13 @@ license.workspace = true
 [dependencies]
 irtool-core = { path = "../irtool-core" }
 irtool-service = { path = "../irtool-service" }
+irtool-pcap = { path = "../irtool-pcap" }
 
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts"] }
 egui_extras = "0.31"
 egui = "0.31"
+
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 tokio = { workspace = true }
 tracing = { workspace = true }
@@ -21,10 +24,15 @@ chrono = { workspace = true }
 parking_lot = "0.12"
 serde = { workspace = true }
 serde_json = { workspace = true }
+webbrowser = "1.2"
+
+tray-icon = "0.23"
+muda = "0.19"
 
 windows = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Threading",
     "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
 ] }

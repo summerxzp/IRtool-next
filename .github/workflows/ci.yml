@@ -78,7 +78,7 @@ jobs:
         working-directory: ui
         run: pnpm build
       - name: Cargo build release
-        run: cargo build --release -p irtool-tauri
+        run: cargo build --release -p irtool-tauri --features irtool-tauri/egui-fallback
 
   # 发布 release 时构建便携版
   release:

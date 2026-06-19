@@ -3,9 +3,9 @@ mod event_bridge;
 mod layout;
 mod nav;
 mod pages;
+mod single_instance;
 mod theme;
 mod widgets;
-mod single_instance;
 
 use irtool_core::AppDirs;
 use irtool_service::context::AppContext;
@@ -62,19 +62,16 @@ pub fn run(mode: StartupMode) {
     let app = app::IrtoolApp::new(app_ctx, bridge, rt, mode);
 
     // Launch eframe
+    let icon = load_icon();
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1400.0, 900.0])
-            .with_min_inner_size([800.0, 600.0]),
+            .with_min_inner_size([800.0, 600.0])
+            .with_icon(std::sync::Arc::new(icon)),
         ..Default::default()
     };
 
-    eframe::run_native(
-        "IRtool",
-        native_options,
-        Box::new(|_cc| Ok(Box::new(app))),
-    )
-    .unwrap_or_else(|e| {
+    eframe::run_native("IRtool", native_options, Box::new(|_cc| Ok(Box::new(app)))).unwrap_or_else(|e| {
         tracing::error!("eframe error: {}", e);
         std::process::exit(1);
     });
@@ -85,6 +82,16 @@ fn init_logger(log_dir: std::path::PathBuf) {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{fmt, EnvFilter, Layer};
+
+    /// 本地时间计时器（UTC+8），用于日志时间戳格式化。
+    struct LocalTimer;
+
+    impl fmt::time::FormatTime for LocalTimer {
+        fn format_time(&self, w: &mut fmt::format::Writer<'_>) -> std::fmt::Result {
+            let now = chrono::Local::now();
+            write!(w, "{}", now.format("%Y/%m/%d %H:%M:%S%.3f"))
+        }
+    }
 
     if !log_dir.exists() {
         let _ = std::fs::create_dir_all(&log_dir);
@@ -103,8 +110,7 @@ fn init_logger(log_dir: std::path::PathBuf) {
 
     let (app_nb, _guard) = tracing_appender::non_blocking(app_appender);
 
-    let app_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,irtool=debug"));
+    let app_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,irtool=debug"));
 
     let app_layer = fmt::layer()
         .with_writer(app_nb)
@@ -112,22 +118,19 @@ fn init_logger(log_dir: std::path::PathBuf) {
         .with_target(true)
         .with_file(false)
         .with_line_number(false)
+        .with_timer(LocalTimer)
         .with_filter(app_filter);
 
-    let console_layer = if cfg!(debug_assertions) {
-        Some(
-            fmt::layer()
-                .with_target(true)
-                .with_ansi(true)
-                .compact()
-                .with_filter(
-                    EnvFilter::try_from_default_env()
-                        .unwrap_or_else(|_| EnvFilter::new("debug,wmi=warn")),
+    let console_layer =
+        if cfg!(debug_assertions) {
+            Some(
+                fmt::layer().with_target(true).with_ansi(true).with_timer(LocalTimer).compact().with_filter(
+                    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,wmi=warn")),
                 ),
-        )
-    } else {
-        None
-    };
+            )
+        } else {
+            None
+        };
 
     tracing_subscriber::registry()
         .with(app_layer)
@@ -136,4 +139,24 @@ fn init_logger(log_dir: std::path::PathBuf) {
 
     // Leak the guard so the logger stays alive for the app lifetime
     std::mem::forget(_guard);
+}
+
+/// 加载窗口图标：编译时嵌入 icon.png，运行时解码为 RGBA 像素数据。
+fn load_icon() -> egui::IconData {
+    const ICON_BYTES: &[u8] = include_bytes!("../../irtool-tauri/icons/icon.png");
+    match image::load_from_memory(ICON_BYTES) {
+        Ok(img) => {
+            let rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            egui::IconData {
+                rgba: rgba.into_raw(),
+                width: w,
+                height: h,
+            }
+        }
+        Err(e) => {
+            tracing::warn!("failed to load icon: {}", e);
+            egui::IconData::default()
+        }
+    }
 }

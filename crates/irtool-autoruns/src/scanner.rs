@@ -185,7 +185,11 @@ impl AutorunsScanner {
             }
 
             cmd.stdout(std::process::Stdio::piped());
-            cmd.stderr(std::process::Stdio::piped());
+            // Redirect stderr to null — we never read it, and piping without
+            // reading causes the pipe buffer to fill up, blocking the process.
+            // This was causing autorunsc to hang when run without admin (it
+            // writes warnings to stderr that filled the 4KB pipe buffer).
+            cmd.stderr(std::process::Stdio::null());
 
             let mut child = cmd.spawn().map_err(|e| {
                 tracing::error!("autorunsc spawn failed: {}", e);
@@ -382,38 +386,41 @@ pub fn open_in_explorer(path: &str) -> Result<(), IrError> {
     Ok(())
 }
 
-/// Open regedit and navigate to a registry key
+/// Open regedit and navigate to a registry key.
+///
+/// Uses `reg add` to set the `LastKey` value under HKCU (no elevation needed),
+/// then launches regedit which will open at that key.
 pub fn open_regedit(registry_path: &str) -> Result<(), IrError> {
     #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
-    let escaped = registry_path.replace('\\', "\\\\");
-    let reg_content = format!(
-        "Windows Registry Editor Version 5.00\n\n\
-         [HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Applets\\Regedit]\n\
-         \"LastKey\"=\"{}\"\n",
-        escaped
-    );
-    let tmp_dir = std::env::temp_dir();
-    let tmp_path = tmp_dir.join(format!("irtool_regedit_nav_{}.reg", std::process::id()));
-    std::fs::write(&tmp_path, &reg_content).map_err(|e| IrError::Io(format!("写入临时文件失败: {}", e)))?;
-    #[cfg(windows)]
     {
-        std::process::Command::new("regedit")
-            .args(["/s", tmp_path.to_str().unwrap_or("")])
+        use std::os::windows::process::CommandExt;
+
+        // Convert short root (HKLM\...) to full form (HKEY_LOCAL_MACHINE\...)
+        // so regedit's LastKey navigation works correctly.
+        let full_path = registry_path
+            .replace("HKLM\\", "HKEY_LOCAL_MACHINE\\")
+            .replace("HKCU\\", "HKEY_CURRENT_USER\\")
+            .replace("HKCR\\", "HKEY_CLASSES_ROOT\\")
+            .replace("HKU\\", "HKEY_USERS\\");
+
+        // Set LastKey via `reg add` — writing to HKCU does NOT require elevation,
+        // unlike `regedit /s` which always requires elevation.
+        let reg_key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Applets\\Regedit";
+        std::process::Command::new("reg")
+            .args(["add", reg_key, "/v", "LastKey", "/t", "REG_SZ", "/d", &full_path, "/f"])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .status()
+            .map_err(|e| IrError::Io(format!("设置注册表导航键失败: {}", e)))?;
+
+        // Open regedit — it will jump to LastKey automatically.
+        std::process::Command::new("regedit")
             .spawn()
-            .map_err(|e| IrError::Io(format!("导入注册表失败: {}", e)))?;
+            .map_err(|e| IrError::Io(format!("打开注册表编辑器失败: {}", e)))?;
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("regedit")
-            .args(["/s", tmp_path.to_str().unwrap_or("")])
-            .spawn()
-            .map_err(|e| IrError::Io(format!("导入注册表失败: {}", e)))?;
+        let _ = registry_path;
     }
-    std::process::Command::new("regedit")
-        .spawn()
-        .map_err(|e| IrError::Io(format!("打开注册表编辑器失败: {}", e)))?;
     Ok(())
 }
 

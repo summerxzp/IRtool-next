@@ -32,9 +32,5 @@ pub fn badge(ui: &mut egui::Ui, text: &str, variant: BadgeVariant) {
     let size = galley.size() + Vec2::new(8.0, 4.0);
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     ui.painter().rect_filled(rect, 3.0, bg);
-    ui.painter().galley(
-        rect.min + Vec2::new(4.0, 2.0),
-        galley,
-        fg,
-    );
+    ui.painter().galley(rect.min + Vec2::new(4.0, 2.0), galley, fg);
 }

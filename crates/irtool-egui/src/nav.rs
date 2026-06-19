@@ -35,13 +35,13 @@ impl Page {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            Page::Network => "🌐",
-            Page::Autoruns => "🚀",
-            Page::Sysmon => "📋",
-            Page::Monitor => "🔍",
-            Page::Database => "🗄",
-            Page::Workspace => "📁",
-            Page::Settings => "⚙",
+            Page::Network => "",
+            Page::Autoruns => "",
+            Page::Sysmon => "",
+            Page::Monitor => "",
+            Page::Database => "",
+            Page::Workspace => "",
+            Page::Settings => "",
         }
     }
 }

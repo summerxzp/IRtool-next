@@ -52,10 +52,7 @@ pub async fn cmd_monitor_clear_alerts(ctx: State<'_, AppContext>) -> Result<u64,
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_monitor_get_events(
-    ctx: State<'_, AppContext>,
-    limit: u32,
-) -> Result<Vec<MonitorEvent>, IrError> {
+pub async fn cmd_monitor_get_events(ctx: State<'_, AppContext>, limit: u32) -> Result<Vec<MonitorEvent>, IrError> {
     MonitorService { ctx: &ctx }.get_events(limit).await
 }
 
@@ -132,10 +129,7 @@ pub async fn cmd_pcap_is_available() -> Result<bool, IrError> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_pcap_start(
-    ctx: State<'_, AppContext>,
-    config: PcapConfig,
-) -> Result<(), IrError> {
+pub async fn cmd_pcap_start(ctx: State<'_, AppContext>, config: PcapConfig) -> Result<(), IrError> {
     PcapService { ctx: &ctx }.start(config).await
 }
 

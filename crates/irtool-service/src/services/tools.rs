@@ -74,9 +74,7 @@ impl<'a> ToolsService<'a> {
             }
         }
 
-        event_bus.publish(AppEvent::ToolsDownloadComplete {
-            errors: errors.len(),
-        });
+        event_bus.publish(AppEvent::ToolsDownloadComplete { errors: errors.len() });
 
         Ok(())
     }

@@ -76,6 +76,32 @@ fn is_running_as_admin() -> bool {
 }
 
 pub fn run() {
+    // Acquire cross-process named mutex to ensure mutual exclusion with the egui
+    // fallback frontend. tauri-plugin-single-instance only guards Tauri↔Tauri;
+    // this also blocks startup when an egui instance already holds the mutex.
+    #[cfg(windows)]
+    {
+        use windows::core::w;
+        use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+        use windows::Win32::System::Threading::CreateMutexW;
+
+        let mutex_name = w!("Global\\IRtool-SingleInstance");
+        match unsafe { CreateMutexW(None, true, mutex_name) } {
+            Ok(handle) => {
+                if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+                    eprintln!("IRtool is already running.");
+                    return;
+                }
+                // HANDLE is Copy with no Drop; the kernel mutex object stays
+                // alive until process exit since we never call CloseHandle.
+                let _ = handle;
+            }
+            Err(_) => {
+                tracing::warn!("failed to create single-instance mutex, proceeding anyway");
+            }
+        }
+    }
+
     let app_dirs = AppDirs::detect();
 
     let _logger_guard = logger::init_logger(app_dirs.logs_dir());

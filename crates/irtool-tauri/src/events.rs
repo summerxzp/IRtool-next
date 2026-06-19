@@ -67,11 +67,7 @@ fn dispatch_event(app: &tauri::AppHandle, event: AppEvent) {
                 match app_clone.get_webview_window("main") {
                     Some(window) => match app_clone.default_window_icon() {
                         Some(icon) => {
-                            tracing::info!(
-                                "autoruns re-applying window icon ({}x{})",
-                                icon.width(),
-                                icon.height()
-                            );
+                            tracing::info!("autoruns re-applying window icon ({}x{})", icon.width(), icon.height());
                             if let Err(e) = window.set_icon(icon.clone()) {
                                 tracing::warn!("autoruns set_icon failed: {}", e);
                             }
@@ -100,7 +96,11 @@ fn dispatch_event(app: &tauri::AppHandle, event: AppEvent) {
         AppEvent::CloseRequested => {
             let _ = app.emit(EVT_CLOSE_REQUESTED, ());
         }
-        AppEvent::ToolsDownloadProgress { tool_id, downloaded, total } => {
+        AppEvent::ToolsDownloadProgress {
+            tool_id,
+            downloaded,
+            total,
+        } => {
             let _ = app.emit(
                 EVT_TOOLS_DOWNLOAD_PROGRESS,
                 serde_json::json!({"tool_id": tool_id, "downloaded": downloaded, "total": total}),
@@ -113,10 +113,7 @@ fn dispatch_event(app: &tauri::AppHandle, event: AppEvent) {
             );
         }
         AppEvent::ToolsDownloadComplete { errors } => {
-            let _ = app.emit(
-                EVT_TOOLS_DOWNLOAD_COMPLETE,
-                serde_json::json!({"errors": errors}),
-            );
+            let _ = app.emit(EVT_TOOLS_DOWNLOAD_COMPLETE, serde_json::json!({"errors": errors}));
         }
     }
 }

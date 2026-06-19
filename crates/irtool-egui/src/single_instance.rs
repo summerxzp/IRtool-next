@@ -10,16 +10,18 @@ pub struct SingleInstanceGuard {
 
 #[cfg(windows)]
 pub fn check_and_acquire() -> Option<SingleInstanceGuard> {
+    use windows::core::w;
     use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, HANDLE};
     use windows::Win32::System::Threading::CreateMutexW;
-    use windows::core::w;
 
     let mutex_name = w!("Global\\IRtool-SingleInstance");
     let handle = match unsafe { CreateMutexW(None, true, mutex_name) } {
         Ok(h) => h,
         Err(_) => {
             tracing::warn!("failed to create single-instance mutex, proceeding anyway");
-            return Some(SingleInstanceGuard { _handle: HANDLE(std::ptr::null_mut()) });
+            return Some(SingleInstanceGuard {
+                _handle: HANDLE(std::ptr::null_mut()),
+            });
         }
     };
     if handle.0.is_null() {

@@ -28,7 +28,7 @@ if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
 # Step 2: Build with cargo tauri build (properly embeds frontend)
 Write-Host "`n[2/4] Building with cargo tauri build..." -ForegroundColor Yellow
 Set-Location $projectRoot
-cargo tauri build --no-bundle
+cargo tauri build --no-bundle --features irtool-tauri/egui-fallback
 if ($LASTEXITCODE -ne 0) { throw "Tauri build failed" }
 
 # Step 3: Prepare package directory

@@ -85,45 +85,231 @@
 
 ## 4.3 Label Convention
 
-**所有 `ui.label()` 必须添加 `.selectable(false)`**，理由：
-- egui 的 Label 默认 `selectable_labels = true`，点击后进入文本选择模式（I 形光标），但 egui 文本模式下无法复制文本，纯属添麻烦
-- 表格内的文本已通过 `cell_text()` 辅助函数统一使用 `.selectable(false)`
-- 详情面板、工具栏、TopBar 也不应进入文本模式
+**全局禁用 `selectable_labels`**，在 `theme::apply()` 中设置：
 
 ```rust
-// ❌ 错误 — 点击后进入无用编辑模式
-ui.label("some text");
-
-// ✅ 正确
-ui.label(egui::RichText::new("some text").selectable(false));
-// 或使用辅助函数
-fn ui_label(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
-    ui.add(egui::Label::new(text).selectable(false))
-}
+ctx.options_mut(|o| {
+    std::sync::Arc::make_mut(&mut o.dark_style).interaction.selectable_labels = false;
+    std::sync::Arc::make_mut(&mut o.light_style).interaction.selectable_labels = false;
+});
 ```
+
+理由：
+- egui 的 Label 默认 `selectable_labels = true`，点击后进入文本选择模式（I 形光标），但 egui 文本模式下无法复制文本，纯属添麻烦
+- 全局设置后，所有 `ui.label()` 自动不可选，无需在每个 label 上单独添加 `.selectable(false)`
+- 详情面板中的复制操作改为点击值文本复制（见 4.4）
 
 ---
 
-## 4.4 CopyButton Convention
+## 4.4 Detail Panel Copy Convention
 
-**详情面板中的复制按钮**:
-- 使用 `copy_button()` 辅助函数，渲染为无边框的 📋 图标，极小尺寸 (18x16)
-- 短字段：使用 `detail_row_with_copy()` 在值末尾 inline 放置复制按钮
-- 长字段（路径、命令行）：复制按钮放在标题行，与标题文字同一水平线
+**详情面板中的字段复制**：点击值文本即可复制，hover 时显示 📋 图标和 "点击复制" tooltip。
 
 ```rust
-// 短字段 — inline 复制按钮
-detail_row_with_copy(ui, "本地地址", &value, &copy_value);
-
-// 长字段 — 复制按钮在标题行
-ui.horizontal(|ui| {
-    ui_label(ui, "路径".strong());
-    if copy_button(ui, path) {
-        ui.ctx().copy_text(path);
+fn detail_row(ui: &mut egui::Ui, label: &str, value: Option<&str>, mono: bool) {
+    // ...
+    let resp = ui.add(egui::Label::new(text).sense(egui::Sense::click()));
+    if resp.hovered() {
+        resp.on_hover_text("点击复制");
     }
-});
-ui_label(ui, egui::RichText::new(path).monospace().size(11.0));
+    if resp.clicked() {
+        ui.ctx().copy_text(value.to_string());
+    }
+}
 ```
+
+理由：比独立复制按钮更好按、反馈更明显（hover 即有提示），且不占用额外布局空间。
+
+---
+
+## 4.5 Dropdown Filter Convention
+
+**多选下拉筛选**：使用 Button + `egui::Area` popup 模式（不使用 `ComboBox`），包含全选/取消全选按钮。
+
+```rust
+let btn = ui.add(egui::Button::new(label));
+if btn.clicked() { self.dropdown_open = !self.dropdown_open; }
+
+if self.dropdown_open {
+    let popup = egui::Area::new(id)
+        .order(egui::Order::Foreground)
+        .fixed_pos(pos)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.small_button("全选").clicked() { /* ... */ }
+                        if ui.small_button("取消全选").clicked() { /* ... */ }
+                    });
+                    ui.separator();
+                    // per-item checkboxes...
+                });
+            })
+        });
+    // Click outside to close
+    if ui.input(|i| i.pointer.any_click()) {
+        if !popup.response.hovered() && !btn.hovered() {
+            self.dropdown_open = false;
+        }
+    }
+}
+```
+
+理由：`ComboBox` 不支持全选/取消全选按钮，且 popup 样式不够灵活。参考 `network.rs` 的 state dropdown 实现。
+
+---
+
+## 4.6 Table Scroll Convention
+
+**表格滚动**：直接使用 `TableBuilder` 内置滚动，**不要**外层包裹 `ScrollArea::both()`。
+
+```rust
+// ✅ 正确 — TableBuilder 自带 vscroll + hscroll
+let table = TableBuilder::new(ui)
+    .min_scrolled_height(0.0)
+    .column(Column::initial(40.0).clip(true))
+    // ...
+    .header(height, |header| { ... })
+    .body(|body| { ... });
+
+// ❌ 错误 — 外层 ScrollArea 会导致条目少时滚动条跑到上方，下方出现白板
+egui::ScrollArea::both().show(ui, |ui| {
+    TableBuilder::new(ui) ...
+});
+```
+
+理由：
+- `ScrollArea::both()` 包裹 `TableBuilder` 时，ScrollArea 会自适应内容高度，条目少时内容不充满面板，滚动条跑到上方，下方出现大块空白
+- `TableBuilder` 内置滚动会填满整个可用区域，滚动条始终在底部，视觉一致
+
+---
+
+## 4.7 Detail Panel Layout Convention
+
+**详情面板布局**：使用 `TopBottomPanel::bottom`（下方展开），不使用 `SidePanel::right`（右侧展开）。
+
+```rust
+egui::TopBottomPanel::bottom("detail_panel")
+    .default_height(theme::DETAIL_PANEL_HEIGHT)
+    .resizable(true)
+    .show(ctx, |ui| { ... });
+```
+
+理由：
+- `SidePanel::right` 拖动后会自适应恢复宽度，用户体验差
+- 下方展开更稳定，且不挤压表格列宽
+- 面板声明顺序：stats_bar 先声明（最底部），detail_panel 后声明（在 stats_bar 上方）
+
+**关闭按钮**：使用 `right_to_left` 布局确保按钮在右上角：
+
+```rust
+ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+    // 第一个添加 = 最右侧
+    if ui.add(egui::Button::new("×").frame(false)).clicked() {
+        self.detail_visible = false;
+    }
+    // 内容填充剩余空间
+    ui.vertical(|ui| { ... });
+});
+```
+
+**右侧边距**：关闭按钮前 `allocate_space(8.0, 0.0)` 避免与滚动条重合。
+
+---
+
+## 4.8 Time Format Convention
+
+**所有时间显示统一使用 UTC+8**，格式 `YYYY/MM/DD,HH:MM:SS`（如 `2026/06/19,06:21:47`）。
+
+使用 `theme::fmt_time(epoch_seconds)` 或 `theme::fmt_time_millis(epoch_millis)`：
+
+```rust
+// theme.rs
+pub fn fmt_time(epoch: u64) -> String {
+    let cst = chrono::FixedOffset::east(8 * 3600); // UTC+8
+    chrono::DateTime::from_timestamp(epoch as i64, 0)
+        .map(|dt| dt.with_timezone(&cst).format("%Y/%m/%d,%H:%M:%S").to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+```
+
+理由：
+- IR 工具需要统一时区，避免 UTC 与本地时间混淆
+- UTC+8 覆盖中国主要时区，无需依赖系统时区设置
+- 所有页面（Network / Autoruns / Sysmon）统一调用 `theme::fmt_time`
+
+---
+
+## 4.9 Button Style Convention
+
+**功能按钮不拉满宽度**，使用默认按钮尺寸，统一风格。
+
+```rust
+// ✅ 正确 — 默认按钮尺寸
+if ui.button("🗑 删除").clicked() { ... }
+
+// ❌ 错误 — min_size 拉满宽度
+ui.add(
+    egui::Button::new("终止进程")
+        .min_size(egui::vec2(ui.available_width(), 32.0))
+);
+```
+
+**危险操作按钮**（删除 / 终止进程 / 卸载）使用红色文字：
+
+```rust
+if ui.add(
+    egui::Button::new(egui::RichText::new("🗑 删除").color(theme::SEMANTIC_DANGER))
+).clicked() { ... }
+```
+
+理由：
+- 拉满宽度的按钮视觉上过于突兀，与工具栏按钮风格不一致
+- 红色文字足以区分危险操作，不需要红色背景填充
+- 统一风格：所有详情面板中的操作按钮使用相同的尺寸和布局
+
+---
+
+## 4.10 Delete Confirmation Convention
+
+**删除 / 终止进程等不可逆操作**必须弹出二次确认弹窗。
+
+```rust
+// State 中添加确认弹窗标志
+pub struct XxxPageState {
+    delete_confirm_open: bool,
+    pending_delete_id: Option<u64>,
+}
+
+// 点击删除按钮时打开弹窗
+if ui.button("🗑 删除").clicked() {
+    self.delete_confirm_open = true;
+    self.pending_delete_id = Some(item.id);
+}
+
+// 渲染确认弹窗
+if self.delete_confirm_open {
+    egui::Window::new("确认删除")
+        .collapsible(false)
+        .resizable(false)
+        .show(ctx, |ui| {
+            ui.label("确定要删除此条目吗？此操作不可撤销。");
+            ui.horizontal(|ui| {
+                if ui.button("确认删除").clicked() {
+                    // 执行删除
+                    self.delete_confirm_open = false;
+                }
+                if ui.button("取消").clicked() {
+                    self.delete_confirm_open = false;
+                }
+            });
+        });
+}
+```
+
+理由：
+- 防止误操作导致数据丢失
+- 弹窗使用 `egui::Window`，居中显示，明确告知不可撤销
 
 ### 5.1 Navigation
 
@@ -136,10 +322,10 @@ ui_label(ui, egui::RichText::new(path).monospace().size(11.0));
 ### 5.2 Data Display
 
 **DataTable** (`egui_extras::TableBuilder`):
-- 包裹在 `ScrollArea::both()` 中，支持水平和垂直滚动
-- 所有列使用 `Column::exact()` 固定宽度，确保水平滚动
+- 直接使用 TableBuilder 内置滚动（见 4.6），不外层包裹 ScrollArea
+- 列使用 `Column::initial().clip(true)` 固定宽度并裁剪溢出文本
 - 排序: 点击表头切换 ▲/▼
-- 过滤: 搜索框 + 协议按钮组 + State 多选下拉
+- 过滤: 搜索框 + 多选下拉（见 4.5）
 - 行点击: `Sense::click()` + `response.union()` 合并所有列响应
 - 行选择: 单击行选中/取消, 选中行高亮背景
 - 右键菜单: `secondary_clicked()` 弹出 `Area` 上下文菜单

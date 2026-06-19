@@ -38,12 +38,16 @@ function updateJsonVersion(filePath, version) {
 }
 
 // 更新 Windows manifest 文件中的版本号 (x.y.z -> x.y.z.0)
+// 只更新 assemblyIdentity 的 version，不碰 XML 声明的 version="1.0"
 function updateManifestVersion(filePath, version) {
   const content = fs.readFileSync(filePath, 'utf-8');
   const manifestVersion = version + '.0';
-  const oldMatch = content.match(/version="([^"]+)"/);
+  const oldMatch = content.match(/<assemblyIdentity\s+version="([^"]+)"/);
   const oldVersion = oldMatch ? oldMatch[1] : 'unknown';
-  const newContent = content.replace(/version="[^"]+"/, `version="${manifestVersion}"`);
+  const newContent = content.replace(
+    /(<assemblyIdentity\s+version=")[^"]+(")/,
+    `$1${manifestVersion}$2`
+  );
   fs.writeFileSync(filePath, newContent);
   return oldVersion;
 }
@@ -73,10 +77,10 @@ function main() {
   const oldTauriVersion = updateJsonVersion(tauriConfPath, version);
   console.log(`crates/irtool-tauri/tauri.conf.json: ${oldTauriVersion} -> ${version}`);
 
-  // 同步到 crates/irtool-tauri/irtool.manifest
-  const manifestPath = path.join(projectRoot, 'crates', 'irtool-tauri', 'irtool.manifest');
-  const oldManifestVersion = updateManifestVersion(manifestPath, version);
-  console.log(`crates/irtool-tauri/irtool.manifest: ${oldManifestVersion} -> ${version}.0`);
+  // 同步到 crates/irtool-tauri/app-manifest.xml (Tauri WindowsAttributes app_manifest)
+  const appManifestPath = path.join(projectRoot, 'crates', 'irtool-tauri', 'app-manifest.xml');
+  const oldAppManifestVersion = updateManifestVersion(appManifestPath, version);
+  console.log(`crates/irtool-tauri/app-manifest.xml: ${oldAppManifestVersion} -> ${version}.0`);
 
   // 同步到 README.md
   const readmePath = path.join(projectRoot, 'README.md');

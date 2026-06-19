@@ -177,9 +177,10 @@ impl<'a> AutorunsService<'a> {
             .as_deref()
             .ok_or_else(|| IrError::Io("no image path".into()))?;
         let path = PathBuf::from(path_str);
-        let (md5, sha256) = tokio::task::spawn_blocking(move || irtool_autoruns::AutorunsScanner::calculate_hash(&path))
-            .await
-            .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
+        let (md5, sha256) =
+            tokio::task::spawn_blocking(move || irtool_autoruns::AutorunsScanner::calculate_hash(&path))
+                .await
+                .map_err(|e| IrError::Internal(format!("join error: {}", e)))??;
         self.ctx.autoruns_store.update_hash(entry_id, md5, sha256);
         self.ctx
             .autoruns_store
@@ -210,43 +211,35 @@ impl<'a> AutorunsService<'a> {
                     let item = match store.get(entry_id) {
                         Some(item) => item,
                         None => {
-                            let current =
-                                progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                            event_bus.publish(AppEvent::AutorunsHashProgress(
-                                irtool_autoruns::SignatureProgress {
-                                    task_id,
-                                    current,
-                                    total,
-                                },
-                            ));
+                            let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                            event_bus.publish(AppEvent::AutorunsHashProgress(irtool_autoruns::SignatureProgress {
+                                task_id,
+                                current,
+                                total,
+                            }));
                             return (entry_id, Err(IrError::Internal("entry not found".into())));
                         }
                     };
                     let path_str = match item.image_path.as_deref() {
                         Some(p) => p,
                         None => {
-                            let current =
-                                progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                            event_bus.publish(AppEvent::AutorunsHashProgress(
-                                irtool_autoruns::SignatureProgress {
-                                    task_id,
-                                    current,
-                                    total,
-                                },
-                            ));
+                            let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                            event_bus.publish(AppEvent::AutorunsHashProgress(irtool_autoruns::SignatureProgress {
+                                task_id,
+                                current,
+                                total,
+                            }));
                             return (entry_id, Err(IrError::Io("no image path".into())));
                         }
                     };
                     let path = PathBuf::from(path_str);
                     let result = irtool_autoruns::AutorunsScanner::calculate_hash(&path);
                     let current = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                    event_bus.publish(AppEvent::AutorunsHashProgress(
-                        irtool_autoruns::SignatureProgress {
-                            task_id,
-                            current,
-                            total,
-                        },
-                    ));
+                    event_bus.publish(AppEvent::AutorunsHashProgress(irtool_autoruns::SignatureProgress {
+                        task_id,
+                        current,
+                        total,
+                    }));
                     (entry_id, result)
                 })
                 .collect();

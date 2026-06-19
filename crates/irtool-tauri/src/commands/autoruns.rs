@@ -7,10 +7,7 @@ use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_scan(
-    ctx: State<'_, AppContext>,
-    options: ScanOptions,
-) -> Result<TaskId, IrError> {
+pub async fn cmd_autoruns_scan(ctx: State<'_, AppContext>, options: ScanOptions) -> Result<TaskId, IrError> {
     AutorunsService { ctx: &ctx }.scan(options).await
 }
 
@@ -22,10 +19,7 @@ pub async fn cmd_autoruns_get_result(ctx: State<'_, AppContext>) -> Result<Vec<A
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_autoruns_verify_signatures(
-    ctx: State<'_, AppContext>,
-    paths: Vec<String>,
-) -> Result<TaskId, IrError> {
+pub async fn cmd_autoruns_verify_signatures(ctx: State<'_, AppContext>, paths: Vec<String>) -> Result<TaskId, IrError> {
     AutorunsService { ctx: &ctx }.verify_signatures(paths).await
 }
 
