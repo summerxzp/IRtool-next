@@ -13,6 +13,7 @@ pub use irtool_net_monitor::{
 pub use irtool_autoruns::{
     AutorunItem, ScanOptions, ScanProgress, ScanPhase,
     SignatureProgress, DeleteResult,
+    RiskLevel, SignatureStatus,
 };
 
 // ── Sysmon ──
