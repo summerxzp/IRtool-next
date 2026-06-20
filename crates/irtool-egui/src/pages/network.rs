@@ -146,11 +146,15 @@ impl NetworkPageState {
         {
             let local_ep = parse_endpoint(local);
             let remote_ep = parse_endpoint(remote);
-            self.selected_conn = payload.items.iter().find(|c| {
-                c.pid == pid
-                    && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
-                    && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
-            }).cloned();
+            self.selected_conn = payload
+                .items
+                .iter()
+                .find(|c| {
+                    c.pid == pid
+                        && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
+                        && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
+                })
+                .cloned();
         }
         self.snapshot = Some(payload);
         self.last_error = None;
@@ -180,11 +184,15 @@ impl NetworkPageState {
                 {
                     let local_ep = parse_endpoint(local);
                     let remote_ep = parse_endpoint(remote);
-                    self.selected_conn = snap.items.iter().find(|c| {
-                        c.pid == enrichment.pid
-                            && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
-                            && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
-                    }).cloned();
+                    self.selected_conn = snap
+                        .items
+                        .iter()
+                        .find(|c| {
+                            c.pid == enrichment.pid
+                                && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
+                                && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
+                        })
+                        .cloned();
                 }
             }
         }
@@ -225,11 +233,7 @@ impl NetworkPageState {
     fn render_toolbar(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
             // Polling status — clickable to toggle pause/resume
-            let polling_status = if self.paused {
-                "‖ 已暂停"
-            } else {
-                "▶ 轮询中"
-            };
+            let polling_status = if self.paused { "‖ 已暂停" } else { "▶ 轮询中" };
             let polling_color = if self.paused {
                 theme::SEMANTIC_WARNING
             } else {
@@ -434,12 +438,7 @@ impl NetworkPageState {
                     format!("{} 连接", total)
                 };
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui_label(
-                        ui,
-                        egui::RichText::new(count_text)
-                            .size(12.0)
-                            .color(theme::FG_TERTIARY),
-                    );
+                    ui_label(ui, egui::RichText::new(count_text).size(12.0).color(theme::FG_TERTIARY));
                 });
             }
         });
@@ -566,8 +565,7 @@ impl NetworkPageState {
                     let conn = &items[row.index()];
                     // B2: use extracted fields to avoid borrowing self
                     let is_selected = (sel_pid == Some(conn.pid))
-                        && sel_local_ep
-                            .is_none_or(|(addr, port)| conn.local.addr == addr && conn.local.port == port)
+                        && sel_local_ep.is_none_or(|(addr, port)| conn.local.addr == addr && conn.local.port == port)
                         && sel_remote_ep
                             .is_none_or(|(addr, port)| conn.remote.addr == addr && conn.remote.port == port);
                     let is_history = !conn.is_current;
@@ -1033,7 +1031,7 @@ impl NetworkPageState {
                         Proto::Tcp => "tcp",
                         Proto::Udp => "udp",
                     };
-                    proto_key(&a.proto).cmp(&proto_key(&b.proto))
+                    proto_key(&a.proto).cmp(proto_key(&b.proto))
                 }
                 SortColumn::Family => (a.family as u8).cmp(&(b.family as u8)),
                 SortColumn::Path => a

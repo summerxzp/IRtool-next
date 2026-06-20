@@ -122,16 +122,18 @@ fn init_logger(log_dir: std::path::PathBuf) -> tracing_appender::non_blocking::W
         .with_timer(LocalTimer)
         .with_filter(app_filter);
 
-    let console_layer =
-        if cfg!(debug_assertions) {
-            Some(
-                fmt::layer().with_target(true).with_ansi(true).with_timer(LocalTimer).compact().with_filter(
-                    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,wmi=warn")),
-                ),
-            )
-        } else {
-            None
-        };
+    let console_layer = if cfg!(debug_assertions) {
+        Some(
+            fmt::layer()
+                .with_target(true)
+                .with_ansi(true)
+                .with_timer(LocalTimer)
+                .compact()
+                .with_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,wmi=warn"))),
+        )
+    } else {
+        None
+    };
 
     tracing_subscriber::registry()
         .with(app_layer)

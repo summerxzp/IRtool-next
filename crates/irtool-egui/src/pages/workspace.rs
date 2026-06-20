@@ -211,11 +211,7 @@ fn match_single_line(s: &str, pattern: &str, cond_type: &ConditionType) -> bool 
     match cond_type {
         ConditionType::Contains => s.to_lowercase().contains(&pattern.to_lowercase()),
         ConditionType::Equals => s.eq_ignore_ascii_case(pattern),
-        ConditionType::Regex => {
-            regex::Regex::new(pattern)
-                .map(|re| re.is_match(s))
-                .unwrap_or(false)
-        }
+        ConditionType::Regex => regex::Regex::new(pattern).map(|re| re.is_match(s)).unwrap_or(false),
     }
 }
 
@@ -386,23 +382,12 @@ fn search_events(items: &[SysmonEvent], query: &str) -> HashSet<String> {
 fn network_key(item: &NetConn) -> String {
     format!(
         "{:?}|{:?}|{}:{}|{}:{}|{}",
-        item.proto,
-        item.family,
-        item.local.addr,
-        item.local.port,
-        item.remote.addr,
-        item.remote.port,
-        item.pid
+        item.proto, item.family, item.local.addr, item.local.port, item.remote.addr, item.remote.port, item.pid
     )
 }
 
 fn event_key(item: &SysmonEvent) -> String {
-    format!(
-        "{}-{}-{}",
-        item.record_id.unwrap_or(0),
-        item.timestamp,
-        item.event_id
-    )
+    format!("{}-{}-{}", item.record_id.unwrap_or(0), item.timestamp, item.event_id)
 }
 
 // ── WorkspaceTab ──────────────────────────────────────────
@@ -629,10 +614,7 @@ impl WorkspacePageState {
 
     pub fn render(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         // Initial load
-        if !self.loading
-            && self.autorun_items.is_empty()
-            && self.network_items.is_empty()
-            && self.refresh_tx.is_some()
+        if !self.loading && self.autorun_items.is_empty() && self.network_items.is_empty() && self.refresh_tx.is_some()
         {
             self.loading = true;
             self.trigger_refresh(ctx, rt);
@@ -693,10 +675,7 @@ impl WorkspacePageState {
             ui.separator();
 
             // Rule scan
-            if ui
-                .add_enabled(!self.scanning, egui::Button::new("规则扫描"))
-                .clicked()
-            {
+            if ui.add_enabled(!self.scanning, egui::Button::new("规则扫描")).clicked() {
                 self.do_rule_scan();
             }
             if ui.button("规则管理").clicked() {
@@ -705,10 +684,7 @@ impl WorkspacePageState {
             if ui.button("导出CSV").clicked() {
                 self.export_csv(ctx, rt);
             }
-            if ui
-                .add_enabled(!self.loading, egui::Button::new("刷新数据"))
-                .clicked()
-            {
+            if ui.add_enabled(!self.loading, egui::Button::new("刷新数据")).clicked() {
                 self.loading = true;
                 self.trigger_refresh(ctx, rt);
             }
@@ -748,40 +724,21 @@ impl WorkspacePageState {
             };
 
             if ui
-                .add(
-                    egui::Button::new(
-                        egui::RichText::new(&autorun_label)
-                            .color(autorun_color)
-                            .strong(),
-                    )
-                    .frame(false),
-                )
+                .add(egui::Button::new(egui::RichText::new(&autorun_label).color(autorun_color).strong()).frame(false))
                 .clicked()
             {
                 self.active_tab = WorkspaceTab::Autoruns;
             }
             ui.separator();
             if ui
-                .add(
-                    egui::Button::new(
-                        egui::RichText::new(&network_label)
-                            .color(network_color)
-                            .strong(),
-                    )
-                    .frame(false),
-                )
+                .add(egui::Button::new(egui::RichText::new(&network_label).color(network_color).strong()).frame(false))
                 .clicked()
             {
                 self.active_tab = WorkspaceTab::Network;
             }
             ui.separator();
             if ui
-                .add(
-                    egui::Button::new(
-                        egui::RichText::new(&event_label).color(event_color).strong(),
-                    )
-                    .frame(false),
-                )
+                .add(egui::Button::new(egui::RichText::new(&event_label).color(event_color).strong()).frame(false))
                 .clicked()
             {
                 self.active_tab = WorkspaceTab::Events;
@@ -924,7 +881,7 @@ impl WorkspacePageState {
             })
             .map(|item| (network_key(item), item))
             .collect();
-        items.sort_by(|a, b| b.1.last_seen.cmp(&a.1.last_seen));
+        items.sort_by_key(|b| std::cmp::Reverse(b.1.last_seen));
 
         if items.is_empty() {
             self.render_empty_state(ui, "网络");
@@ -1017,8 +974,7 @@ impl WorkspacePageState {
                     // 进程
                     row.col(|ui| {
                         ui.label(
-                            egui::RichText::new(conn.process_name.as_deref().unwrap_or(""))
-                                .color(theme::FG_PRIMARY),
+                            egui::RichText::new(conn.process_name.as_deref().unwrap_or("")).color(theme::FG_PRIMARY),
                         );
                     });
 
@@ -1264,7 +1220,12 @@ impl WorkspacePageState {
 
                 // Detail rows
                 detail_row(ui, "类别", Some(&item.category), false);
-                detail_row(ui, "启用状态", Some(if item.enabled { "已启用" } else { "已禁用" }), false);
+                detail_row(
+                    ui,
+                    "启用状态",
+                    Some(if item.enabled { "已启用" } else { "已禁用" }),
+                    false,
+                );
                 detail_row(ui, "文件路径", item.image_path.as_deref(), true);
                 detail_row(ui, "启动命令", item.launch_string.as_deref(), true);
                 detail_row(ui, "注册表位置", Some(&item.location), true);
@@ -1355,11 +1316,9 @@ impl WorkspacePageState {
                                 let output_dir = ctx.app_dirs.root().join("samples");
                                 let output_dir_str = output_dir.to_string_lossy().to_string();
                                 rt.spawn_blocking(move || {
-                                    if let Err(e) = WorkspaceService::sample_path(
-                                        path,
-                                        output_dir_str,
-                                        "infected".to_string(),
-                                    ) {
+                                    if let Err(e) =
+                                        WorkspaceService::sample_path(path, output_dir_str, "infected".to_string())
+                                    {
                                         tracing::error!("sample: {}", e);
                                     }
                                 });
@@ -1389,11 +1348,7 @@ impl WorkspacePageState {
         };
 
         let key = network_key(&conn);
-        let matched = self
-            .network_matched_rules
-            .get(&key)
-            .cloned()
-            .unwrap_or_default();
+        let matched = self.network_matched_rules.get(&key).cloned().unwrap_or_default();
 
         egui::ScrollArea::vertical()
             .id_salt("ws_network_detail_scroll")
@@ -1413,20 +1368,14 @@ impl WorkspacePageState {
                         }
                         ui.vertical(|ui| {
                             ui.label(
-                                egui::RichText::new(
-                                    conn.process_name.as_deref().unwrap_or("未知进程"),
-                                )
-                                .color(theme::FG_PRIMARY)
-                                .strong()
-                                .size(13.0),
+                                egui::RichText::new(conn.process_name.as_deref().unwrap_or("未知进程"))
+                                    .color(theme::FG_PRIMARY)
+                                    .strong()
+                                    .size(13.0),
                             );
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
-                                badge::badge(
-                                    ui,
-                                    conn.state.as_str(),
-                                    conn_state_badge_variant(&conn.state),
-                                );
+                                badge::badge(ui, conn.state.as_str(), conn_state_badge_variant(&conn.state));
                                 ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
                                 ui.label(
                                     egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
@@ -1529,11 +1478,7 @@ impl WorkspacePageState {
         };
 
         let key = event_key(&event);
-        let matched = self
-            .event_matched_rules
-            .get(&key)
-            .cloned()
-            .unwrap_or_default();
+        let matched = self.event_matched_rules.get(&key).cloned().unwrap_or_default();
 
         egui::ScrollArea::vertical()
             .id_salt("ws_events_detail_scroll")
@@ -1553,11 +1498,7 @@ impl WorkspacePageState {
                         }
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
-                                badge::badge(
-                                    ui,
-                                    event.event_type.label(),
-                                    event_badge_variant(&event.event_type),
-                                );
+                                badge::badge(ui, event.event_type.label(), event_badge_variant(&event.event_type));
                                 ui.label(
                                     egui::RichText::new(format!("EventID {}", event.event_id))
                                         .color(theme::FG_TERTIARY)
@@ -1574,11 +1515,7 @@ impl WorkspacePageState {
                             } else {
                                 event.timestamp.clone()
                             };
-                            ui.label(
-                                egui::RichText::new(ts)
-                                    .color(theme::FG_SECONDARY)
-                                    .size(11.0),
-                            );
+                            ui.label(egui::RichText::new(ts).color(theme::FG_SECONDARY).size(11.0));
                         });
                     });
                 });
@@ -1694,17 +1631,9 @@ impl WorkspacePageState {
             ui.add_space(ui.available_width().max(0.0) - 100.0);
 
             if self.scanning {
-                ui.label(
-                    egui::RichText::new("扫描中…")
-                        .color(theme::ACCENT)
-                        .size(11.0),
-                );
+                ui.label(egui::RichText::new("扫描中…").color(theme::ACCENT).size(11.0));
             } else if self.loading {
-                ui.label(
-                    egui::RichText::new("加载中…")
-                        .color(theme::ACCENT)
-                        .size(11.0),
-                );
+                ui.label(egui::RichText::new("加载中…").color(theme::ACCENT).size(11.0));
             }
         });
     }
@@ -1755,11 +1684,7 @@ impl WorkspacePageState {
 
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(&rule.name)
-                                            .color(theme::FG_PRIMARY)
-                                            .strong(),
-                                    );
+                                    ui.label(egui::RichText::new(&rule.name).color(theme::FG_PRIMARY).strong());
                                     badge::badge(
                                         ui,
                                         severity_label(&rule.severity),
@@ -1784,11 +1709,9 @@ impl WorkspacePageState {
                                 edit_rule = Some(rule.clone());
                             }
                             if ui
-                                .add(
-                                    egui::Button::new(
-                                        egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
-                                    ),
-                                )
+                                .add(egui::Button::new(
+                                    egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                                ))
                                 .clicked()
                             {
                                 delete_rule_id = Some(rule.id.clone());
@@ -1963,29 +1886,15 @@ impl WorkspacePageState {
                                 ConditionType::Equals => "等于",
                             })
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut cond.cond_type,
-                                    ConditionType::Contains,
-                                    "包含",
-                                );
-                                ui.selectable_value(
-                                    &mut cond.cond_type,
-                                    ConditionType::Regex,
-                                    "正则",
-                                );
-                                ui.selectable_value(
-                                    &mut cond.cond_type,
-                                    ConditionType::Equals,
-                                    "等于",
-                                );
+                                ui.selectable_value(&mut cond.cond_type, ConditionType::Contains, "包含");
+                                ui.selectable_value(&mut cond.cond_type, ConditionType::Regex, "正则");
+                                ui.selectable_value(&mut cond.cond_type, ConditionType::Equals, "等于");
                             });
 
                         if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
-                                ),
-                            )
+                            .add(egui::Button::new(
+                                egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                            ))
                             .clicked()
                         {
                             condition_remove = Some(i);
@@ -2062,11 +1971,9 @@ impl WorkspacePageState {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -2084,11 +1991,7 @@ impl WorkspacePageState {
                 rt.spawn(async move {
                     match (AutorunsService { ctx: &ctx_clone }).delete_entry(entry_id).await {
                         Ok(result) => {
-                            tracing::info!(
-                                "delete result: success={}, msg={}",
-                                result.success,
-                                result.message
-                            )
+                            tracing::info!("delete result: success={}, msg={}", result.success, result.message)
                         }
                         Err(e) => tracing::error!("delete failed: {}", e),
                     }
@@ -2127,11 +2030,9 @@ impl WorkspacePageState {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("确认终止").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("确认终止").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -2208,21 +2109,31 @@ impl WorkspacePageState {
     }
 
     fn export_rules_json(&self, ctx: &AppContext) {
-        let json = match serde_json::to_string_pretty(&self.rules.iter().map(|r| RuleJson {
-            id: r.id.clone(),
-            name: r.name.clone(),
-            target: target_label(&r.target).to_string(),
-            conditions: r.conditions.iter().map(|c| ConditionJson {
-                field: c.field.clone(),
-                cond_type: format!("{:?}", c.cond_type),
-                value: c.value.clone(),
-            }).collect(),
-            logic: format!("{:?}", r.logic),
-            severity: severity_label(&r.severity).to_string(),
-            family: r.family.clone(),
-            enabled: r.enabled,
-            description: r.description.clone(),
-        }).collect::<Vec<_>>()) {
+        let json = match serde_json::to_string_pretty(
+            &self
+                .rules
+                .iter()
+                .map(|r| RuleJson {
+                    id: r.id.clone(),
+                    name: r.name.clone(),
+                    target: target_label(&r.target).to_string(),
+                    conditions: r
+                        .conditions
+                        .iter()
+                        .map(|c| ConditionJson {
+                            field: c.field.clone(),
+                            cond_type: format!("{:?}", c.cond_type),
+                            value: c.value.clone(),
+                        })
+                        .collect(),
+                    logic: format!("{:?}", r.logic),
+                    severity: severity_label(&r.severity).to_string(),
+                    family: r.family.clone(),
+                    enabled: r.enabled,
+                    description: r.description.clone(),
+                })
+                .collect::<Vec<_>>(),
+        ) {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!("serialize rules: {}", e);
@@ -2267,9 +2178,9 @@ fn event_badge_variant(t: &SysmonEventType) -> BadgeVariant {
         SysmonEventType::NetworkConnect => BadgeVariant::Info,
         SysmonEventType::Dns | SysmonEventType::DnsClient => BadgeVariant::Success,
         SysmonEventType::CreateRemoteThread => BadgeVariant::Danger,
-        SysmonEventType::FileCreate
-        | SysmonEventType::FileDelete
-        | SysmonEventType::FileDeleteDetected => BadgeVariant::Warning,
+        SysmonEventType::FileCreate | SysmonEventType::FileDelete | SysmonEventType::FileDeleteDetected => {
+            BadgeVariant::Warning
+        }
         _ => BadgeVariant::Default,
     }
 }
@@ -2394,16 +2305,13 @@ fn write_autoruns_csv(path: &std::path::Path, items: &[AutorunItem]) -> std::io:
 fn write_network_csv(path: &std::path::Path, items: &[NetConn]) -> std::io::Result<()> {
     use std::io::Write;
     let mut f = std::fs::File::create(path)?;
-    writeln!(
-        f,
-        "last_seen,proto,local,remote,state,pid,process_name,process_path"
-    )?;
+    writeln!(f, "last_seen,proto,local,remote,state,pid,process_name,process_path")?;
     for conn in items {
         writeln!(
             f,
             "{},{},{},{},{},{},{},{}",
             theme::fmt_time(conn.last_seen),
-            format!("{:?}", conn.proto),
+            format_args!("{:?}", conn.proto),
             csv_escape(&format!("{}:{}", conn.local.addr, conn.local.port)),
             csv_escape(&format!("{}:{}", conn.remote.addr, conn.remote.port)),
             conn.state.as_str(),

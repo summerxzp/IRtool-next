@@ -126,19 +126,24 @@ impl IrtoolApp {
         monitor.refresh_tx = Some(monitor_refresh_tx);
         monitor.trigger_config_load(&ctx, rt.handle());
 
-        let mut database = DatabasePageState::default();
-        database.refresh_tx = Some(database_refresh_tx);
+        let database = DatabasePageState {
+            refresh_tx: Some(database_refresh_tx),
+            ..Default::default()
+        };
         database.trigger_initial_load(&ctx, rt.handle());
 
-        let mut workspace = WorkspacePageState::default();
-        workspace.refresh_tx = Some(workspace_refresh_tx);
+        let workspace = WorkspacePageState {
+            refresh_tx: Some(workspace_refresh_tx),
+            ..Default::default()
+        };
 
-        let mut settings = SettingsPageState::default();
-        settings.refresh_tx = Some(settings_refresh_tx);
+        let settings = SettingsPageState {
+            refresh_tx: Some(settings_refresh_tx),
+            ..Default::default()
+        };
 
         // 启动时检测外部工具是否缺失（参考主 UI AppShell 的逻辑）
-        let (tools_refresh_tx, tools_refresh_rx) =
-            std::sync::mpsc::channel::<Vec<ToolStatus>>();
+        let (tools_refresh_tx, tools_refresh_rx) = std::sync::mpsc::channel::<Vec<ToolStatus>>();
         let ctx_for_tools = ctx.clone();
         let tools_tx_for_spawn = tools_refresh_tx.clone();
         rt.handle().spawn(async move {
@@ -209,7 +214,12 @@ impl IrtoolApp {
                 self.network.handle_enrichment(enrichment);
             }
             AppEvent::MonitorAlert(alert) => {
-                tracing::info!("monitor alert: rule={}, event={}, key={}", alert.rule_name, alert.event_type, alert.key_field);
+                tracing::info!(
+                    "monitor alert: rule={}, event={}, key={}",
+                    alert.rule_name,
+                    alert.event_type,
+                    alert.key_field
+                );
             }
             AppEvent::AutorunsProgress(p) => {
                 self.autoruns.handle_scan_progress(p);
@@ -225,12 +235,20 @@ impl IrtoolApp {
                 // Spawn async data refresh; result arrives via channel
                 let ctx_clone = self.ctx.clone();
                 let tx = self.autoruns_refresh_tx.clone();
+                // Also refresh workspace's autoruns data so the workspace tab stays in sync
+                let ws_tx = self.workspace.refresh_tx.clone();
                 self.rt.handle().spawn(async move {
                     let items = AutorunsService { ctx: &ctx_clone }
                         .get_result()
                         .await
                         .unwrap_or_default();
-                    let _ = tx.send(items);
+                    let _ = tx.send(items.clone());
+                    if let Some(ws_tx) = ws_tx {
+                        let _ = ws_tx.send(WorkspaceRefresh {
+                            autorun_items: Some(items),
+                            ..Default::default()
+                        });
+                    }
                 });
             }
             AppEvent::AutorunsScanCancelled(task_id) => {
@@ -240,12 +258,16 @@ impl IrtoolApp {
                 self.autoruns.handle_scan_failed(task_id, error);
             }
             AppEvent::SysmonEvent(ev) => {
-                self.sysmon.handle_sysmon_event(ev);
+                self.sysmon.handle_sysmon_event(*ev);
             }
             AppEvent::PcapEvent(ev) => {
                 self.sysmon.handle_pcap_event(ev);
             }
-            AppEvent::ToolsDownloadProgress { tool_id, downloaded, total } => {
+            AppEvent::ToolsDownloadProgress {
+                tool_id,
+                downloaded,
+                total,
+            } => {
                 if total > 0 {
                     let pct = ((downloaded as f64 / total as f64) * 100.0) as u8;
                     self.tools_download_progress.insert(tool_id, pct);
@@ -297,17 +319,9 @@ impl IrtoolApp {
                 ui.vertical(|ui| {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new("ℹ")
-                                .size(20.0)
-                                .color(theme::SEMANTIC_WARNING),
-                        );
+                        ui.label(egui::RichText::new("ℹ").size(20.0).color(theme::SEMANTIC_WARNING));
                         ui.add_space(4.0);
-                        ui.label(
-                            egui::RichText::new("当前正在使用备用界面")
-                                .strong()
-                                .size(14.0),
-                        );
+                        ui.label(egui::RichText::new("当前正在使用备用界面").strong().size(14.0));
                     });
                     ui.add_space(8.0);
 
@@ -389,11 +403,7 @@ impl IrtoolApp {
                     ui.add_space(6.0);
 
                     if self.tools_status.is_empty() {
-                        ui.label(
-                            egui::RichText::new("检测中...")
-                                .size(12.0)
-                                .color(theme::FG_TERTIARY),
-                        );
+                        ui.label(egui::RichText::new("检测中...").size(12.0).color(theme::FG_TERTIARY));
                     } else {
                         for tool in &self.tools_status {
                             ui.horizontal(|ui| {
@@ -405,17 +415,9 @@ impl IrtoolApp {
                                 ui.label(egui::RichText::new(icon).size(14.0).color(color));
                                 ui.vertical(|ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label(
-                                            egui::RichText::new(tool_label(&tool.id))
-                                                .strong()
-                                                .size(12.0),
-                                        );
+                                        ui.label(egui::RichText::new(tool_label(&tool.id)).strong().size(12.0));
                                         if tool.optional {
-                                            ui.label(
-                                                egui::RichText::new("可选")
-                                                    .size(10.0)
-                                                    .color(theme::FG_TERTIARY),
-                                            );
+                                            ui.label(egui::RichText::new("可选").size(10.0).color(theme::FG_TERTIARY));
                                         }
                                     });
                                     let detail = if tool.installed {
@@ -427,11 +429,7 @@ impl IrtoolApp {
                                     } else {
                                         format!("缺失: {}", tool.missing_files.join(", "))
                                     };
-                                    ui.label(
-                                        egui::RichText::new(detail)
-                                            .size(10.0)
-                                            .color(theme::FG_TERTIARY),
-                                    );
+                                    ui.label(egui::RichText::new(detail).size(10.0).color(theme::FG_TERTIARY));
                                 });
                             });
                             ui.add_space(2.0);
@@ -484,10 +482,8 @@ impl IrtoolApp {
                             recheck_clicked = true;
                         }
                         let missing = self.tools_status.iter().any(|t| !t.installed);
-                        if missing && !self.tools_downloading {
-                            if ui.button("一键下载缺失工具").clicked() {
-                                download_clicked = true;
-                            }
+                        if missing && !self.tools_downloading && ui.button("一键下载缺失工具").clicked() {
+                            download_clicked = true;
                         }
                         if ui.button("关闭").clicked() {
                             close_clicked = true;
@@ -564,11 +560,9 @@ fn tool_label(id: &str) -> &str {
 impl eframe::App for IrtoolApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 拦截窗口关闭请求：检查后台模式后决定隐藏到托盘或退出
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if !self.force_exit {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                self.request_exit();
-            }
+        if ctx.input(|i| i.viewport().close_requested()) && !self.force_exit {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.request_exit();
         }
 
         // 检查托盘"退出"菜单设置的原子标志
@@ -589,7 +583,11 @@ impl eframe::App for IrtoolApp {
             // 注意：set_event_handler 是进程级全局静态函数，后续调用会静默替换之前的处理器。
             // tray_handler_set 标志仅防止同一实例重复设置，无法阻止外部代码覆盖。
             tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
-                if let tray_icon::TrayIconEvent::DoubleClick { button: tray_icon::MouseButton::Left, .. } = event {
+                if let tray_icon::TrayIconEvent::DoubleClick {
+                    button: tray_icon::MouseButton::Left,
+                    ..
+                } = event
+                {
                     show_and_activate_window();
                 }
             }));
@@ -689,7 +687,10 @@ impl eframe::App for IrtoolApp {
         });
 
         // 4. Stats bar (bottom, always at the very bottom)
-        if matches!(self.current_page, Page::Network | Page::Autoruns | Page::Sysmon | Page::Database | Page::Workspace) {
+        if matches!(
+            self.current_page,
+            Page::Network | Page::Autoruns | Page::Sysmon | Page::Database | Page::Workspace
+        ) {
             egui::TopBottomPanel::bottom("stats_bar").show(ctx, |ui| match self.current_page {
                 Page::Autoruns => self.autoruns.render_stats_bar(ui),
                 Page::Sysmon => self.sysmon.render_stats_bar(ui),
@@ -823,10 +824,8 @@ fn is_running_as_admin() -> bool {
 /// 因此托盘菜单事件需要直接用 Win32 API 操作窗口。
 #[cfg(windows)]
 fn show_and_activate_window() {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, SetForegroundWindow, ShowWindow, SW_SHOW,
-    };
     use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow, ShowWindow, SW_SHOW};
     unsafe {
         if let Ok(hwnd) = FindWindowW(w!("winit-window-class-name"), w!("IRtool")) {
             let _ = ShowWindow(hwnd, SW_SHOW);
@@ -842,9 +841,9 @@ fn show_and_activate_window() {}
 /// WM_CLOSE 是窗口消息，winit 会处理并触发 update()。
 #[cfg(windows)]
 fn post_close_to_window() {
-    use windows::Win32::Foundation::{WPARAM, LPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, PostMessageW, WM_CLOSE};
     use windows::core::w;
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, PostMessageW, WM_CLOSE};
     unsafe {
         if let Ok(hwnd) = FindWindowW(w!("winit-window-class-name"), w!("IRtool")) {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM::default(), LPARAM::default());
@@ -874,13 +873,11 @@ fn create_tray() -> (Option<tray_icon::TrayIcon>, muda::MenuId, muda::MenuId) {
 
     // 加载图标（与窗口图标相同的 PNG）
     let icon_bytes = include_bytes!("../../irtool-tauri/icons/icon.png");
-    let icon = image::load_from_memory(icon_bytes)
-        .ok()
-        .and_then(|img| {
-            let rgba = img.to_rgba8();
-            let (w, h) = rgba.dimensions();
-            Icon::from_rgba(rgba.to_vec(), w, h).ok()
-        });
+    let icon = image::load_from_memory(icon_bytes).ok().and_then(|img| {
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        Icon::from_rgba(rgba.to_vec(), w, h).ok()
+    });
 
     let mut builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))

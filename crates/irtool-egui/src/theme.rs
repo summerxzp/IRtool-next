@@ -113,15 +113,15 @@ pub fn apply_light_theme(ctx: &egui::Context) {
     // Try multiple candidate paths so Chinese renders on N-edition Windows
     // or systems where msyh.ttc is unavailable.
     let font_candidates = [
-        r"C:\Windows\Fonts\msyh.ttc",    // Microsoft YaHei
-        r"C:\Windows\Fonts\msyhbd.ttc",  // Microsoft YaHei Bold
-        r"C:\Windows\Fonts\simsun.ttc",  // SimSun
-        r"C:\Windows\Fonts\msjh.ttc",    // Microsoft JhengHei
+        r"C:\Windows\Fonts\msyh.ttc",     // Microsoft YaHei
+        r"C:\Windows\Fonts\msyhbd.ttc",   // Microsoft YaHei Bold
+        r"C:\Windows\Fonts\simsun.ttc",   // SimSun
+        r"C:\Windows\Fonts\msjh.ttc",     // Microsoft JhengHei
         r"C:\Windows\Fonts\msgothic.ttc", // MS Gothic
     ];
-    let font_data = font_candidates.iter().find_map(|path| {
-        std::fs::read(path).ok().map(|data| (path, data))
-    });
+    let font_data = font_candidates
+        .iter()
+        .find_map(|path| std::fs::read(path).ok().map(|data| (path, data)));
     if let Some((_font_path, font_data)) = font_data {
         let mut fonts = egui::FontDefinitions::default();
 

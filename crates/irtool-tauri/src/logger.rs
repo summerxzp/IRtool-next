@@ -119,9 +119,16 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     // --- console layer (debug builds only) ---
     let console_layer = if cfg!(debug_assertions) {
-        Some(fmt::layer().with_target(true).with_ansi(true).with_timer(LocalTimer).compact().with_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
-        ))
+        Some(
+            fmt::layer()
+                .with_target(true)
+                .with_ansi(true)
+                .with_timer(LocalTimer)
+                .compact()
+                .with_filter(
+                    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,tauri=info,wmi=warn")),
+                ),
+        )
     } else {
         None
     };

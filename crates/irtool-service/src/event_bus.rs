@@ -35,7 +35,7 @@ pub enum AppEvent {
     },
 
     // Sysmon
-    SysmonEvent(SysmonEvent),
+    SysmonEvent(Box<SysmonEvent>),
 
     // Monitor
     MonitorAlert(Alert),

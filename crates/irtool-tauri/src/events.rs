@@ -85,7 +85,7 @@ fn dispatch_event(app: &tauri::AppHandle, event: AppEvent) {
             let _ = app.emit(EVT_TASK_FAILED, serde_json::json!({"task_id": task_id, "error": error}));
         }
         AppEvent::SysmonEvent(e) => {
-            let _ = app.emit(EVT_SYSMON_EVENT, &e);
+            let _ = app.emit(EVT_SYSMON_EVENT, &*e);
         }
         AppEvent::MonitorAlert(a) => {
             let _ = app.emit(EVT_MONITOR_ALERT, &a);

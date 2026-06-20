@@ -32,6 +32,7 @@ pub struct MonitorRefresh {
 
 // ── MonitorPageState ─────────────────────────────────────
 
+#[derive(Default)]
 pub struct MonitorPageState {
     pub config: MonitorConfig,
     pub telemetry: Option<RuntimeTelemetry>,
@@ -45,25 +46,6 @@ pub struct MonitorPageState {
     last_poll: Option<Instant>,
     cmdline_enrich: u32,
     pub refresh_tx: Option<std::sync::mpsc::Sender<MonitorRefresh>>,
-}
-
-impl Default for MonitorPageState {
-    fn default() -> Self {
-        Self {
-            config: MonitorConfig::default(),
-            telemetry: None,
-            is_background: false,
-            event_count: 0,
-            db_size: 0,
-            saving: false,
-            confirm_dialog_open: false,
-            dns_sni_dialog_open: false,
-            last_error: None,
-            last_poll: None,
-            cmdline_enrich: 0,
-            refresh_tx: None,
-        }
-    }
 }
 
 impl MonitorPageState {
@@ -139,7 +121,7 @@ impl MonitorPageState {
 
     pub fn render(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         // Poll every 3 seconds; on the first poll also load config.
-        let should_poll = self.last_poll.map_or(true, |t| t.elapsed().as_secs() >= 3);
+        let should_poll = self.last_poll.is_none_or(|t| t.elapsed().as_secs() >= 3);
         if should_poll {
             let is_first = self.last_poll.is_none();
             self.last_poll = Some(Instant::now());
@@ -262,7 +244,7 @@ impl MonitorPageState {
                         .telemetry
                         .as_ref()
                         .and_then(|t| t.last_event_at)
-                        .map(|m| theme::fmt_time_millis(m))
+                        .map(theme::fmt_time_millis)
                         .unwrap_or_else(|| "-".to_string());
                     let _last_event_resp = ui.vertical(|ui| {
                         ui.label(egui::RichText::new("最后事件").color(theme::FG_TERTIARY).size(11.0));
@@ -286,7 +268,11 @@ impl MonitorPageState {
                         .as_ref()
                         .and_then(|t| t.last_error.clone())
                         .unwrap_or_else(|| "-".to_string());
-                    let err_color = if last_err == "-" { theme::FG_TERTIARY } else { theme::SEMANTIC_DANGER };
+                    let err_color = if last_err == "-" {
+                        theme::FG_TERTIARY
+                    } else {
+                        theme::SEMANTIC_DANGER
+                    };
                     status_cell(ui, "最后错误", last_err, err_color);
                     ui.end_row();
                 });
@@ -378,10 +364,7 @@ impl MonitorPageState {
             });
 
             ui.add_space(4.0);
-            if ui
-                .add_enabled(!self.saving, egui::Button::new("保存配置"))
-                .clicked()
-            {
+            if ui.add_enabled(!self.saving, egui::Button::new("保存配置")).clicked() {
                 save = true;
             }
         });
@@ -519,11 +502,7 @@ impl MonitorPageState {
                         } else {
                             badge::badge(ui, "禁用", BadgeVariant::Default);
                         }
-                        ui.label(
-                            egui::RichText::new(&rule.name)
-                                .color(theme::FG_PRIMARY)
-                                .size(12.0),
-                        );
+                        ui.label(egui::RichText::new(&rule.name).color(theme::FG_PRIMARY).size(12.0));
                         for et in &rule.event_types {
                             badge::badge(ui, et, BadgeVariant::Info);
                         }
@@ -592,16 +571,12 @@ impl MonitorPageState {
                     self.config.enable_dns_pcap = false;
                 }
                 if ui.button("深度捕获").clicked() {
-                    self.config.persist_event_types =
-                        EVENT_TYPES.iter().map(|(k, _)| k.to_string()).collect();
+                    self.config.persist_event_types = EVENT_TYPES.iter().map(|(k, _)| k.to_string()).collect();
                     self.config.enable_sni = true;
                     self.config.enable_dns_pcap = true;
                 }
                 ui.separator();
-                if ui
-                    .add_enabled(!self.saving, egui::Button::new("应用并保存"))
-                    .clicked()
-                {
+                if ui.add_enabled(!self.saving, egui::Button::new("应用并保存")).clicked() {
                     apply_save = true;
                 }
             });
@@ -728,9 +703,6 @@ impl MonitorPageState {
 fn status_cell(ui: &mut egui::Ui, label: &str, value: String, color: egui::Color32) {
     ui.vertical(|ui| {
         ui.label(egui::RichText::new(label).color(theme::FG_TERTIARY).size(11.0));
-        ui.add(
-            egui::Label::new(egui::RichText::new(value).color(color).size(12.0))
-                .truncate(),
-        );
+        ui.add(egui::Label::new(egui::RichText::new(value).color(color).size(12.0)).truncate());
     });
 }

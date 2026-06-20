@@ -113,44 +113,40 @@ impl MonitorEngine {
         Ok(())
     }
 
-    /// 处理一条 Sysmon 事件：匹配规则 + 可选存储
-    pub async fn process_sysmon_event(&self, event: &SysmonEvent) -> Vec<Alert> {
-        let mut monitor_event = sysmon_to_monitor_event(event);
-        // 对网络连接事件附加进程链（使用缓存避免重复快照）
-        if matches!(event.event_type, irtool_sysmon::SysmonEventType::NetworkConnect) && event.process_id > 0 {
-            let chain_str = {
-                let mut cache = self.chain_cache.lock();
-                if let Some(cached) = cache.get(&event.process_id) {
-                    Some(cached.clone())
-                } else {
-                    let result = irtool_process::get_process_chain(event.process_id)
-                        .ok()
-                        .filter(|c| !c.is_empty())
-                        .map(|chain| {
-                            chain
-                                .nodes
-                                .iter()
-                                .map(|n| format!("{} ({})", n.name, n.pid))
-                                .collect::<Vec<_>>()
-                                .join("->")
-                        });
-                    if let Some(ref s) = result {
-                        cache.insert(event.process_id, s.clone());
-                        // 限制缓存大小
-                        if cache.len() > 500 {
-                            cache.clear();
-                        }
-                    }
-                    result
-                }
-            };
-            if let Some(chain) = chain_str {
-                if let Ok(mut raw_value) = serde_json::from_str::<serde_json::Value>(&monitor_event.raw_json) {
-                    raw_value["process_chain"] = serde_json::Value::String(chain);
-                    monitor_event.raw_json = serde_json::to_string(&raw_value).unwrap_or_default();
-                }
+    /// 获取进程链字符串（使用缓存避免重复快照）。
+    /// 取证关键：应在事件捕获时调用，短命进程退出后无法回溯链。
+    pub fn get_chain_string(&self, pid: u32) -> Option<String> {
+        {
+            let cache = self.chain_cache.lock();
+            if let Some(cached) = cache.get(&pid) {
+                return Some(cached.clone());
             }
         }
+        let result = irtool_process::get_process_chain(pid)
+            .ok()
+            .filter(|c| !c.is_empty())
+            .map(|chain| {
+                chain
+                    .nodes
+                    .iter()
+                    .map(|n| format!("{} ({})", n.name, n.pid))
+                    .collect::<Vec<_>>()
+                    .join("->")
+            });
+        if let Some(ref s) = result {
+            let mut cache = self.chain_cache.lock();
+            cache.insert(pid, s.clone());
+            // 限制缓存大小
+            if cache.len() > 500 {
+                cache.clear();
+            }
+        }
+        result
+    }
+
+    /// 处理一条 Sysmon 事件：匹配规则 + 可选存储
+    pub async fn process_sysmon_event(&self, event: &SysmonEvent) -> Vec<Alert> {
+        let monitor_event = sysmon_to_monitor_event(event);
         self.process_monitor_event(&monitor_event).await
     }
 

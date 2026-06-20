@@ -639,6 +639,10 @@ load_limit: number;
  */
 max_size_mb?: number; 
 /**
+ * 命令行富化模式（0=关闭，1=后台）
+ */
+cmdline_enrich?: number; 
+/**
  * 通知配置（与告警规则分离）
  */
 notify_config?: NotifyConfig }
@@ -798,7 +802,7 @@ export type SysmonEvent = { event_id: number; event_type: SysmonEventType; times
 /**
  * Event type discriminator.
  */
-export type SysmonEventType = "process_create" | "file_create_time" | "network_connect" | "process_terminate" | "driver_load" | "image_load" | "create_remote_thread" | "raw_access_read" | "process_access" | "file_create" | "registry_event" | "file_create_stream_hash" | "pipe_event" | "wmi_event" | "dns" | "dns_client" | "file_delete" | "clipboard_change" | "process_tampering" | "file_delete_detected" | "unknown"
+export type SysmonEventType = "process_create" | "file_create_time" | "network_connect" | "process_terminate" | "driver_load" | "image_load" | "create_remote_thread" | "raw_access_read" | "process_access" | "file_create" | "registry_event" | "file_create_stream_hash" | "pipe_event" | "wmi_event" | "dns" | "dns_client" | "dns_pcap" | "tls_sni" | "file_delete" | "clipboard_change" | "process_tampering" | "file_delete_detected" | "unknown"
 /**
  * Sysmon service status info.
  */

@@ -2,7 +2,6 @@
 ///
 /// Holds the mutex handle alive for the process lifetime. Drops when the
 /// app exits, automatically releasing the mutex.
-
 #[cfg(windows)]
 pub struct SingleInstanceGuard {
     _handle: windows::Win32::Foundation::HANDLE,

@@ -3,12 +3,12 @@ use std::time::Instant;
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use irtool_service::types::PcapConfig;
 use irtool_service::context::AppContext;
 use irtool_service::services::monitor::MonitorService;
 use irtool_service::services::pcap::PcapService;
 use irtool_service::services::process::ProcessService;
 use irtool_service::services::sysmon::SysmonService;
+use irtool_service::types::PcapConfig;
 use irtool_service::types::{
     EventConfigEntry, PcapEvent, PcapEventKind, ProcessChain, SysmonEvent, SysmonEventType, SysmonStatus,
 };
@@ -421,11 +421,9 @@ impl SysmonPageState {
             let installed = self.sysmon_status.as_ref().is_some_and(|s| s.installed);
             if installed {
                 if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
-                        ),
-                    )
+                    .add(egui::Button::new(
+                        egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
+                    ))
                     .clicked()
                 {
                     self.uninstall_confirm_open = true;
@@ -710,7 +708,23 @@ impl SysmonPageState {
                     ui.add_space(2.0);
                     if let Some(ref chain) = self.process_chain {
                         if chain.is_empty() {
-                            ui.label(egui::RichText::new("无进程链信息").color(theme::FG_TERTIARY).size(11.0));
+                            // 实时查询返回空链（短命进程已退出），尝试从 raw_data 读取捕获时的链
+                            if let Some(chain_str) = event.raw_data.get("process_chain") {
+                                if chain_str.is_empty() {
+                                    ui.label(egui::RichText::new("无进程链信息").color(theme::FG_TERTIARY).size(11.0));
+                                } else {
+                                    for (i, part) in chain_str.split("->").enumerate() {
+                                        let arrow = if i == 0 { "" } else { "↑ " };
+                                        ui.label(
+                                            egui::RichText::new(format!("{}{}", arrow, part))
+                                                .font(egui::FontId::monospace(11.0))
+                                                .color(theme::FG_PRIMARY),
+                                        );
+                                    }
+                                }
+                            } else {
+                                ui.label(egui::RichText::new("无进程链信息").color(theme::FG_TERTIARY).size(11.0));
+                            }
                         } else {
                             for (i, node) in chain.nodes.iter().enumerate() {
                                 let arrow = if i == 0 { "" } else { "↑ " };
@@ -918,11 +932,9 @@ impl SysmonPageState {
                         cancelled = true;
                     }
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("清除").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("清除").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -967,11 +979,9 @@ impl SysmonPageState {
                         cancelled = true;
                     }
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -1017,8 +1027,16 @@ impl SysmonPageState {
         let mut cancelled = false;
         let pending_start = self.pending_start_collect;
 
-        let title = if pending_start { "确认安装 Sysmon 并开始采集" } else { "确认安装 Sysmon" };
-        let confirm_label = if pending_start { "安装并开始采集" } else { "安装" };
+        let title = if pending_start {
+            "确认安装 Sysmon 并开始采集"
+        } else {
+            "确认安装 Sysmon"
+        };
+        let confirm_label = if pending_start {
+            "安装并开始采集"
+        } else {
+            "安装"
+        };
 
         egui::Window::new(title)
             .open(&mut open)
@@ -1103,7 +1121,7 @@ impl SysmonPageState {
             *map.entry(e.event_type.clone()).or_insert(0) += 1;
         }
         let mut v: Vec<_> = map.into_iter().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|b| std::cmp::Reverse(b.1));
         v
     }
 

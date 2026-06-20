@@ -624,11 +624,9 @@ impl AutorunsPageState {
                         close_menu = true;
                     }
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("删除条目").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("删除条目").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         self.pending_delete_id = Some(item.id);
@@ -846,11 +844,9 @@ impl AutorunsPageState {
                 ui.horizontal(|ui| {
                     let entry_id = item.id;
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         self.pending_delete_id = Some(entry_id);
@@ -884,11 +880,9 @@ impl AutorunsPageState {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -1193,12 +1187,7 @@ fn signature_badge(ui: &mut egui::Ui, sig: &SignatureStatus) {
 }
 
 fn paint_row_bg(ui: &mut egui::Ui, color: egui::Color32, alpha: f32) {
-    let bg = egui::Color32::from_rgba_unmultiplied(
-        color.r(),
-        color.g(),
-        color.b(),
-        (255.0 * alpha) as u8,
-    );
+    let bg = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), (255.0 * alpha) as u8);
     let rect = ui.max_rect();
     ui.painter().rect_filled(rect, 0.0, bg);
 }

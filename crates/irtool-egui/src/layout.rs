@@ -51,17 +51,14 @@ impl IrtoolApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(
-                        egui::Button::new(
-                            egui::RichText::new("× 退出").size(11.0).color(theme::FG_SECONDARY),
-                        )
-                        .frame(false),
+                        egui::Button::new(egui::RichText::new("× 退出").size(11.0).color(theme::FG_SECONDARY))
+                            .frame(false),
                     )
                     .clicked()
                 {
                     self.request_exit();
                 }
             });
-
         });
     }
 
@@ -86,9 +83,7 @@ impl IrtoolApp {
                         .corner_radius(4.0)
                         .inner_margin(egui::Margin::symmetric(8, 4));
                     frame.show(ui, |ui| {
-                        let label = format!("{} {}", page.icon(), page.label())
-                            .trim_start()
-                            .to_string();
+                        let label = format!("{} {}", page.icon(), page.label()).trim_start().to_string();
 
                         ui.add(
                             egui::Label::new(egui::RichText::new(label).size(13.0).color(fg))

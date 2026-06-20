@@ -51,9 +51,7 @@ fn is_webview2_available() -> bool {
 #[cfg(feature = "egui-fallback")]
 fn check_registry_key(root: HKEY, path: PCWSTR) -> bool {
     use windows::core::w;
-    use windows::Win32::System::Registry::{
-        RegCloseKey, RegGetValueW, RegOpenKeyExW, HKEY, KEY_READ, RRF_RT_REG_SZ,
-    };
+    use windows::Win32::System::Registry::{RegCloseKey, RegGetValueW, RegOpenKeyExW, HKEY, KEY_READ, RRF_RT_REG_SZ};
 
     let mut key = HKEY::default();
     let ok = unsafe { RegOpenKeyExW(root, path, None, KEY_READ, &mut key) };

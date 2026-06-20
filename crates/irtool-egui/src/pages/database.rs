@@ -243,8 +243,7 @@ impl DatabasePageState {
             let svc = MonitorService { ctx: &ctx_clone };
             match svc.search_event_page(query).await {
                 Ok(page) => {
-                    let events: Vec<DbEvent> =
-                        page.items.iter().map(monitor_event_to_db_event).collect();
+                    let events: Vec<DbEvent> = page.items.iter().map(monitor_event_to_db_event).collect();
                     let _ = tx.send(DbRefresh {
                         events: Some(events),
                         matched_count: Some(page.total),
@@ -386,10 +385,7 @@ impl DatabasePageState {
             ui.separator();
 
             // Search button
-            if ui
-                .add_enabled(!self.loading, egui::Button::new("搜索"))
-                .clicked()
-            {
+            if ui.add_enabled(!self.loading, egui::Button::new("搜索")).clicked() {
                 self.trigger_search(ctx, rt, 0);
             }
 
@@ -404,14 +400,9 @@ impl DatabasePageState {
             }
 
             // Load more button
-            if self.has_more {
-                if ui
-                    .add_enabled(!self.loading, egui::Button::new("加载更多"))
-                    .clicked()
-                {
-                    let next_offset = self.offset + self.load_limit;
-                    self.trigger_search(ctx, rt, next_offset);
-                }
+            if self.has_more && ui.add_enabled(!self.loading, egui::Button::new("加载更多")).clicked() {
+                let next_offset = self.offset + self.load_limit;
+                self.trigger_search(ctx, rt, next_offset);
             }
 
             // Export CSV
@@ -449,14 +440,9 @@ impl DatabasePageState {
                 if self.loading {
                     ui.label(egui::RichText::new("查询中…").color(theme::FG_SECONDARY));
                 } else if self.has_filters {
-                    ui.label(
-                        egui::RichText::new("没有匹配当前过滤条件的事件")
-                            .color(theme::FG_TERTIARY),
-                    );
+                    ui.label(egui::RichText::new("没有匹配当前过滤条件的事件").color(theme::FG_TERTIARY));
                 } else {
-                    ui.label(
-                        egui::RichText::new("点击「搜索」查询数据库事件").color(theme::FG_SECONDARY),
-                    );
+                    ui.label(egui::RichText::new("点击「搜索」查询数据库事件").color(theme::FG_SECONDARY));
                 }
             });
             return;
@@ -582,140 +568,143 @@ impl DatabasePageState {
             }
         };
 
-        egui::ScrollArea::vertical()
-            .id_salt("db_detail_scroll")
-            .show(ui, |ui| {
-                ui.add_space(4.0);
+        egui::ScrollArea::vertical().id_salt("db_detail_scroll").show(ui, |ui| {
+            ui.add_space(4.0);
 
-                // Header with close button at top-right (right_to_left, DESIGN.md 4.7)
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                        ui.allocate_space(egui::vec2(8.0, 0.0));
-                        if ui
-                            .add(egui::Button::new(egui::RichText::new("×").size(16.0)).frame(false))
-                            .clicked()
-                        {
-                            self.detail_visible = false;
-                            self.selected_event = None;
-                        }
-                        ui.vertical(|ui| {
-                            ui.horizontal(|ui| {
-                                badge::badge(
-                                    ui,
-                                    event_type_label(&event.event_type),
-                                    event_badge_variant(&event.event_type),
-                                );
-                                ui.label(
-                                    egui::RichText::new(format!("来源: {}", event.source))
-                                        .color(theme::FG_TERTIARY)
-                                        .size(11.0),
-                                );
-                            });
-                            ui.add_space(2.0);
+            // Header with close button at top-right (right_to_left, DESIGN.md 4.7)
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                    ui.allocate_space(egui::vec2(8.0, 0.0));
+                    if ui
+                        .add(egui::Button::new(egui::RichText::new("×").size(16.0)).frame(false))
+                        .clicked()
+                    {
+                        self.detail_visible = false;
+                        self.selected_event = None;
+                    }
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            badge::badge(
+                                ui,
+                                event_type_label(&event.event_type),
+                                event_badge_variant(&event.event_type),
+                            );
                             ui.label(
-                                egui::RichText::new(&event.timestamp)
-                                    .color(theme::FG_SECONDARY)
+                                egui::RichText::new(format!("来源: {}", event.source))
+                                    .color(theme::FG_TERTIARY)
                                     .size(11.0),
                             );
                         });
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new(&event.timestamp)
+                                .color(theme::FG_SECONDARY)
+                                .size(11.0),
+                        );
                     });
                 });
-
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(4.0);
-
-                // Common fields
-                detail_row(ui, "时间", nonempty(&event.timestamp), true);
-                if event.process_id > 0 {
-                    detail_row(ui, "进程", Some(&format!("{} ({})", event.process_name, event.process_id)), false);
-                } else {
-                    detail_row(ui, "进程", nonempty(&event.process_name), false);
-                }
-                detail_row(ui, "路径", nonempty(&event.process_path), true);
-                detail_row(ui, "用户", nonempty(&event.user), false);
-
-                // Event-type-specific fields
-                match event.event_type.as_str() {
-                    "dns" | "dns_client" => {
-                        detail_row(ui, "域名", nonempty(&event.query_name), true);
-                        detail_row(ui, "解析结果", nonempty(&event.query_results), true);
-                        detail_row(ui, "状态", Some(&format_dns_status(event.query_status)), false);
-                    }
-                    "tls_sni" | "dns_pcap" => {
-                        detail_row(ui, "域名", nonempty(&event.query_name), true);
-                        detail_row(ui, "结果", nonempty(&event.query_results), false);
-                        detail_row(
-                            ui,
-                            "来源",
-                            Some(&format!("{}:{}", event.source_ip, event.source_port)),
-                            true,
-                        );
-                        detail_row(
-                            ui,
-                            "目标",
-                            Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
-                            true,
-                        );
-                        detail_row(ui, "协议", nonempty(&event.protocol), false);
-                    }
-                    "network_connect" => {
-                        detail_row(
-                            ui,
-                            "来源",
-                            Some(&format!("{}:{}", event.source_ip, event.source_port)),
-                            true,
-                        );
-                        detail_row(
-                            ui,
-                            "目标",
-                            Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
-                            true,
-                        );
-                        detail_row(ui, "协议", nonempty(&event.protocol), false);
-                        detail_row(ui, "方向", Some(if event.initiated { "出站" } else { "入站" }), false);
-                        detail_row(ui, "外部", Some(if event.is_external { "是" } else { "否" }), false);
-                    }
-                    "network_monitor" => {
-                        detail_row(ui, "协议", nonempty(&event.protocol), false);
-                        detail_row(
-                            ui,
-                            "来源",
-                            Some(&format!("{}:{}", event.source_ip, event.source_port)),
-                            true,
-                        );
-                        detail_row(
-                            ui,
-                            "目标",
-                            Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
-                            true,
-                        );
-                    }
-                    "create_remote_thread" => {
-                        detail_row(ui, "源进程", nonempty(&event.source_process_name), false);
-                        detail_row(ui, "源路径", nonempty(&event.source_process_path), true);
-                        detail_row(ui, "目标进程", nonempty(&event.target_process_name), false);
-                        detail_row(ui, "目标路径", nonempty(&event.target_process_path), true);
-                        detail_row(ui, "起始地址", nonempty(&event.start_address), true);
-                        detail_row(ui, "起始模块", nonempty(&event.start_module), true);
-                    }
-                    "file_create" => {
-                        detail_row(ui, "文件名", nonempty(&event.target_filename), true);
-                        detail_row(ui, "创建时间", nonempty(&event.creation_utc_time), false);
-                    }
-                    _ => {}
-                }
-
-                // Footer
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(format!("来源: {} | DB ID: {}", event.source, event.record_id))
-                        .color(theme::FG_TERTIARY)
-                        .size(10.0),
-                );
             });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+
+            // Common fields
+            detail_row(ui, "时间", nonempty(&event.timestamp), true);
+            if event.process_id > 0 {
+                detail_row(
+                    ui,
+                    "进程",
+                    Some(&format!("{} ({})", event.process_name, event.process_id)),
+                    false,
+                );
+            } else {
+                detail_row(ui, "进程", nonempty(&event.process_name), false);
+            }
+            detail_row(ui, "路径", nonempty(&event.process_path), true);
+            detail_row(ui, "用户", nonempty(&event.user), false);
+
+            // Event-type-specific fields
+            match event.event_type.as_str() {
+                "dns" | "dns_client" => {
+                    detail_row(ui, "域名", nonempty(&event.query_name), true);
+                    detail_row(ui, "解析结果", nonempty(&event.query_results), true);
+                    detail_row(ui, "状态", Some(&format_dns_status(event.query_status)), false);
+                }
+                "tls_sni" | "dns_pcap" => {
+                    detail_row(ui, "域名", nonempty(&event.query_name), true);
+                    detail_row(ui, "结果", nonempty(&event.query_results), false);
+                    detail_row(
+                        ui,
+                        "来源",
+                        Some(&format!("{}:{}", event.source_ip, event.source_port)),
+                        true,
+                    );
+                    detail_row(
+                        ui,
+                        "目标",
+                        Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
+                        true,
+                    );
+                    detail_row(ui, "协议", nonempty(&event.protocol), false);
+                }
+                "network_connect" => {
+                    detail_row(
+                        ui,
+                        "来源",
+                        Some(&format!("{}:{}", event.source_ip, event.source_port)),
+                        true,
+                    );
+                    detail_row(
+                        ui,
+                        "目标",
+                        Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
+                        true,
+                    );
+                    detail_row(ui, "协议", nonempty(&event.protocol), false);
+                    detail_row(ui, "方向", Some(if event.initiated { "出站" } else { "入站" }), false);
+                    detail_row(ui, "外部", Some(if event.is_external { "是" } else { "否" }), false);
+                }
+                "network_monitor" => {
+                    detail_row(ui, "协议", nonempty(&event.protocol), false);
+                    detail_row(
+                        ui,
+                        "来源",
+                        Some(&format!("{}:{}", event.source_ip, event.source_port)),
+                        true,
+                    );
+                    detail_row(
+                        ui,
+                        "目标",
+                        Some(&format!("{}:{}", event.destination_ip, event.destination_port)),
+                        true,
+                    );
+                }
+                "create_remote_thread" => {
+                    detail_row(ui, "源进程", nonempty(&event.source_process_name), false);
+                    detail_row(ui, "源路径", nonempty(&event.source_process_path), true);
+                    detail_row(ui, "目标进程", nonempty(&event.target_process_name), false);
+                    detail_row(ui, "目标路径", nonempty(&event.target_process_path), true);
+                    detail_row(ui, "起始地址", nonempty(&event.start_address), true);
+                    detail_row(ui, "起始模块", nonempty(&event.start_module), true);
+                }
+                "file_create" => {
+                    detail_row(ui, "文件名", nonempty(&event.target_filename), true);
+                    detail_row(ui, "创建时间", nonempty(&event.creation_utc_time), false);
+                }
+                _ => {}
+            }
+
+            // Footer
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(format!("来源: {} | DB ID: {}", event.source, event.record_id))
+                    .color(theme::FG_TERTIARY)
+                    .size(10.0),
+            );
+        });
     }
 
     // ── Stats Bar ──────────────────────────────────────────
@@ -782,11 +771,9 @@ impl DatabasePageState {
                         cancelled = true;
                     }
                     if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("清空").color(theme::SEMANTIC_DANGER),
-                            ),
-                        )
+                        .add(egui::Button::new(
+                            egui::RichText::new("清空").color(theme::SEMANTIC_DANGER),
+                        ))
                         .clicked()
                     {
                         confirmed = true;
@@ -931,9 +918,17 @@ fn monitor_event_to_db_event(me: &MonitorEvent) -> DbEvent {
         EventSource::Pcap => {
             let event_kind = s(&raw, "event_kind");
             let is_tls = event_kind == "tls_sni";
-            event.event_type = if is_tls { "tls_sni".to_string() } else { "dns_pcap".to_string() };
+            event.event_type = if is_tls {
+                "tls_sni".to_string()
+            } else {
+                "dns_pcap".to_string()
+            };
             let domain = s(&raw, "domain");
-            event.query_name = if domain.is_empty() { me.key_field.clone() } else { domain };
+            event.query_name = if domain.is_empty() {
+                me.key_field.clone()
+            } else {
+                domain
+            };
             event.query_results = s(&raw, "query_type");
             event.source_ip = s(&raw, "src_ip");
             event.source_port = n16(&raw, "src_port");
@@ -946,7 +941,11 @@ fn monitor_event_to_db_event(me: &MonitorEvent) -> DbEvent {
             event.event_type = "network_monitor".to_string();
             event.process_id = n(&raw, "pid");
             let pname = s(&raw, "process_name");
-            event.process_name = if pname.is_empty() { me.process_name.clone() } else { pname };
+            event.process_name = if pname.is_empty() {
+                me.process_name.clone()
+            } else {
+                pname
+            };
             event.process_path = s(&raw, "process_path");
             if let Some(local) = raw.get("local") {
                 event.source_ip = s(local, "addr");
@@ -964,7 +963,11 @@ fn monitor_event_to_db_event(me: &MonitorEvent) -> DbEvent {
         EventSource::Sysmon | EventSource::DnsClient => {
             event.process_id = n(&raw, "process_id");
             let pname = s(&raw, "process_name");
-            event.process_name = if pname.is_empty() { me.process_name.clone() } else { pname };
+            event.process_name = if pname.is_empty() {
+                me.process_name.clone()
+            } else {
+                pname
+            };
             event.process_path = s(&raw, "process_path");
             event.user = s(&raw, "user");
             event.query_name = s(&raw, "query_name");

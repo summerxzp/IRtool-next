@@ -110,16 +110,29 @@ impl<'a> SysmonService<'a> {
         let monitor_engine = self.ctx.monitor_engine.clone();
         let event_bus = self.ctx.event_bus.clone();
         tokio::spawn(async move {
-            while let Some(event) = rx.recv().await {
+            while let Some(mut event) = rx.recv().await {
+                // 一次锁：获取进程链 + 检查后台模式（减少锁竞争）
+                let (chain, is_background) = {
+                    let engine = monitor_engine.lock().await;
+                    let chain = if event.process_id > 0 {
+                        engine.get_chain_string(event.process_id)
+                    } else {
+                        None
+                    };
+                    (chain, engine.is_background_mode())
+                };
+                // 在捕获时附加进程链到 SysmonEvent.raw_data（取证关键：短命进程退出后无法回溯链）
+                if let Some(chain) = chain {
+                    event.raw_data.insert("process_chain".to_string(), chain);
+                }
                 // Rule engine always processes
                 let alerts = monitor_engine.lock().await.process_sysmon_event(&event).await;
                 for alert in &alerts {
                     event_bus.publish(AppEvent::MonitorAlert(alert.clone()));
                 }
                 // Only publish to frontend when not in background mode
-                let is_background = monitor_engine.lock().await.is_background_mode();
                 if !is_background {
-                    event_bus.publish(AppEvent::SysmonEvent(event));
+                    event_bus.publish(AppEvent::SysmonEvent(Box::new(event)));
                 }
             }
         });

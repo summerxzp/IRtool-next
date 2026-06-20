@@ -82,7 +82,7 @@ pub fn run() {
     #[cfg(windows)]
     {
         use windows::core::w;
-        use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+        use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
         use windows::Win32::System::Threading::CreateMutexW;
 
         let mutex_name = w!("Global\\IRtool-SingleInstance");
