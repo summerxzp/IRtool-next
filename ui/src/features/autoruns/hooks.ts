@@ -75,8 +75,8 @@ export function useAutorunsData() {
       const store = useAutorunsStore.getState();
       store.setScanning(false);
       store.setVerifyingSignatures(false);
-      const errObj = e.payload.error as Record<string, unknown>;
-      const msg = errObj?.message ? String(errObj.message) : JSON.stringify(e.payload.error);
+      const err = e.payload.error;
+      const msg = typeof err === "string" ? err : (err instanceof Error ? err.message : JSON.stringify(err));
       store.setError(msg);
     });
 

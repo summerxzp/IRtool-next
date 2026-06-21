@@ -21,6 +21,14 @@ async cmdAppForceQuit() : Promise<Result<null, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async cmdRelaunch() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_relaunch") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cmdNetworkSnapshot() : Promise<Result<NetworkSnapshotPayload, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_network_snapshot") };

@@ -18,7 +18,8 @@
     "workspace": "工作台",
     "settings": "设置",
     "background-detection": "后台监测",
-    "background-monitoring": "后台监控"
+    "background-monitoring": "后台监控",
+    "database-search": "数据库检索"
   },
   "status": {
     "admin": "管理员",

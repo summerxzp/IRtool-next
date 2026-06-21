@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { Download, FolderOpen, CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
 import type { ToolStatus } from "@/lib/bindings";
 
@@ -152,7 +151,13 @@ export function ToolsCheckDialog({ open, onOpenChange }: Props) {
       // Tools are already on disk, just close the dialog.
       onOpenChange(false);
     } else {
-      await relaunch();
+      // 使用自定义 cmd_relaunch 而非 plugin-process 的 relaunch()，
+      // 因为后者在便携版下会被单实例互斥锁拦截导致新进程立即退出。
+      try {
+        await invoke("cmd_relaunch");
+      } catch (e) {
+        setErrorMsg(stringifyError(e));
+      }
     }
   };
 

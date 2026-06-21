@@ -18,7 +18,8 @@
     "workspace": "Workspace",
     "settings": "Settings",
     "background-detection": "Background Detection",
-    "background-monitoring": "Background Monitoring"
+    "background-monitoring": "Background Monitoring",
+    "database-search": "Database Search"
   },
   "status": {
     "admin": "Admin",

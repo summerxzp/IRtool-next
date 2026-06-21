@@ -45,6 +45,58 @@ async fn cmd_app_force_quit(app: tauri::AppHandle, ctx: State<'_, AppContext>) -
     Ok(())
 }
 
+/// 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
+/// 导致新进程启动后立即退出的问题。
+///
+/// 原理：spawn 一个 detached cmd.exe 子进程，轮询等待当前进程退出后再启动新实例，
+/// 然后当前进程调用 app.exit(0) 退出。
+#[tauri::command]
+#[specta::specta]
+async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Result<(), IrError> {
+    // 先退出后台模式，确保状态干净
+    let _ = AppService { ctx: &ctx }.force_quit().await;
+
+    let current_exe = std::env::current_exe().map_err(|e| IrError::Internal(format!("获取当前 exe 路径失败: {e}")))?;
+    let pid = std::process::id();
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        // 批处理脚本：等待当前 PID 退出后启动新实例
+        let script = format!(
+            "@echo off\r\n\
+             :wait\r\n\
+             tasklist /fi \"pid eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
+             if %errorlevel%==0 (\r\n\
+                 ping -n 2 127.0.0.1 >nul\r\n\
+                 goto wait\r\n\
+             )\r\n\
+             start \"\" \"{exe}\"\r\n",
+            pid = pid,
+            exe = current_exe.display()
+        );
+
+        std::process::Command::new("cmd")
+            .args(["/c", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| IrError::Internal(format!("启动重启辅助进程失败: {e}")))?;
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = pid;
+        std::process::Command::new(&current_exe)
+            .spawn()
+            .map_err(|e| IrError::Internal(format!("启动新实例失败: {e}")))?;
+    }
+
+    app.exit(0);
+    Ok(())
+}
+
 #[cfg(windows)]
 fn is_running_as_admin() -> bool {
     use windows::Win32::Foundation::HANDLE;
@@ -121,6 +173,7 @@ pub fn run() {
         cmd_app_info,
         cmd_log_frontend,
         cmd_app_force_quit,
+        cmd_relaunch,
         cmd_network_snapshot,
         cmd_network_kill_process,
         cmd_network_set_polling,
