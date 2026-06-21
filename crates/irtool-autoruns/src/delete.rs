@@ -125,14 +125,14 @@ mod win_impls {
             let is_winlogon_notify = subkey_lower.ends_with(r"winlogon\notify");
             let is_winlogon_gpext = subkey_lower.ends_with(r"winlogon\gpextensions");
             if is_winlogon_notify || is_winlogon_gpext {
-                let search = item.launch_string.as_deref()
-                    .or(item.image_path.as_deref());
+                let search = item.launch_string.as_deref().or(item.image_path.as_deref());
                 if let Some(search) = search {
                     return super::find_and_delete_subkey_by_value(hive, &subkey, "DllName", search);
                 }
                 return Ok(DeleteResult {
                     success: false,
-                    message: "GpExtensions/Notify 项缺少 launch_string 和 image_path，暂不支持自动删除，请手动处理".into(),
+                    message: "GpExtensions/Notify 项缺少 launch_string 和 image_path，暂不支持自动删除，请手动处理"
+                        .into(),
                 });
             }
             // Credential Provider Filters 等 entry 为空的情况
@@ -188,8 +188,7 @@ mod win_impls {
                 return delete_registry_key(hive, &full_subkey);
             }
             // 无 CLSID，遍历子键匹配 StubPath 值（与 launch_string 或 image_path 包含匹配）
-            let search = item.launch_string.as_deref()
-                .or(item.image_path.as_deref());
+            let search = item.launch_string.as_deref().or(item.image_path.as_deref());
             if let Some(search) = search {
                 return super::find_and_delete_subkey_by_value(hive, &subkey, "StubPath", search);
             }
@@ -821,7 +820,8 @@ fn find_and_delete_subkey_by_value(
             let subkey_name = String::from_utf16_lossy(&name_buf[..name_len as usize]);
             tracing::debug!(
                 "find_and_delete_subkey_by_value: checking subkey '{}' under '{}'",
-                subkey_name, parent_subkey
+                subkey_name,
+                parent_subkey
             );
 
             let subkey_wide = HSTRING::from(&subkey_name);
@@ -841,9 +841,10 @@ fn find_and_delete_subkey_by_value(
                 );
 
                 if q_result.is_ok() && (reg_type == REG_SZ || reg_type == REG_EXPAND_SZ) {
-                    let value_str = String::from_utf16_lossy(
-                        &std::slice::from_raw_parts(buf.as_ptr() as *const u16, (buf_len / 2) as usize),
-                    );
+                    let value_str = String::from_utf16_lossy(&std::slice::from_raw_parts(
+                        buf.as_ptr() as *const u16,
+                        (buf_len / 2) as usize,
+                    ));
                     tracing::debug!(
                         "find_and_delete_subkey_by_value: subkey '{}' {}='{}'",
                         subkey_name,
@@ -886,10 +887,7 @@ fn find_and_delete_subkey_by_value(
         } else {
             Ok(DeleteResult {
                 success: false,
-                message: format!(
-                    "在 '{}' 下未找到匹配 '{}' 的子键",
-                    parent_subkey, search
-                ),
+                message: format!("在 '{}' 下未找到匹配 '{}' 的子键", parent_subkey, search),
             })
         }
     }
