@@ -124,11 +124,14 @@ export function useVerifySignatures() {
 export function useDeleteEntry() {
   const qc = useQueryClient();
   const setError = useAutorunsStore((s) => s.setError);
+  const setSuccess = useAutorunsStore((s) => s.setSuccess);
   return useMutation({
     mutationFn: api.deleteEntry,
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: QK_AUTORUNS });
-      if (!result.success) {
+      if (result.success) {
+        setSuccess(result.message);
+      } else {
         setError(result.message);
       }
     },

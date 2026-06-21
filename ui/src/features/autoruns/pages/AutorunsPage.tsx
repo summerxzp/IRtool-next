@@ -35,6 +35,8 @@ export function AutorunsPage() {
   const scanProgress = useAutorunsStore((s) => s.scanProgress);
   const error = useAutorunsStore((s) => s.error);
   const setError = useAutorunsStore((s) => s.setError);
+  const success = useAutorunsStore((s) => s.success);
+  const setSuccess = useAutorunsStore((s) => s.setSuccess);
   const setSigcheckResult = useAutorunsStore((s) => s.setSigcheckResult);
   const calculatingHash = useAutorunsStore((s) => s.calculatingHash);
   const setCalculatingHash = useAutorunsStore((s) => s.setCalculatingHash);
@@ -158,6 +160,13 @@ export function AutorunsPage() {
         <div className="px-3 py-1.5 bg-danger/10 text-danger text-xs flex items-center gap-2">
           <span className="flex-1">{error}</span>
           <button className="text-danger/60 hover:text-danger" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {success && (
+        <div className="px-3 py-1.5 bg-success/10 text-success text-xs flex items-center gap-2">
+          <span className="flex-1">{success}</span>
+          <button className="text-success/60 hover:text-success" onClick={() => setSuccess(null)}>✕</button>
         </div>
       )}
 

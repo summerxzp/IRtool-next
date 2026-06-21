@@ -37,6 +37,9 @@ interface AutorunsState {
   error: string | null;
   setError: (e: string | null) => void;
 
+  success: string | null;
+  setSuccess: (e: string | null) => void;
+
   lastScanDuration: number | null;
   setLastScanDuration: (d: number | null) => void;
 
@@ -83,6 +86,9 @@ export const useAutorunsStore = create<AutorunsState>()((set) => ({
 
   error: null,
   setError: (error) => set({ error }),
+
+  success: null,
+  setSuccess: (success) => set({ success }),
 
   lastScanDuration: null,
   setLastScanDuration: (lastScanDuration) => set({ lastScanDuration }),

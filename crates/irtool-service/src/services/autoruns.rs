@@ -141,6 +141,8 @@ impl<'a> AutorunsService<'a> {
             item.location
         );
 
+        // Clone item for logging after spawn_blocking consumes it
+        let item_for_log = item.clone();
         let result = tokio::task::spawn_blocking(move || match scanner_clone.as_ref() {
             Some(s) => s.delete_entry(&item),
             None => Err(IrError::FeatureDisabled("autoruns scanner not available".into())),
@@ -153,6 +155,25 @@ impl<'a> AutorunsService<'a> {
             result.success,
             result.message
         );
+
+        if !result.success {
+            // 删除失败时输出完整条目信息，便于诊断
+            tracing::warn!(
+                "delete entry failed, full item: id={}, category={}, entry={}, location={}, \
+                 enabled={}, image_path={:?}, launch_string={:?}, service_name={:?}, \
+                 description={}, publisher={}",
+                item_for_log.id,
+                item_for_log.category,
+                item_for_log.entry,
+                item_for_log.location,
+                item_for_log.enabled,
+                item_for_log.image_path,
+                item_for_log.launch_string,
+                item_for_log.service_name,
+                item_for_log.description,
+                item_for_log.publisher
+            );
+        }
 
         if result.success {
             self.ctx.autoruns_store.remove(entry_id);

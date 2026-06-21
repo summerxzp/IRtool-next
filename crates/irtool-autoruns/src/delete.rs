@@ -75,6 +75,13 @@ mod win_impls {
         };
         let value_name = &item.entry;
 
+        // autorunsc 用 \(Default) 后缀表示注册表默认值
+        // 统一处理：分离出真正的 subkey，删除默认值
+        if subkey.to_lowercase().ends_with(r"\(default)") {
+            let real_subkey = &subkey[..subkey.len() - r"\(Default)".len()];
+            return delete_registry_default_value(hive, real_subkey);
+        }
+
         // 3. Boot Execute — LSA_MULTI_SZ at HKLM\System\CurrentControlSet\Control\Session Manager
         if category == "boot execute" {
             return delete_boot_execute(item, hive, &subkey);
@@ -113,12 +120,24 @@ mod win_impls {
                 });
             }
             // GpExtensions 和 Notify 是子键结构，不是 MULTI_SZ 值
-            // entry 是描述名而非 GUID，无法直接定位子键
-            if subkey.to_lowercase().ends_with(r"\gpextensions") || subkey.to_lowercase().ends_with(r"\notify") {
+            // entry 是描述名而非 GUID，遍历子键匹配 DllName 值
+            let subkey_lower = subkey.to_lowercase();
+            if subkey_lower.ends_with(r"\gpextensions") || subkey_lower.ends_with(r"\notify") {
+                let search = item.launch_string.as_deref()
+                    .or(item.image_path.as_deref());
+                if let Some(search) = search {
+                    return super::find_and_delete_subkey_by_value(hive, &subkey, "DllName", search);
+                }
                 return Ok(DeleteResult {
                     success: false,
-                    message: "GpExtensions/Notify 项为子键结构，entry 为描述名而非 GUID，暂不支持自动删除，请手动处理"
-                        .into(),
+                    message: "GpExtensions/Notify 项缺少 launch_string 和 image_path，暂不支持自动删除，请手动处理".into(),
+                });
+            }
+            // Credential Provider Filters 等 entry 为空的情况
+            if value_name.is_empty() {
+                return Ok(DeleteResult {
+                    success: false,
+                    message: "entry 为空，无法定位删除目标，请手动处理".into(),
                 });
             }
             return delete_lsa_multi_sz(item, hive, &subkey, value_name);
@@ -140,8 +159,8 @@ mod win_impls {
         }
 
         // 15. Winsock LSP / Network Providers — complex chain-based
-        //     Generic delete may work for simple cases; chain removal requires LspFix-style logic
-        if category == "winsock" || category == "network providers" {
+        //     Catalog_Entries 子键是数字编号（如 000000000001），entry 是描述名
+        if category == "winsock" || category == "winsock providers" || category == "network providers" {
             return Ok(DeleteResult {
                 success: false,
                 message: "Winsock/网络提供程序项结构复杂，建议使用专用工具手动处理".into(),
@@ -156,6 +175,26 @@ mod win_impls {
         // 17. Sidebar Gadgets (Vista/7) — rare, generic value delete
         if category == "sidebar gadgets" || category == "gadgets" {
             return delete_registry_value(hive, &subkey, value_name);
+        }
+
+        // Active Setup\Installed Components — CLSID-based subkey structure
+        // autorunsc 的 location 是父键路径，entry 通常是描述名（如 "Microsoft Edge"），
+        // CLSID 往往在 launch_string 或 image_path 中
+        if subkey.to_lowercase().contains(r"active setup\installed components") {
+            if let Some(clsid) = super::extract_clsid_from_item(item) {
+                let full_subkey = format!(r"{}\{}", subkey, clsid);
+                return delete_registry_key(hive, &full_subkey);
+            }
+            // 无 CLSID，遍历子键匹配 StubPath 值（与 launch_string 或 image_path 包含匹配）
+            let search = item.launch_string.as_deref()
+                .or(item.image_path.as_deref());
+            if let Some(search) = search {
+                return super::find_and_delete_subkey_by_value(hive, &subkey, "StubPath", search);
+            }
+            return Ok(DeleteResult {
+                success: false,
+                message: "Active Setup 项缺少 launch_string 和 image_path，暂不支持自动删除，请手动处理".into(),
+            });
         }
 
         // 12. Generic registry value delete (Logon, Explorer, Codecs, etc.)
@@ -235,7 +274,8 @@ mod win_impls {
                 message: format!("计划任务 '{}' 已删除", task_name),
             })
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            // schtasks 输出使用系统 ANSI 编码（中文 Windows 为 GBK），用 encoding_rs 解码
+            let (stderr, _, _) = encoding_rs::GBK.decode(&output.stderr);
             Ok(DeleteResult {
                 success: false,
                 message: format!("删除计划任务 '{}' 失败: {}", task_name, stderr.trim()),
@@ -255,6 +295,12 @@ mod win_impls {
         // IFEO: entry is a subkey name under the location path
         // e.g. location = HKLM\...\Image File Execution Options, entry = irtool_test_dummy.exe
         // We need to delete the key: ...\Image File Execution Options\irtool_test_dummy.exe
+        if item.entry.is_empty() {
+            return Ok(DeleteResult {
+                success: false,
+                message: "IFEO 项 entry 为空，无法定位子键，请手动处理".into(),
+            });
+        }
         let full_subkey = format!(r"{}\{}", parent_subkey, item.entry);
         delete_registry_key(hive, &full_subkey)
     }
@@ -296,8 +342,8 @@ mod win_impls {
             let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
             return delete_registry_key(hive, &clsid_path);
         }
-        // No CLSID found, try generic value delete as fallback
-        delete_registry_value(hive, subkey, &item.entry)
+        // 无 CLSID，遍历子键匹配默认值（与 entry 描述名包含匹配）
+        super::find_and_delete_subkey_by_value(hive, subkey, "", &item.entry)
     }
 
     /// Explorer shell extensions: entries may be CLSID-based (context menu handlers,
@@ -333,31 +379,95 @@ mod win_impls {
             let result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_SET_VALUE, &mut h_key);
 
             if result.is_err() {
-                // ERROR_FILE_NOT_FOUND (2): key already gone — treat as success
+                // ERROR_FILE_NOT_FOUND (2): key doesn't exist — NOT success
                 if result.0 == 2 {
                     return Ok(DeleteResult {
-                        success: true,
-                        message: format!("注册表值 '{}' 已删除", value_name),
+                        success: false,
+                        message: format!("注册表项 '{}' 不存在", subkey),
+                    });
+                }
+                // ERROR_ACCESS_DENIED (5): 权限不足
+                if result.0 == 5 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("权限不足，无法打开注册表项 '{}'（可能需要 SYSTEM 权限）", subkey),
                     });
                 }
                 return Ok(DeleteResult {
                     success: false,
-                    message: format!("无法打开注册表项 '{}'", subkey),
+                    message: format!("无法打开注册表项 '{}' (错误: 0x{:08X})", subkey, result.0),
                 });
             }
 
             let result = RegDeleteValueW(h_key, &value_name_wide);
             let _ = RegCloseKey(h_key);
-            // ERROR_FILE_NOT_FOUND (2): value already gone — treat as success
-            if result.is_err() && result.0 != 2 {
+            if result.is_err() {
+                // ERROR_FILE_NOT_FOUND (2): value doesn't exist — NOT success
+                if result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("注册表值 '{}' 不存在于 '{}'", value_name, subkey),
+                    });
+                }
                 Ok(DeleteResult {
                     success: false,
-                    message: format!("删除注册表值 '{}' 失败", value_name),
+                    message: format!("删除注册表值 '{}' 失败 (错误: 0x{:08X})", value_name, result.0),
                 })
             } else {
                 Ok(DeleteResult {
                     success: true,
                     message: format!("注册表值 '{}' 已删除", value_name),
+                })
+            }
+        }
+    }
+
+    /// 删除注册表项的默认值（autorunsc 用 \(Default) 后缀表示）
+    fn delete_registry_default_value(hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
+        use windows::core::PCWSTR;
+        let subkey_wide = HSTRING::from(subkey);
+
+        unsafe {
+            let mut h_key = Default::default();
+            let result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_SET_VALUE, &mut h_key);
+
+            if result.is_err() {
+                if result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("注册表项 '{}' 不存在", subkey),
+                    });
+                }
+                if result.0 == 5 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("权限不足，无法打开注册表项 '{}'（可能需要 SYSTEM 权限）", subkey),
+                    });
+                }
+                return Ok(DeleteResult {
+                    success: false,
+                    message: format!("无法打开注册表项 '{}' (错误: 0x{:08X})", subkey, result.0),
+                });
+            }
+
+            // PCWSTR::null() 表示默认值
+            let result = RegDeleteValueW(h_key, PCWSTR::null());
+            let _ = RegCloseKey(h_key);
+            if result.is_err() {
+                if result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("默认值不存在于 '{}'", subkey),
+                    });
+                }
+                Ok(DeleteResult {
+                    success: false,
+                    message: format!("删除默认值失败 (错误: 0x{:08X})", result.0),
+                })
+            } else {
+                Ok(DeleteResult {
+                    success: true,
+                    message: format!("默认值已删除于 '{}'", subkey),
                 })
             }
         }
@@ -391,9 +501,21 @@ mod win_impls {
             let result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_QUERY_VALUE | KEY_SET_VALUE, &mut h_key);
 
             if result.is_err() {
+                if result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("注册表项 '{}' 不存在", subkey),
+                    });
+                }
+                if result.0 == 5 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("权限不足，无法打开注册表项 '{}'（可能需要 SYSTEM 权限）", subkey),
+                    });
+                }
                 return Ok(DeleteResult {
                     success: false,
-                    message: format!("无法打开注册表项 '{}'", subkey),
+                    message: format!("无法打开注册表项 '{}' (错误: 0x{:08X})", subkey, result.0),
                 });
             }
 
@@ -590,9 +712,154 @@ fn extract_clsid(text: &str) -> Option<String> {
     Some(caps.as_str().to_owned())
 }
 
-/// Extract CLSID from an AutorunItem — tries `location` first, then `entry`.
+/// Extract CLSID from an AutorunItem — tries `location`, `entry`, `launch_string`, `image_path`.
+/// autorunsc 对 Active Setup / BHO 等条目，entry 通常是描述名而非 CLSID，
+/// CLSID 往往出现在 launch_string 或 image_path 中。
 fn extract_clsid_from_item(item: &AutorunItem) -> Option<String> {
-    extract_clsid(&item.location).or_else(|| extract_clsid(&item.entry))
+    extract_clsid(&item.location)
+        .or_else(|| extract_clsid(&item.entry))
+        .or_else(|| item.launch_string.as_deref().and_then(extract_clsid))
+        .or_else(|| item.image_path.as_deref().and_then(extract_clsid))
+}
+
+/// 遍历父键的子键，读取每个子键的指定值名，与 search 字符串做不区分大小写的包含匹配。
+/// 找到匹配的子键后删除整个子键（含所有子键和值）。
+///
+/// 用于 autorunsc 不输出 CLSID 的情况：
+/// - Active Setup: value_name="StubPath", search=launch_string
+/// - BHO: value_name="" (默认值), search=entry（描述名）
+#[cfg(windows)]
+fn find_and_delete_subkey_by_value(
+    hive: windows::Win32::System::Registry::HKEY,
+    parent_subkey: &str,
+    value_name: &str,
+    search: &str,
+) -> Result<DeleteResult, IrError> {
+    use windows::core::{HSTRING, PCWSTR, PWSTR};
+    use windows::Win32::System::Registry::*;
+
+    let parent_wide = HSTRING::from(parent_subkey);
+    let search_lower = search.to_lowercase();
+
+    // 在循环外创建 value_name 的 HSTRING，避免悬垂指针
+    let value_name_hstring: Option<HSTRING> = if value_name.is_empty() {
+        None
+    } else {
+        Some(HSTRING::from(value_name))
+    };
+    let value_name_pcwstr: PCWSTR = match &value_name_hstring {
+        Some(h) => PCWSTR(h.as_ptr()),
+        None => PCWSTR::null(),
+    };
+
+    unsafe {
+        let mut h_parent = Default::default();
+        let result = RegOpenKeyExW(
+            hive,
+            &parent_wide,
+            None,
+            KEY_READ | KEY_ENUMERATE_SUB_KEYS,
+            &mut h_parent,
+        );
+        if result.is_err() {
+            return Ok(DeleteResult {
+                success: false,
+                message: format!("无法打开注册表项 '{}' (错误: 0x{:08X})", parent_subkey, result.0),
+            });
+        }
+
+        let mut index: u32 = 0;
+        let mut matched_subkey: Option<String> = None;
+
+        loop {
+            let mut name_buf = [0u16; 256];
+            let mut name_len = name_buf.len() as u32;
+
+            let result = RegEnumKeyExW(
+                h_parent,
+                index,
+                Some(PWSTR(name_buf.as_mut_ptr())),
+                &mut name_len,
+                None,
+                None,
+                None,
+                None,
+            );
+
+            if result.is_err() {
+                break;
+            }
+
+            let subkey_name = String::from_utf16_lossy(&name_buf[..name_len as usize]);
+            tracing::debug!(
+                "find_and_delete_subkey_by_value: checking subkey '{}' under '{}'",
+                subkey_name, parent_subkey
+            );
+
+            let subkey_wide = HSTRING::from(&subkey_name);
+            let mut h_sub = Default::default();
+            if RegOpenKeyExW(h_parent, &subkey_wide, None, KEY_READ, &mut h_sub).is_ok() {
+                let mut buf = [0u8; 4096];
+                let mut buf_len = buf.len() as u32;
+                let mut reg_type = REG_NONE;
+
+                let q_result = RegQueryValueExW(
+                    h_sub,
+                    value_name_pcwstr,
+                    None,
+                    Some(&mut reg_type),
+                    Some(buf.as_mut_ptr()),
+                    Some(&mut buf_len),
+                );
+
+                if q_result.is_ok() && (reg_type == REG_SZ || reg_type == REG_EXPAND_SZ) {
+                    let value_str = String::from_utf16_lossy(
+                        &std::slice::from_raw_parts(buf.as_ptr() as *const u16, (buf_len / 2) as usize),
+                    );
+                    tracing::debug!(
+                        "find_and_delete_subkey_by_value: subkey '{}' {}='{}'",
+                        subkey_name,
+                        if value_name.is_empty() { "(Default)" } else { value_name },
+                        value_str
+                    );
+                    if value_str.to_lowercase().contains(&search_lower) {
+                        matched_subkey = Some(subkey_name.clone());
+                        let _ = RegCloseKey(h_sub);
+                        break;
+                    }
+                }
+
+                let _ = RegCloseKey(h_sub);
+            }
+
+            index += 1;
+        }
+
+        let _ = RegCloseKey(h_parent);
+
+        if let Some(subkey_name) = matched_subkey {
+            let full_path = format!(r"{}\{}", parent_subkey, subkey_name);
+            tracing::info!("find_and_delete_subkey_by_value: matched subkey '{}'", full_path);
+            match delete_registry_key_fallback(hive, &full_path) {
+                Ok(()) => Ok(DeleteResult {
+                    success: true,
+                    message: format!("注册表项 '{}' 已删除", full_path),
+                }),
+                Err(e) => Ok(DeleteResult {
+                    success: false,
+                    message: format!("删除注册表项 '{}' 失败: {}", full_path, e),
+                }),
+            }
+        } else {
+            Ok(DeleteResult {
+                success: false,
+                message: format!(
+                    "在 '{}' 下未找到匹配 '{}' 的子键",
+                    parent_subkey, search
+                ),
+            })
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -611,20 +878,23 @@ fn delete_registry_key_fallback(
         if result.is_ok() {
             return Ok(());
         }
-        // ERROR_FILE_NOT_FOUND (2): key already gone — treat as success
+        // ERROR_FILE_NOT_FOUND (2): key doesn't exist — NOT success
         if result.0 == 2 {
-            return Ok(());
+            return Err(irtool_core::IrError::Io(format!("注册表项 '{}' 不存在", subkey)));
         }
 
-        // Fallback: try simple RegDeleteKeyW
+        // Fallback: try simple RegDeleteKeyW (for older Windows versions)
         let result = RegDeleteKeyW(hive, &subkey_wide);
-        if result.is_err() && result.0 != 2 {
-            return Err(irtool_core::IrError::Io(format!(
-                "删除注册表项失败: 0x{:08X}",
-                result.0
-            )));
+        if result.is_ok() {
+            return Ok(());
         }
-        Ok(())
+        if result.0 == 2 {
+            return Err(irtool_core::IrError::Io(format!("注册表项 '{}' 不存在", subkey)));
+        }
+        Err(irtool_core::IrError::Io(format!(
+            "删除注册表项失败: 0x{:08X}",
+            result.0
+        )))
     }
 }
 
