@@ -22,7 +22,7 @@
 | 3 | **Rust 测试** | `cargo test --workspace --exclude irtool-tauri --no-fail-fast` | `rust` | 单元测试失败 |
 | 4 | **前端类型检查** | `cd ui && pnpm lint` | `ui` | TypeScript 类型错误 |
 | 5 | **前端构建** | `cd ui && pnpm build` | `ui` | 构建失败（缺少导入、语法错误等） |
-| 6 | **Tauri Release 构建** | `cargo build --release -p irtool-tauri` | `tauri-build` | 链接错误、Windows API 不兼容 |
+| 6 | **Tauri Release 构建** | `cargo build --release -p irtool-tauri --features irtool-tauri/egui-fallback` | `tauri-build` | 链接错误、Windows API 不兼容、egui 降级 UI 集成代码编译失败 |
 
 ---
 
@@ -87,13 +87,16 @@ cd ui && pnpm build
 - 缺少 Tailwind 类名或主题变量
 - TanStack Router 路由树未更新（运行 `pnpm dev` 会自动生成）
 
-### 6. Tauri Release 构建
+### 6. Tauri Release 构建（含 egui-fallback）
 
 ```powershell
-cargo build --release -p irtool-tauri
+cargo build --release -p irtool-tauri --features irtool-tauri/egui-fallback
 ```
 
-**注意**：这是最耗时的检查，通常本地只需确认 `cargo check -p irtool-tauri` 通过即可。完整 release 构建交给 CI。
+**注意**：
+- `--features irtool-tauri/egui-fallback` 启用 egui 降级 UI 集成代码，与打包时的配置一致
+- 这是最耗时的检查，通常本地只需确认 `cargo check -p irtool-tauri --features irtool-tauri/egui-fallback` 通过即可。完整 release 构建交给 CI。
+- 如果只改了 egui crate 本身的代码，可用 `cargo check -p irtool-egui` 快速验证
 
 ---
 
@@ -102,9 +105,10 @@ cargo build --release -p irtool-tauri
 ```
 提交前 → 改了 Rust 代码？
   ├─ 是 → 执行 #1 #2 #3
+  │       └─ 改了 egui 或 irtool-tauri 集成代码？→ 额外执行 #6
   └─ 否 → 改了前端代码？
       ├─ 是 → 执行 #4 #5
-      └─ 都改了 → 执行 #1 #2 #3 #4 #5
+      └─ 都改了 → 执行 #1 #2 #3 #4 #5 #6
 ```
 
 ---
