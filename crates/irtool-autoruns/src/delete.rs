@@ -841,7 +841,7 @@ fn find_and_delete_subkey_by_value(
                 );
 
                 if q_result.is_ok() && (reg_type == REG_SZ || reg_type == REG_EXPAND_SZ) {
-                    let value_str = String::from_utf16_lossy(&std::slice::from_raw_parts(
+                    let value_str = String::from_utf16_lossy(std::slice::from_raw_parts(
                         buf.as_ptr() as *const u16,
                         (buf_len / 2) as usize,
                     ));
