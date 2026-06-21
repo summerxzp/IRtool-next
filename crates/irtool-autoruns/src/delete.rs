@@ -112,6 +112,15 @@ mod win_impls {
                     message: "Shell/Userinit 是系统关键值，删除后将无法登录，请手动处理".into(),
                 });
             }
+            // GpExtensions 和 Notify 是子键结构，不是 MULTI_SZ 值
+            // entry 是描述名而非 GUID，无法直接定位子键
+            if subkey.to_lowercase().ends_with(r"\gpextensions") || subkey.to_lowercase().ends_with(r"\notify") {
+                return Ok(DeleteResult {
+                    success: false,
+                    message: "GpExtensions/Notify 项为子键结构，entry 为描述名而非 GUID，暂不支持自动删除，请手动处理"
+                        .into(),
+                });
+            }
             return delete_lsa_multi_sz(item, hive, &subkey, value_name);
         }
 
@@ -177,6 +186,12 @@ mod win_impls {
                 Ok(s) => s,
                 Err(e) => {
                     let _ = CloseServiceHandle(scm);
+                    // ERROR_SERVICE_DOES_NOT_EXIST (0x80070424): 服务未安装但注册表可能残留，
+                    // fallback 到删除注册表项
+                    if e.code() == windows::core::HRESULT(0x80070424u32 as i32) {
+                        let reg_path = format!(r"SYSTEM\CurrentControlSet\Services\{}", service_name);
+                        return delete_registry_key(HKEY_LOCAL_MACHINE, &reg_path);
+                    }
                     return Ok(DeleteResult {
                         success: false,
                         message: format!("无法打开服务 '{}': {}", service_name, e),

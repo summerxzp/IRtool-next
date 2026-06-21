@@ -48,8 +48,8 @@ async fn cmd_app_force_quit(app: tauri::AppHandle, ctx: State<'_, AppContext>) -
 /// 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
 /// 导致新进程启动后立即退出的问题。
 ///
-/// 原理：spawn 一个 detached cmd.exe 子进程，轮询等待当前进程退出后再启动新实例，
-/// 然后当前进程调用 app.exit(0) 退出。
+/// 原理：将批处理脚本写入临时 bat 文件，spawn 一个 detached cmd.exe 子进程，
+/// 轮询等待当前进程退出后再启动新实例，然后当前进程调用 app.exit(0) 退出。
 #[tauri::command]
 #[specta::specta]
 async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Result<(), IrError> {
@@ -58,31 +58,54 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
 
     let current_exe = std::env::current_exe().map_err(|e| IrError::Internal(format!("获取当前 exe 路径失败: {e}")))?;
     let pid = std::process::id();
+    let exe_path = current_exe.display().to_string();
+
+    info!("[cmd_relaunch] pid={pid}, exe={exe_path}");
 
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        use std::process::Stdio;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+        // 将批处理脚本写入临时文件，避免 cmd /c 多行字符串传递问题
+        let bat_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.bat"));
+        let log_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.log"));
+
         // 批处理脚本：等待当前 PID 退出后启动新实例
+        // 每步都写入日志文件，方便诊断
         let script = format!(
             "@echo off\r\n\
+             echo [%date% %time%] relaunch script started, waiting for PID {pid} > \"{log}\"\r\n\
              :wait\r\n\
              tasklist /fi \"pid eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
              if %errorlevel%==0 (\r\n\
                  ping -n 2 127.0.0.1 >nul\r\n\
                  goto wait\r\n\
              )\r\n\
-             start \"\" \"{exe}\"\r\n",
+             echo [%date% %time%] PID {pid} exited, starting {exe} >> \"{log}\"\r\n\
+             start \"\" \"{exe}\"\r\n\
+             echo [%date% %time%] start command issued >> \"{log}\"\r\n\
+             del \"%~f0\"\r\n",
             pid = pid,
-            exe = current_exe.display()
+            exe = exe_path,
+            log = log_path.display(),
         );
 
+        std::fs::write(&bat_path, &script).map_err(|e| IrError::Internal(format!("写入临时 bat 文件失败: {e}")))?;
+
+        info!("[cmd_relaunch] bat file: {}", bat_path.display());
+
         std::process::Command::new("cmd")
-            .args(["/c", &script])
+            .args(["/c", bat_path.to_str().unwrap()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| IrError::Internal(format!("启动重启辅助进程失败: {e}")))?;
+
+        info!("[cmd_relaunch] helper process spawned, exiting app");
     }
 
     #[cfg(not(windows))]

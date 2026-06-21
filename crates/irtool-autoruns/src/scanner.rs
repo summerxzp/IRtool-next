@@ -567,16 +567,13 @@ fn extract_service_name(raw: &RawEntry) -> String {
         }
     }
 
-    // Fallback: extract from launch_string binary path
-    if !raw.launch_string.is_empty() {
-        if let Some(name) = extract_service_name_from_path(&raw.launch_string) {
-            return name;
-        }
-    }
-
+    // For Services/Drivers, entry field IS the service name (autorunsc puts it there).
+    // Do NOT extract from binary path — multiple services can share the same binary
+    // (e.g. edgeupdate and edgeupdatem both use MicrosoftEdgeUpdate.exe).
     raw.entry.clone()
 }
 
+#[allow(dead_code)]
 fn extract_service_name_from_path(path: &str) -> Option<String> {
     // Strip surrounding quotes and anything after the executable extension
     // e.g. '"C:\Program Files\BitComet\BitCometService.exe" -service' → 'BitCometService'

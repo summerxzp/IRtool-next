@@ -26,7 +26,9 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         let _ = std::fs::create_dir_all(&log_dir);
     }
 
-    // --- app.log: all logs ---
+    // --- app.log: 应用生命周期、UI、错误 ---
+    // 监控类 crate (irtool_monitor, irtool_net_monitor, irtool_pcap, irtool_sysmon) 只保留
+    // info 以上级别，其 DEBUG 日志分流到 monitor.log，避免 app.log 被高频数据淹没。
     let app_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("irtool-app")
@@ -44,8 +46,15 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     let (app_nb, app_guard) = tracing_appender::non_blocking(app_appender);
 
-    let app_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,irtool=debug,tauri=info"));
+    let app_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new(
+            "info,irtool=debug,\
+             irtool_monitor=info,irtool_net_monitor=info,\
+             irtool_pcap=info,irtool_sysmon=info,\
+             irtool_tools=info,\
+             tauri=info",
+        )
+    });
 
     let app_layer = fmt::layer()
         .with_writer(app_nb)
@@ -57,7 +66,9 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
         .with_timer(LocalTimer)
         .with_filter(app_filter);
 
-    // --- monitor.log: irtool_monitor crate only ---
+    // --- monitor.log: 所有监控相关 crate 的 DEBUG 日志 ---
+    // 包含 irtool_monitor (规则引擎/告警), irtool_net_monitor (网络连接),
+    // irtool_pcap (抓包/SNI/DNS), irtool_sysmon (Sysmon 事件)
     let monitor_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("irtool-monitor")
@@ -75,7 +86,10 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     let (monitor_nb, monitor_guard) = tracing_appender::non_blocking(monitor_appender);
 
-    let monitor_filter = EnvFilter::new("irtool_monitor=debug");
+    let monitor_filter = EnvFilter::new(
+        "irtool_monitor=debug,irtool_net_monitor=debug,\
+         irtool_pcap=debug,irtool_sysmon=debug",
+    );
 
     let monitor_layer = fmt::layer()
         .with_writer(monitor_nb)
