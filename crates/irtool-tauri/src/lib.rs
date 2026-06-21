@@ -74,6 +74,8 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
 
         // 批处理脚本：等待当前 PID 退出后启动新实例
         // 每步都写入日志文件，方便诊断
+        // 转义 exe_path 中的 % 字符，cmd.exe 中 %% 表示字面量 %
+        let exe_escaped = exe_path.replace('%', "%%");
         let script = format!(
             "@echo off\r\n\
              echo [%date% %time%] relaunch script started, waiting for PID {pid} > \"{log}\"\r\n\
@@ -86,9 +88,10 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
              echo [%date% %time%] PID {pid} exited, starting {exe} >> \"{log}\"\r\n\
              start \"\" \"{exe}\"\r\n\
              echo [%date% %time%] start command issued >> \"{log}\"\r\n\
+             del \"{log}\"\r\n\
              del \"%~f0\"\r\n",
             pid = pid,
-            exe = exe_path,
+            exe = exe_escaped,
             log = log_path.display(),
         );
 

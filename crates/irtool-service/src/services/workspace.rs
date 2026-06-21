@@ -80,10 +80,52 @@ impl<'a> WorkspaceService<'a> {
             .unwrap_or_else(|| "sample".to_string());
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let output_path = std::path::Path::new(&output_dir).join(format!("{}_{}.7z", filename, timestamp));
-        run_typed_command(
-            "7z",
-            format!("a -p\"{}\" \"{}\" \"{}\"", password, output_path.display(), path),
-        )
+
+        tracing::info!("sampling path: {} -> {}", path, output_path.display());
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let output = std::process::Command::new("7z")
+                .arg("a")
+                .arg(format!("-p{}", password))
+                .arg(&output_path)
+                .arg(&path)
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .map_err(|e| IrError::Internal(format!("启动 7z 失败: {}", e)))?;
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(IrError::Internal(format!(
+                    "7z failed (exit {}): {}",
+                    output.status.code().unwrap_or(-1),
+                    stderr
+                )))
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let output = std::process::Command::new("7z")
+                .arg("a")
+                .arg(format!("-p{}", password))
+                .arg(&output_path)
+                .arg(&path)
+                .output()
+                .map_err(|e| IrError::Internal(format!("启动 7z 失败: {}", e)))?;
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(IrError::Internal(format!(
+                    "7z failed (exit {}): {}",
+                    output.status.code().unwrap_or(-1),
+                    stderr
+                )))
+            }
+        }
     }
 
     pub fn open_path(path: String) -> Result<String, IrError> {
@@ -96,35 +138,40 @@ impl<'a> WorkspaceService<'a> {
 
 fn run_typed_command(program: &str, args: String) -> Result<String, IrError> {
     tracing::info!("typed command: {} {}", program, args);
-    let program_owned = program.to_string();
-    let output = std::thread::spawn(move || {
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            std::process::Command::new(&program_owned)
-                .args(shell_words_split(&args))
-                .creation_flags(0x08000000)
-                .output()
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let output = std::process::Command::new(program)
+            .args(shell_words_split(&args))
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(IrError::Internal(format!(
+                "command failed (exit {}): {}",
+                output.status.code().unwrap_or(-1),
+                stderr
+            )))
         }
-        #[cfg(not(windows))]
-        {
-            std::process::Command::new(&program_owned)
-                .args(shell_words_split(&args))
-                .output()
+    }
+    #[cfg(not(windows))]
+    {
+        let output = std::process::Command::new(program)
+            .args(shell_words_split(&args))
+            .output()?;
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(IrError::Internal(format!(
+                "command failed (exit {}): {}",
+                output.status.code().unwrap_or(-1),
+                stderr
+            )))
         }
-    })
-    .join()
-    .map_err(|e| IrError::Internal(format!("thread join error: {:?}", e)))??;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(IrError::Internal(format!(
-            "command failed (exit {}): {}",
-            output.status.code().unwrap_or(-1),
-            stderr
-        )))
     }
 }
 

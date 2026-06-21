@@ -122,7 +122,9 @@ mod win_impls {
             // GpExtensions 和 Notify 是子键结构，不是 MULTI_SZ 值
             // entry 是描述名而非 GUID，遍历子键匹配 DllName 值
             let subkey_lower = subkey.to_lowercase();
-            if subkey_lower.ends_with(r"\gpextensions") || subkey_lower.ends_with(r"\notify") {
+            let is_winlogon_notify = subkey_lower.ends_with(r"winlogon\notify");
+            let is_winlogon_gpext = subkey_lower.ends_with(r"winlogon\gpextensions");
+            if is_winlogon_notify || is_winlogon_gpext {
                 let search = item.launch_string.as_deref()
                     .or(item.image_path.as_deref());
                 if let Some(search) = search {
@@ -353,17 +355,19 @@ mod win_impls {
         if let Some(ref clsid) = clsid {
             // For shell extensions, the CLSID is typically a subkey name
             let full_subkey = format!(r"{}\{}", subkey, clsid);
-            let result = super::delete_registry_key_fallback(hive, &full_subkey);
-            if result.is_ok() {
-                // Also try to remove the CLSID class registration
-                let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
-                let _ = super::delete_registry_key_fallback(hive, &clsid_path);
-                return Ok(DeleteResult {
-                    success: true,
-                    message: format!("Explorer 扩展 '{}' 已删除", clsid),
-                });
+            let result = delete_registry_key(hive, &full_subkey);
+            if let Ok(dr) = &result {
+                if dr.success {
+                    // 子键删除成功，也尝试删除 CLSID 类注册
+                    let clsid_path = format!(r"SOFTWARE\Classes\CLSID\{}", clsid);
+                    let _ = delete_registry_key(hive, &clsid_path);
+                    return Ok(DeleteResult {
+                        success: true,
+                        message: format!("Explorer 扩展 '{}' 已删除", clsid),
+                    });
+                }
             }
-            // If subkey delete failed, it might be a value name containing the CLSID
+            // 子键不存在或删除失败，尝试作为值名删除
             return delete_registry_value(hive, subkey, clsid);
         }
         // No CLSID, treat as plain registry value
@@ -474,6 +478,30 @@ mod win_impls {
     }
 
     fn delete_registry_key(hive: HKEY, subkey: &str) -> Result<DeleteResult, IrError> {
+        // 先检查 key 是否存在，不存在则返回 success=false（防止误报）
+        let subkey_wide = HSTRING::from(subkey);
+        unsafe {
+            let mut h_key = Default::default();
+            let open_result = RegOpenKeyExW(hive, &subkey_wide, None, KEY_READ, &mut h_key);
+            if open_result.is_err() {
+                if open_result.0 == 2 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("注册表项 '{}' 不存在", subkey),
+                    });
+                }
+                if open_result.0 == 5 {
+                    return Ok(DeleteResult {
+                        success: false,
+                        message: format!("权限不足，无法打开注册表项 '{}'（可能需要 SYSTEM 权限）", subkey),
+                    });
+                }
+                // 其他错误继续尝试删除
+            } else {
+                let _ = RegCloseKey(h_key);
+            }
+        }
+        // key 存在或不确定，执行删除
         let result = super::delete_registry_key_fallback(hive, subkey);
         match result {
             Ok(()) => Ok(DeleteResult {
@@ -822,7 +850,12 @@ fn find_and_delete_subkey_by_value(
                         if value_name.is_empty() { "(Default)" } else { value_name },
                         value_str
                     );
-                    if value_str.to_lowercase().contains(&search_lower) {
+                    let value_clean = value_str.trim_end_matches('\0');
+                    let value_lower = value_clean.to_lowercase();
+                    // 精确匹配，或文件名部分匹配（兼容 REG_EXPAND_SZ 未展开的情况）
+                    let search_filename = search_lower.rsplit(['\\', '/']).next().unwrap_or(&search_lower);
+                    let value_filename = value_lower.rsplit(['\\', '/']).next().unwrap_or(&value_lower);
+                    if value_lower == search_lower || value_filename == search_filename {
                         matched_subkey = Some(subkey_name.clone());
                         let _ = RegCloseKey(h_sub);
                         break;
@@ -878,9 +911,9 @@ fn delete_registry_key_fallback(
         if result.is_ok() {
             return Ok(());
         }
-        // ERROR_FILE_NOT_FOUND (2): key doesn't exist — NOT success
+        // ERROR_FILE_NOT_FOUND (2): key doesn't exist — idempotent success
         if result.0 == 2 {
-            return Err(irtool_core::IrError::Io(format!("注册表项 '{}' 不存在", subkey)));
+            return Ok(());
         }
 
         // Fallback: try simple RegDeleteKeyW (for older Windows versions)
@@ -889,7 +922,7 @@ fn delete_registry_key_fallback(
             return Ok(());
         }
         if result.0 == 2 {
-            return Err(irtool_core::IrError::Io(format!("注册表项 '{}' 不存在", subkey)));
+            return Ok(());
         }
         Err(irtool_core::IrError::Io(format!(
             "删除注册表项失败: 0x{:08X}",

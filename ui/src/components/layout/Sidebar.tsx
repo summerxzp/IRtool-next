@@ -34,7 +34,9 @@ export function Sidebar() {
   const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isBackground = useMonitoringStore((s) => s.isBackground);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() =>
+    localStorage.getItem("sidebar-expanded") === "true"
+  );
 
   const renderItem = (item: NavItem, extraClass?: string) => {
     const Icon = item.icon;
@@ -80,7 +82,11 @@ export function Sidebar() {
         {/* 展开/收起按钮 */}
         <div className="pt-2 pb-1 flex justify-center">
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => {
+              const next = !expanded;
+              setExpanded(next);
+              localStorage.setItem("sidebar-expanded", String(next));
+            }}
             className="h-8 w-8 rounded-md flex items-center justify-center text-fg-tertiary hover:text-fg-primary hover:bg-bg-elev-2 transition-colors"
           >
             {expanded ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}

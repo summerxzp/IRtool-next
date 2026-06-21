@@ -127,6 +127,7 @@ export function useDeleteEntry() {
   const setSuccess = useAutorunsStore((s) => s.setSuccess);
   return useMutation({
     mutationFn: api.deleteEntry,
+    onMutate: () => { setError(null); setSuccess(null); },
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: QK_AUTORUNS });
       if (result.success) {

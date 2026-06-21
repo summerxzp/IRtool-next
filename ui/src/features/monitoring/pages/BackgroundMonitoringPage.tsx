@@ -6,13 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -372,15 +365,15 @@ export default function BackgroundMonitoringPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Label className="text-xs shrink-0 w-28">快照间隔</Label>
+                <Label className="text-xs shrink-0 w-28">抓包时长</Label>
                 <Input
                   type="number"
                   min={1}
-                  max={60}
-                  value={Math.round(config.max_duration_secs / 1000) || 2}
+                  max={3600}
+                  value={config.max_duration_secs || 30}
                   onChange={(e) => {
                     const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v >= 1) setConfig((prev) => ({ ...prev, max_duration_secs: v * 1000 }));
+                    if (!isNaN(v) && v >= 1) setConfig((prev) => ({ ...prev, max_duration_secs: v }));
                   }}
                   className="h-7 w-20 text-xs"
                 />
@@ -388,20 +381,7 @@ export default function BackgroundMonitoringPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Label className="text-xs shrink-0 w-28">命令行富化</Label>
-                <Select
-                  value={config.adapter_ip ? "background" : "off"}
-                  onValueChange={(v) =>
-                    setConfig((prev) => ({ ...prev, adapter_ip: v === "off" ? null : prev.adapter_ip || "auto" }))
-                  }
-                >
-                  <SelectTrigger className="h-7 w-32 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="off">关闭</SelectItem>
-                    <SelectItem value="background">后台富化</SelectItem>
-                  </SelectContent>
-                </Select>
+                <span className="text-xs text-fg-tertiary">开发中</span>
               </div>
             </div>
           </section>
