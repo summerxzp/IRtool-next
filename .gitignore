@@ -49,8 +49,9 @@ ui/test-results/
 # Temp files
 tmp_*.csv
 
-# Docs (local planning) - now tracked
-# docs/
+# Docs (local planning) - only docs/synced/ is tracked
+docs/*
+!docs/synced/
 
 # IDE / tool temp dirs
 .workbuddy/
