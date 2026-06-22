@@ -45,6 +45,30 @@
       "cmdline": "命令行",
       "create-time": "创建时间",
       "snapshot-time": "快照时间"
+    },
+    "tabs": {
+      "chain": "进程链",
+      "network": "网络连接",
+      "autoruns": "持久化条目"
+    },
+    "association": {
+      "view-network": "查看网络监控",
+      "view-autoruns": "查看持久化检测",
+      "no-network": "无网络连接",
+      "no-autoruns": "无持久化条目",
+      "no-exe-path": "无法查询：进程路径未知"
+    },
+    "network": {
+      "proto": "协议",
+      "local": "本地地址",
+      "remote": "远程地址",
+      "state": "状态",
+      "last-seen": "最后活跃"
+    },
+    "autoruns": {
+      "category": "类别",
+      "entry": "条目名",
+      "location": "位置"
     }
   },
   "status": {

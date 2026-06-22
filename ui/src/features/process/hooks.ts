@@ -23,3 +23,25 @@ export function useProcessChain(pid: number | null) {
     refetchOnMount: false,
   });
 }
+
+export function useNetworkByPid(pid: number | null) {
+  return useQuery({
+    queryKey: ["process", "network", pid],
+    queryFn: () => api.getNetworkByPid(pid!),
+    enabled: pid != null,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
+}
+
+export function useAutorunsByPath(exePath: string | null) {
+  return useQuery({
+    queryKey: ["process", "autoruns", exePath],
+    queryFn: () => api.getAutorunsByPath(exePath!),
+    enabled: exePath != null,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
+}

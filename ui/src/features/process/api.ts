@@ -23,3 +23,15 @@ export async function batchExtractIcons(paths: string[]) {
   if (result.status === "error") throw result.error;
   return result.data;
 }
+
+export async function getNetworkByPid(pid: number) {
+  const result = await commands.cmdNetworkQueryByPid(pid);
+  if (result.status === "error") throw result.error;
+  return result.data;
+}
+
+export async function getAutorunsByPath(exePath: string) {
+  const result = await commands.cmdAutorunsQueryByPath(exePath);
+  if (result.status === "error") throw result.error;
+  return result.data;
+}

@@ -45,6 +45,30 @@
       "cmdline": "Command Line",
       "create-time": "Create Time",
       "snapshot-time": "Snapshot Time"
+    },
+    "tabs": {
+      "chain": "Process Chain",
+      "network": "Network",
+      "autoruns": "Autoruns"
+    },
+    "association": {
+      "view-network": "View in Network Monitor",
+      "view-autoruns": "View in Autoruns",
+      "no-network": "No network connections",
+      "no-autoruns": "No autoruns entries",
+      "no-exe-path": "Cannot query: process path unknown"
+    },
+    "network": {
+      "proto": "Proto",
+      "local": "Local",
+      "remote": "Remote",
+      "state": "State",
+      "last-seen": "Last Seen"
+    },
+    "autoruns": {
+      "category": "Category",
+      "entry": "Entry",
+      "location": "Location"
     }
   },
   "status": {
