@@ -19,7 +19,7 @@ export const useProcessStore = create<ProcessState>()((set) => ({
   selectedPid: null,
   setSelectedPid: (selectedPid) => set({ selectedPid }),
 
-  viewMode: "list",
+  viewMode: "tree",
   setViewMode: (viewMode) => set({ viewMode }),
 
   filter: "all",

@@ -80,7 +80,7 @@ export function EntryWithIcon({ name, imagePath }: { name: string; imagePath: st
   return (
     <span className="flex items-center gap-1.5">
       {iconSrc ? (
-        <img src={iconSrc} alt="" className="w-4 h-4 shrink-0" />
+        <img src={iconSrc} alt="" className="w-4 h-4 shrink-0 object-contain" />
       ) : (
         <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />
       )}

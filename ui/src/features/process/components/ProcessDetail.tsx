@@ -36,7 +36,7 @@ function ChainNodeIcon({ imagePath }: { imagePath: string | null }) {
   );
 
   if (iconSrc) {
-    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0" />;
+    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0 object-contain" />;
   }
   return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
 }
@@ -275,7 +275,7 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
                 return (
                   <div key={node.pid}>
                     <div
-                      className={`flex items-center gap-1 text-xs cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-secondary ${node.is_target ? "bg-accent" : ""}`}
+                      className={`flex items-center gap-1 text-xs cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-secondary ${node.is_target ? "bg-accent/15 text-accent" : ""}`}
                       style={{ paddingLeft: `${i * 12 + 4}px` }}
                       onClick={() => setExpandedIdx(isExpanded ? null : originalIdx)}
                     >

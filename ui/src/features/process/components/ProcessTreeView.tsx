@@ -52,7 +52,7 @@ function TreeNodeIcon({ imagePath }: { imagePath: string | null }) {
   );
 
   if (iconSrc) {
-    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0" />;
+    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0 object-contain" />;
   }
   return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
 }
@@ -68,7 +68,7 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
         className={`flex items-center gap-1 px-2 cursor-pointer hover:bg-bg-elev-2/40 transition-colors ${
           isSelected ? "bg-bg-elev-2" : ""
         } ${node.isOrphan ? "border-l-2 border-warning" : ""} ${
-          node.is_suspicious ? "text-warning" : "text-fg-primary"
+          node.is_suspicious ? "bg-warning/8" : ""
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px`, height: 28 }}
         onClick={() => {
@@ -87,10 +87,10 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
         )}
         <TreeNodeIcon imagePath={node.exe} />
         <span className="font-mono text-xs text-fg-tertiary shrink-0">{node.pid}</span>
-        <span className={`text-sm truncate select-none ${node.is_suspicious ? "font-medium" : ""}`}>
+        <span className={`text-sm truncate select-none ${node.is_suspicious ? "font-medium text-warning" : "text-fg-primary"}`}>
           {node.name}
         </span>
-        {node.is_suspicious && <span className="text-warning text-xs ml-1" title={node.suspicious_reason ?? undefined}>⚠</span>}
+        {node.is_suspicious && <span className="text-warning text-xs ml-1 shrink-0" title={node.suspicious_reason ?? undefined}>⚠</span>}
       </div>
       {expanded && hasChildren && (
         <div>
