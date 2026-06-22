@@ -1,8 +1,10 @@
+import { useState, useCallback, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { X, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useProcessChain } from "../hooks";
-import type { ProcessEntry } from "../types";
+import { iconCache, subscribePath } from "../columns";
+import type { ProcessEntry, ProcessNode } from "../types";
 
 interface Props {
   entry: ProcessEntry | null;
@@ -10,9 +12,67 @@ interface Props {
   onClose?: () => void;
 }
 
+function ChainNodeIcon({ imagePath }: { imagePath: string | null }) {
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!imagePath) return () => {};
+      return subscribePath(imagePath, listener);
+    },
+    [imagePath]
+  );
+
+  const iconSrc = useSyncExternalStore(
+    subscribe,
+    () => {
+      if (!imagePath) return null;
+      const cached = iconCache.get(imagePath);
+      return cached && cached !== "" ? cached : null;
+    },
+    () => null
+  );
+
+  if (iconSrc) {
+    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0" />;
+  }
+  return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
+}
+
+function ChainNodeDetail({ node }: { node: ProcessNode }) {
+  const { t } = useTranslation();
+  return (
+    <div className="ml-2 pl-2 border-l-2 border-border space-y-1 py-1">
+      {node.exe && (
+        <div className="text-xs">
+          <span className="text-fg-tertiary">{t("process.detail.path")}: </span>
+          <span className="font-mono break-all">{node.exe}</span>
+        </div>
+      )}
+      {node.cmdline && (
+        <div className="text-xs">
+          <span className="text-fg-tertiary">{t("process.detail.cmdline")}: </span>
+          <span className="font-mono break-all">{node.cmdline}</span>
+        </div>
+      )}
+      {node.create_time && (
+        <div className="text-xs">
+          <span className="text-fg-tertiary">{t("process.detail.create-time")}: </span>
+          <span>{node.create_time}</span>
+        </div>
+      )}
+      {node.is_suspicious && node.suspicious_reason && (
+        <div className="text-xs text-warning flex items-center gap-0.5">
+          <AlertTriangle className="h-3 w-3" />
+          {node.suspicious_reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
   const { t } = useTranslation();
   const chainQuery = useProcessChain(entry?.pid ?? null);
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   if (!entry) {
     return (
@@ -65,22 +125,30 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
         {isLoading ? (
           <div className="text-xs text-fg-tertiary">{t("common.loading")}</div>
         ) : chain && chain.nodes.length > 0 ? (
-          <div className="space-y-1">
-            {chain.nodes.map((node, i) => (
-              <div key={node.pid} className="flex items-start gap-1.5 text-xs">
-                <span className="text-fg-tertiary shrink-0">{i > 0 && "→ "}</span>
-                <div className={`min-w-0 ${node.is_suspicious ? "text-warning" : ""}`}>
-                  <div className="flex items-center gap-1">
-                    <span className={`font-mono text-fg-tertiary shrink-0`}>{node.pid}</span>
-                    <span className={node.is_target ? "font-medium" : ""}>{node.name}</span>
-                    {node.is_suspicious && <span className="text-warning" title={node.suspicious_reason ?? undefined}>⚠</span>}
+          <div className="space-y-0.5 pl-2">
+            {[...chain.nodes].reverse().map((node, i) => {
+              const originalIdx = chain.nodes.length - 1 - i;
+              const isExpanded = expandedIdx === originalIdx;
+              return (
+                <div key={node.pid}>
+                  <div
+                    className={`flex items-center gap-1 text-xs cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-secondary ${node.is_target ? "bg-accent" : ""}`}
+                    style={{ paddingLeft: `${i * 12 + 4}px` }}
+                    onClick={() => setExpandedIdx(isExpanded ? null : originalIdx)}
+                  >
+                    <span className="text-fg-tertiary">└─</span>
+                    <ChainNodeIcon imagePath={node.exe} />
+                    <span className={node.is_target ? "text-fg-primary font-medium" : "text-fg-secondary"}>
+                      {node.name} ({node.pid})
+                    </span>
+                    {node.is_suspicious && (
+                      <span className="text-[10px] text-warning">⚠ {node.suspicious_reason}</span>
+                    )}
                   </div>
-                  {node.exe && <div className="font-mono text-fg-tertiary truncate">{node.exe}</div>}
-                  {node.cmdline && <div className="font-mono text-fg-tertiary truncate">{node.cmdline}</div>}
-                  {node.create_time && <div className="text-fg-tertiary">{node.create_time}</div>}
+                  {isExpanded && <ChainNodeDetail node={chain.nodes[originalIdx]} />}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-xs text-fg-tertiary">{t("process.chain.empty")}</div>

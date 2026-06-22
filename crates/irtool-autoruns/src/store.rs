@@ -53,6 +53,25 @@ impl AutorunsStore {
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
+    pub fn query_by_path(&self, exe_path: &str) -> Vec<AutorunItem> {
+        let normalized = normalize_path(exe_path);
+        self.inner
+            .iter()
+            .filter(|entry| {
+                entry
+                    .value()
+                    .image_path
+                    .as_ref()
+                    .is_some_and(|p| normalize_path(p) == normalized)
+            })
+            .map(|entry| entry.value().clone())
+            .collect()
+    }
+}
+
+fn normalize_path(path: &str) -> String {
+    path.replace('/', "\\").to_lowercase()
 }
 
 #[cfg(test)]

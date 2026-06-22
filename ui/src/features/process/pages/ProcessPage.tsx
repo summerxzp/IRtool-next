@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useProcessSnapshot } from "../hooks";
 import { useProcessStore } from "../store";
@@ -7,6 +7,7 @@ import { ProcessToolbar } from "../components/ProcessToolbar";
 import { ProcessTable } from "../components/ProcessTable";
 import { ProcessTreeView } from "../components/ProcessTreeView";
 import { ProcessDetail } from "../components/ProcessDetail";
+import { preloadIcons } from "../columns";
 import type { ProcessEntry } from "../types";
 
 function formatTimestamp(ts: number): string {
@@ -27,6 +28,12 @@ export function ProcessPage() {
 
   const data = useMemo(() => query.data?.processes ?? [], [query.data]);
   const snapshotTime = useMemo(() => formatTimestamp(query.data?.timestamp ?? 0), [query.data]);
+
+  useEffect(() => {
+    if (data.length === 0) return;
+    const uniquePaths = [...new Set(data.map((p) => p.exe).filter((p): p is string => !!p))];
+    preloadIcons(uniquePaths);
+  }, [data]);
 
   const filteredData = useMemo(() => {
     let result = data;

@@ -223,6 +223,8 @@ pub fn run() {
         // --- P3 ---
         cmd_process_snapshot,
         cmd_process_chain,
+        cmd_network_query_by_pid,
+        cmd_autoruns_query_by_path,
         // --- P4 ---
         cmd_sysmon_status,
         cmd_sysmon_is_channel_available,

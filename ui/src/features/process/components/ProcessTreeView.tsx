@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { iconCache, subscribePath } from "../columns";
 import type { ProcessEntry, ProcessTreeNode } from "../types";
 
 interface Props {
@@ -31,6 +32,31 @@ function buildProcessTree(processes: ProcessEntry[]): ProcessTreeNode[] {
   return roots;
 }
 
+function TreeNodeIcon({ imagePath }: { imagePath: string | null }) {
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!imagePath) return () => {};
+      return subscribePath(imagePath, listener);
+    },
+    [imagePath]
+  );
+
+  const iconSrc = useSyncExternalStore(
+    subscribe,
+    () => {
+      if (!imagePath) return null;
+      const cached = iconCache.get(imagePath);
+      return cached && cached !== "" ? cached : null;
+    },
+    () => null
+  );
+
+  if (iconSrc) {
+    return <img src={iconSrc} alt="" className="w-4 h-4 shrink-0" />;
+  }
+  return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
+}
+
 function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNode; depth: number; selectedPid: number | null; onSelect: (pid: number) => void }) {
   const [expanded, setExpanded] = useState(depth < 2 || node.is_suspicious);
   const hasChildren = node.children.length > 0;
@@ -59,6 +85,7 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
+        <TreeNodeIcon imagePath={node.exe} />
         <span className="font-mono text-xs text-fg-tertiary shrink-0">{node.pid}</span>
         <span className={`text-sm truncate select-none ${node.is_suspicious ? "font-medium" : ""}`}>
           {node.name}

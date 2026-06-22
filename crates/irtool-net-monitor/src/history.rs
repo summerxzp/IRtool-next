@@ -96,6 +96,14 @@ impl HistoryStore {
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
+    pub fn query_by_pid(&self, pid: u32) -> Vec<NetConn> {
+        self.inner
+            .iter()
+            .filter(|entry| entry.value().pid == pid)
+            .map(|entry| entry.value().clone())
+            .collect()
+    }
 }
 
 #[cfg(test)]

@@ -21,6 +21,13 @@ async cmdAppForceQuit() : Promise<Result<null, IrError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
+ * 导致新进程启动后立即退出的问题。
+ * 
+ * 原理：将批处理脚本写入临时 bat 文件，spawn 一个 detached cmd.exe 子进程，
+ * 轮询等待当前进程退出后再启动新实例，然后当前进程调用 app.exit(0) 退出。
+ */
 async cmdRelaunch() : Promise<Result<null, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_relaunch") };
@@ -192,6 +199,22 @@ async cmdProcessSnapshot() : Promise<Result<ProcessSnapshot, IrError>> {
 async cmdProcessChain(pid: number) : Promise<Result<ProcessChain, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_process_chain", { pid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdNetworkQueryByPid(pid: number) : Promise<Result<NetConn[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_network_query_by_pid", { pid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdAutorunsQueryByPath(exePath: string) : Promise<Result<AutorunItem[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_autoruns_query_by_path", { exePath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

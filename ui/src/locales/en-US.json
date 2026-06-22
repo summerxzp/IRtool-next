@@ -42,6 +42,8 @@
     "detail": {
       "select-row": "Select a process to view details",
       "path": "Image Path",
+      "cmdline": "Command Line",
+      "create-time": "Create Time",
       "snapshot-time": "Snapshot Time"
     }
   },
