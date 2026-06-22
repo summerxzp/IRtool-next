@@ -140,16 +140,15 @@ function NetworkTab({ entry }: { entry: ProcessEntry }) {
 function AutorunsTab({ entry }: { entry: ProcessEntry }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const autorunsQuery = useAutorunsByPath(entry.exe ?? null);
+  const data = autorunsQuery.data;
+  const isLoading = autorunsQuery.isLoading;
 
   if (!entry.exe) {
     return (
       <div className="text-xs text-fg-tertiary">{t("process.association.no-exe-path")}</div>
     );
   }
-
-  const autorunsQuery = useAutorunsByPath(entry.exe);
-  const data = autorunsQuery.data;
-  const isLoading = autorunsQuery.isLoading;
 
   return (
     <div className="space-y-2">

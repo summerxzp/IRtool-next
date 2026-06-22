@@ -148,16 +148,19 @@ fn query_create_time(pid: u32) -> Option<String> {
             return None;
         }
 
-        // Convert FILETIME to date-time string "YYYY/MM/DD HH:MM:SS".
-        // FILETIME is 100-ns intervals since 1601-01-01.
+        // Convert FILETIME to date-time string "YYYY/MM/DD HH:MM:SS" in local time.
+        // FILETIME is 100-ns intervals since 1601-01-01 UTC.
         let ticks = ((creation.dwHighDateTime as u64) << 32) | (creation.dwLowDateTime as u64);
         // Offset from 1601 to 1970 in 100-ns intervals: 116444736000000000
         let unix_micros = ticks.saturating_sub(116444736000000000) / 10;
         let secs = (unix_micros / 1_000_000) as i64;
 
-        // Days since 1970-01-01
-        let days = secs / 86400;
-        let time_of_day_secs = secs % 86400;
+        // Apply local timezone offset
+        let local_secs = secs + local_timezone_offset_secs();
+
+        // Days since 1970-01-01 (local)
+        let days = local_secs / 86400;
+        let time_of_day_secs = local_secs % 86400;
         let h = time_of_day_secs / 3600;
         let m = (time_of_day_secs % 3600) / 60;
         let s = time_of_day_secs % 60;
@@ -171,6 +174,31 @@ fn query_create_time(pid: u32) -> Option<String> {
 #[cfg(not(windows))]
 fn query_create_time(_pid: u32) -> Option<String> {
     None
+}
+
+/// Get the local timezone offset from UTC in seconds.
+#[cfg(windows)]
+fn local_timezone_offset_secs() -> i64 {
+    use windows::Win32::System::Time::GetTimeZoneInformation;
+    use windows::Win32::System::Time::TIME_ZONE_INFORMATION;
+
+    unsafe {
+        let mut tz: TIME_ZONE_INFORMATION = std::mem::zeroed();
+        let result = GetTimeZoneInformation(&mut tz);
+        // Bias is in minutes; negative Bias means east of UTC (e.g. UTC+8 = -480)
+        // Convert to seconds and negate to get the offset to add to UTC
+        let bias = tz.Bias as i64;
+        // If result is TIME_ZONE_ID_INVALID (0xFFFFFFFF), fall back to 0
+        if result as u32 == 0xFFFFFFFF {
+            return 0;
+        }
+        -bias * 60
+    }
+}
+
+#[cfg(not(windows))]
+fn local_timezone_offset_secs() -> i64 {
+    0
 }
 
 /// Convert days since 1970-01-01 to (year, month, day).
