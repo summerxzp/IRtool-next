@@ -15,11 +15,35 @@
     "network": "网络监控",
     "log-collector": "日志采集",
     "autoruns": "持久化检测",
+    "process": "进程",
     "workspace": "工作台",
     "settings": "设置",
     "background-detection": "后台监测",
     "background-monitoring": "后台监控",
     "database-search": "数据库检索"
+  },
+  "process": {
+    "toolbar": {
+      "refresh": "刷新",
+      "view": {
+        "list": "列表",
+        "tree": "树"
+      },
+      "filter": {
+        "all": "全部",
+        "suspicious": "可疑"
+      },
+      "search-placeholder": "PID / 名称 / 路径"
+    },
+    "chain": {
+      "title": "进程链",
+      "empty": "进程已退出，无法追溯"
+    },
+    "detail": {
+      "select-row": "选择一个进程查看详情",
+      "path": "文件路径",
+      "snapshot-time": "快照时间"
+    }
   },
   "status": {
     "admin": "管理员",

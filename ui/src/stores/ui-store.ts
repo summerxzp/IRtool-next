@@ -14,6 +14,7 @@ const DEFAULT_POSITIONS: Record<string, DetailPosition> = {
   "log-collector": "right",
   network: "right",
   workspace: "right",
+  process: "right",
 };
 
 export const useUIStore = create<UIState>()(

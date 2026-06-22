@@ -15,11 +15,35 @@
     "network": "Network",
     "log-collector": "Log Collector",
     "autoruns": "Autoruns",
+    "process": "Process",
     "workspace": "Workspace",
     "settings": "Settings",
     "background-detection": "Background Detection",
     "background-monitoring": "Background Monitoring",
     "database-search": "Database Search"
+  },
+  "process": {
+    "toolbar": {
+      "refresh": "Refresh",
+      "view": {
+        "list": "List",
+        "tree": "Tree"
+      },
+      "filter": {
+        "all": "All",
+        "suspicious": "Suspicious"
+      },
+      "search-placeholder": "PID / Name / Path"
+    },
+    "chain": {
+      "title": "Process Chain",
+      "empty": "Process exited, chain unavailable"
+    },
+    "detail": {
+      "select-row": "Select a process to view details",
+      "path": "Image Path",
+      "snapshot-time": "Snapshot Time"
+    }
   },
   "status": {
     "admin": "Admin",

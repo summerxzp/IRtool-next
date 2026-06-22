@@ -16,6 +16,7 @@ import { Route as LogCollectorRouteImport } from './routes/log-collector'
 import { Route as DatabaseSearchRouteImport } from './routes/database-search'
 import { Route as BackgroundMonitoringRouteImport } from './routes/background-monitoring'
 import { Route as AutorunsRouteImport } from './routes/autoruns'
+import { Route as ProcessRouteImport } from './routes/process'
 import { Route as IndexRouteImport } from './routes/index'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
@@ -53,6 +54,11 @@ const AutorunsRoute = AutorunsRouteImport.update({
   path: '/autoruns',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcessRoute = ProcessRouteImport.update({
+  id: '/process',
+  path: '/process',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/process': typeof ProcessRoute
   '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/process': typeof ProcessRoute
   '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/database-search': typeof DatabaseSearchRoute
   '/log-collector': typeof LogCollectorRoute
   '/network': typeof NetworkRoute
+  '/process': typeof ProcessRoute
   '/settings': typeof SettingsRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/database-search'
     | '/log-collector'
     | '/network'
+    | '/process'
     | '/settings'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/database-search'
     | '/log-collector'
     | '/network'
+    | '/process'
     | '/settings'
     | '/workspace'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/database-search'
     | '/log-collector'
     | '/network'
+    | '/process'
     | '/settings'
     | '/workspace'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   DatabaseSearchRoute: typeof DatabaseSearchRoute
   LogCollectorRoute: typeof LogCollectorRoute
   NetworkRoute: typeof NetworkRoute
+  ProcessRoute: typeof ProcessRoute
   SettingsRoute: typeof SettingsRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/network'
       fullPath: '/network'
       preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/process': {
+      id: '/process'
+      path: '/process'
+      fullPath: '/process'
+      preLoaderRoute: typeof ProcessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/log-collector': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabaseSearchRoute: DatabaseSearchRoute,
   LogCollectorRoute: LogCollectorRoute,
   NetworkRoute: NetworkRoute,
+  ProcessRoute: ProcessRoute,
   SettingsRoute: SettingsRoute,
   WorkspaceRoute: WorkspaceRoute,
 }

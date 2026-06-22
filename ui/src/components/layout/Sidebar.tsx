@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, ScrollText, Repeat, Briefcase, Settings, Database, Radar, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Activity, ScrollText, Repeat, Briefcase, Settings, Database, Radar, PanelLeftClose, PanelLeft, Cpu } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useMonitoringStore } from "@/features/monitoring/store";
@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/network", icon: Activity, i18nKey: "nav.network" },
   { to: "/log-collector", icon: ScrollText, i18nKey: "nav.log-collector" },
   { to: "/autoruns", icon: Repeat, i18nKey: "nav.autoruns" },
+  { to: "/process", icon: Cpu, i18nKey: "nav.process" },
   { to: "/workspace", icon: Briefcase, i18nKey: "nav.workspace" },
 ];
 
