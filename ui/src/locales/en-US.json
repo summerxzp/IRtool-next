@@ -54,12 +54,15 @@
     "tabs": {
       "chain": "Process Chain",
       "network": "Network",
+      "sysmon": "Events",
       "autoruns": "Autoruns"
     },
     "association": {
       "view-network": "View in Network Monitor",
+      "view-sysmon": "View in Log Collector",
       "view-autoruns": "View in Autoruns",
       "no-network": "No network connections",
+      "no-sysmon": "No Sysmon events",
       "no-autoruns": "No autoruns entries",
       "no-exe-path": "Cannot query: process path unknown"
     },
@@ -74,6 +77,9 @@
       "category": "Category",
       "entry": "Entry",
       "location": "Location"
+    },
+    "sysmon": {
+      "more": "{{count}} more events"
     }
   },
   "status": {

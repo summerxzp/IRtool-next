@@ -1,4 +1,4 @@
-import { useState, useCallback, useSyncExternalStore } from "react";
+import { useState, useCallback, useSyncExternalStore, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { X, AlertTriangle } from "lucide-react";
@@ -6,9 +6,12 @@ import { Separator } from "@/components/ui/separator";
 import { useProcessChain, useNetworkByPid, useAutorunsByPath } from "../hooks";
 import { iconCache, subscribePath } from "../columns";
 import type { ProcessEntry, ProcessNode } from "../types";
-import type { NetConn, AutorunItem } from "@/lib/bindings";
+import type { NetConn, AutorunItem, SysmonEvent } from "@/lib/bindings";
+import { useLogCollectorStore } from "@/features/log-collector/store";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
+import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
-type TabId = "chain" | "network" | "autoruns";
+type TabId = "chain" | "network" | "sysmon" | "autoruns";
 
 interface Props {
   entry: ProcessEntry | null;
@@ -179,6 +182,69 @@ function AutorunsTab({ entry }: { entry: ProcessEntry }) {
   );
 }
 
+function SysmonTab({ entry }: { entry: ProcessEntry }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const allEvents = useLogCollectorStore((s) => s.events);
+
+  const filteredEvents = useMemo(
+    () => allEvents.filter((e: SysmonEvent) => e.process_id === entry.pid),
+    [allEvents, entry.pid]
+  );
+
+  return (
+    <div className="space-y-2">
+      {filteredEvents.length > 0 ? (
+        <div className="space-y-1">
+          {filteredEvents.slice(0, 50).map((event: SysmonEvent, i: number) => {
+            const eventType = event.event_type as ExtendedSysmonEventType;
+            const label = EVENT_TYPE_LABELS[eventType] ?? event.event_type;
+            const colorClass = EVENT_TYPE_COLORS[eventType] ?? "bg-gray-500/15 text-gray-500 border-gray-500/25";
+            return (
+              <div key={i} className="flex items-center gap-2 text-xs px-1 py-0.5 rounded hover:bg-bg-secondary">
+                <span className={`shrink-0 px-1 py-0.5 rounded border select-none ${colorClass}`}>
+                  {label}
+                </span>
+                {event.event_type === "network_connect" && (
+                  <span className="font-mono truncate">
+                    {event.source_ip}:{event.source_port} → {event.destination_ip}:{event.destination_port}
+                  </span>
+                )}
+                {event.event_type === "dns" && (
+                  <span className="font-mono truncate">{event.query_name}</span>
+                )}
+                {(event.event_type === "dns_client") && (
+                  <span className="font-mono truncate">{event.query_name}</span>
+                )}
+                {event.event_type === "process_create" && (
+                  <span className="font-mono truncate">{event.process_path}</span>
+                )}
+                {!["network_connect", "dns", "dns_client", "process_create"].includes(event.event_type) && (
+                  <span className="truncate">{event.process_name}</span>
+                )}
+                <span className="font-mono text-fg-tertiary ml-auto shrink-0">{event.timestamp.slice(11, 19)}</span>
+              </div>
+            );
+          })}
+          {filteredEvents.length > 50 && (
+            <div className="text-xs text-fg-tertiary select-none">
+              {t("process.sysmon.more", { count: filteredEvents.length - 50 })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-xs text-fg-tertiary">{t("process.association.no-sysmon")}</div>
+      )}
+      <button
+        className="text-xs text-accent hover:underline select-none"
+        onClick={() => navigate({ to: "/log-collector" })}
+      >
+        {t("process.association.view-sysmon")} →
+      </button>
+    </div>
+  );
+}
+
 export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
   const { t } = useTranslation();
   const chainQuery = useProcessChain(entry?.pid ?? null);
@@ -188,6 +254,8 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
   // Fetch network/autoruns data for count badges (only when entry exists)
   const networkQuery = useNetworkByPid(entry?.pid ?? null);
   const autorunsQuery = useAutorunsByPath(entry?.exe ?? null);
+  const sysmonEvents = useLogCollectorStore((s) => s.events);
+  const sysmonCount = entry ? sysmonEvents.filter((e: SysmonEvent) => e.process_id === entry.pid).length : 0;
 
   if (!entry) {
     return (
@@ -203,6 +271,7 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
   const tabs: { id: TabId; labelKey: string; count?: number }[] = [
     { id: "chain", labelKey: "process.tabs.chain" },
     { id: "network", labelKey: "process.tabs.network", count: networkQuery.data?.length },
+    { id: "sysmon", labelKey: "process.tabs.sysmon", count: sysmonCount },
     { id: "autoruns", labelKey: "process.tabs.autoruns", count: autorunsQuery.data?.length },
   ];
 
@@ -300,6 +369,8 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
       )}
 
       {activeTab === "network" && <NetworkTab entry={entry} />}
+
+      {activeTab === "sysmon" && <SysmonTab entry={entry} />}
 
       {activeTab === "autoruns" && <AutorunsTab entry={entry} />}
 

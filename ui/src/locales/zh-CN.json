@@ -53,13 +53,16 @@
     },
     "tabs": {
       "chain": "进程链",
-      "network": "网络连接",
-      "autoruns": "持久化条目"
+      "network": "网络",
+      "sysmon": "日志",
+      "autoruns": "持久化"
     },
     "association": {
       "view-network": "查看网络监控",
+      "view-sysmon": "查看日志采集",
       "view-autoruns": "查看持久化检测",
       "no-network": "无网络连接",
+      "no-sysmon": "无 Sysmon 事件",
       "no-autoruns": "无持久化条目",
       "no-exe-path": "无法查询：进程路径未知"
     },
@@ -74,6 +77,9 @@
       "category": "类别",
       "entry": "条目名",
       "location": "位置"
+    },
+    "sysmon": {
+      "more": "还有 {{count}} 条事件"
     }
   },
   "status": {
