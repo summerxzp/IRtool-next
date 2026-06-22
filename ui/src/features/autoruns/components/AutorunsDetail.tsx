@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { SignatureBadge } from "./SignatureBadge";
@@ -15,6 +16,7 @@ interface Props {
 
 export function AutorunsDetail({ item, onDelete, onJumpToRegistry, onSearchInWorkspace, onClose }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   if (!item) {
     return (
@@ -91,6 +93,13 @@ export function AutorunsDetail({ item, onDelete, onJumpToRegistry, onSearchInWor
         )}
         <Button variant="secondary" size="sm" disabled onClick={() => onSearchInWorkspace(item)}>
           {t("autoruns.detail.search-workspace")}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => navigate({ to: "/process", search: { pid: undefined, imagePath: item.image_path ?? undefined } })}
+        >
+          {t("autoruns.detail.view-process")}
         </Button>
       </div>
     </div>

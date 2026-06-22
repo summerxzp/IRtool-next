@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { X, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { NetConn, CmdlineStatus } from "../types";
 import * as api from "../api";
@@ -40,6 +42,7 @@ function cmdlineStatusVariant(status: CmdlineStatus): "default" | "success" | "w
 
 export function NetworkDetail({ conn, onClose }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefreshCmdline = async () => {
@@ -134,6 +137,18 @@ export function NetworkDetail({ conn, onClose }: Props) {
         <div className="text-xs font-mono text-fg-secondary break-all">
           {conn.process_cmdline || t("network.detail.command-line-pending")}
         </div>
+      </div>
+
+      <Separator />
+
+      <div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => navigate({ to: "/process", search: { pid: conn.pid, imagePath: undefined } })}
+        >
+          {t("network.detail.view-process-chain")}
+        </Button>
       </div>
     </div>
   );

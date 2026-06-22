@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
+import { Route } from "@/routes/network";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ interface BackgroundTelemetry {
 
 export function NetworkPage() {
   const { t } = useTranslation();
+  const search = Route.useSearch();
   const query = useNetwork();
   const killMutation = useKillProcess();
   const clearMutation = useClearHistory();
@@ -61,6 +63,16 @@ export function NetworkPage() {
   }, []);
 
   const data = useMemo(() => query.data?.items ?? [], [query.data]);
+
+  // Auto-select connection when navigating with pid search param
+  useEffect(() => {
+    if (search.pid && data.length > 0) {
+      const match = data.find(c => c.pid === search.pid);
+      if (match) {
+        setSelected(match);
+      }
+    }
+  }, [search.pid, data]);
 
   // Keep selected in sync with data updates (e.g., cmdline enrichment)
   const selectedConn = useMemo(() => {

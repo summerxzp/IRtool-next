@@ -1,5 +1,6 @@
 import { useMemo, useEffect } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
+import { Route } from "@/routes/process";
 import { useProcessSnapshot } from "../hooks";
 import { useProcessStore } from "../store";
 import { useUIStore } from "@/stores/ui-store";
@@ -18,6 +19,7 @@ function formatTimestamp(ts: number): string {
 }
 
 export function ProcessPage() {
+  const routeSearch = Route.useSearch();
   const query = useProcessSnapshot();
   const selectedPid = useProcessStore((s) => s.selectedPid);
   const setSelectedPid = useProcessStore((s) => s.setSelectedPid);
@@ -34,6 +36,18 @@ export function ProcessPage() {
     const uniquePaths = [...new Set(data.map((p) => p.exe).filter((p): p is string => !!p))];
     preloadIcons(uniquePaths);
   }, [data]);
+
+  // Auto-select process when navigating with search params
+  useEffect(() => {
+    if (routeSearch.pid) {
+      setSelectedPid(routeSearch.pid);
+    } else if (routeSearch.imagePath && data.length > 0) {
+      const match = data.find(p => p.exe === routeSearch.imagePath);
+      if (match) {
+        setSelectedPid(match.pid);
+      }
+    }
+  }, [routeSearch.pid, routeSearch.imagePath, data, setSelectedPid]);
 
   const filteredData = useMemo(() => {
     let result = data;

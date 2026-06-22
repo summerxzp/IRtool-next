@@ -145,7 +145,8 @@
       "refresh-cmdline": "重新获取命令行",
       "first-seen": "首次出现",
       "last-seen": "最近出现",
-      "select-row": "请选择一条连接查看详情"
+      "select-row": "请选择一条连接查看详情",
+      "view-process-chain": "查看进程链"
     },
     "kill-confirm": {
       "title": "确认终止进程",
@@ -205,7 +206,8 @@
       "delete": "删除",
       "jump-registry": "跳转注册表",
       "jump-task": "跳转任务计划",
-      "search-workspace": "在工作台搜索"
+      "search-workspace": "在工作台搜索",
+      "view-process": "查看运行状态"
     },
     "delete-confirm": {
       "title": "确认删除持久化项",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
+import { Route } from "@/routes/autoruns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { useAutorunsData, useAutorunsScan, useDeleteEntry, useCalculateHash, useSyncScanningState } from "../hooks";
@@ -18,6 +19,7 @@ import type { AutorunItem } from "../types";
 
 export function AutorunsPage() {
   const { t } = useTranslation();
+  const search = Route.useSearch();
   const query = useAutorunsData();
   const scanMutation = useAutorunsScan();
   const deleteMutation = useDeleteEntry();
@@ -59,6 +61,16 @@ export function AutorunsPage() {
   const data = useMemo(() => query.data ?? [], [query.data]);
   const selectedItem = useMemo(() => data.find((d) => d.id === selectedEntryId) ?? null, [data, selectedEntryId]);
   const categories = useMemo(() => { const set = new Set(data.map((d) => d.category)); return Array.from(set).sort(); }, [data]);
+
+  // Auto-select item when navigating with imagePath search param
+  useEffect(() => {
+    if (search.imagePath && data.length > 0) {
+      const match = data.find(d => d.image_path === search.imagePath);
+      if (match) {
+        setSelectedEntryId(match.id);
+      }
+    }
+  }, [search.imagePath, data, setSelectedEntryId]);
 
   // Filtering logic (moved from AutorunsTable)
   const searchIndexRef = useRef(new Map<number, string>());
