@@ -1,5 +1,5 @@
 use irtool_core::IrError;
-use irtool_process::{get_process_chain, take_snapshot, ProcessChain, ProcessSnapshot};
+use irtool_process::{get_process_chain, take_snapshot_enriched, ProcessChain, ProcessSnapshot};
 
 use crate::context::AppContext;
 
@@ -10,7 +10,7 @@ pub struct ProcessService<'a> {
 impl<'a> ProcessService<'a> {
     pub async fn snapshot(&self) -> Result<ProcessSnapshot, IrError> {
         let _ = self.ctx; // available for future use
-        tokio::task::spawn_blocking(take_snapshot)
+        tokio::task::spawn_blocking(take_snapshot_enriched)
             .await
             .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
     }

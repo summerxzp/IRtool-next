@@ -67,6 +67,8 @@ pub struct ProcessEntry {
     pub ppid: u32,
     pub name: String,
     pub exe: Option<String>,
+    pub is_suspicious: bool,
+    pub suspicious_reason: Option<String>,
 }
 
 /// Full process snapshot result.

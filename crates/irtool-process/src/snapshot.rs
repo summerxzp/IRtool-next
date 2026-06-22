@@ -41,6 +41,8 @@ pub fn take_snapshot() -> Result<ProcessSnapshot, IrError> {
                 ppid: entry.th32ParentProcessID,
                 name,
                 exe: None,
+                is_suspicious: false,
+                suspicious_reason: None,
             });
 
             if Process32NextW(snap, &mut entry).is_err() {
@@ -54,6 +56,26 @@ pub fn take_snapshot() -> Result<ProcessSnapshot, IrError> {
 
 #[cfg(not(windows))]
 pub fn take_snapshot() -> Result<ProcessSnapshot, IrError> {
+    Err(IrError::FeatureDisabled("process snapshot requires Windows".into()))
+}
+
+/// Take a snapshot enriched with exe paths and suspicious flags.
+#[cfg(windows)]
+pub fn take_snapshot_enriched() -> Result<ProcessSnapshot, IrError> {
+    let mut snap = take_snapshot()?;
+    for entry in &mut snap.processes {
+        if let Some(exe) = crate::chain::query_exe_path(entry.pid) {
+            let flag = crate::suspicious::check_suspicious(&entry.name, &exe);
+            entry.exe = Some(exe);
+            entry.is_suspicious = flag.is_some();
+            entry.suspicious_reason = flag.map(|f| f.reason().to_string());
+        }
+    }
+    Ok(snap)
+}
+
+#[cfg(not(windows))]
+pub fn take_snapshot_enriched() -> Result<ProcessSnapshot, IrError> {
     Err(IrError::FeatureDisabled("process snapshot requires Windows".into()))
 }
 

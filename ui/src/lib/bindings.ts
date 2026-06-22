@@ -757,7 +757,7 @@ nodes: ProcessNode[] }
 /**
  * A lightweight process entry from a system-wide snapshot.
  */
-export type ProcessEntry = { pid: number; ppid: number; name: string; exe: string | null }
+export type ProcessEntry = { pid: number; ppid: number; name: string; exe: string | null; is_suspicious: boolean; suspicious_reason: string | null }
 /**
  * A single process in a chain, with optional suspicion metadata.
  */

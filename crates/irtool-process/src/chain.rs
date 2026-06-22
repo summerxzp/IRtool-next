@@ -83,7 +83,7 @@ fn fill_cmdlines(_nodes: &mut [ProcessNode]) {}
 
 /// Query the full executable path for a process via OpenProcess + QueryFullProcessImageNameW.
 #[cfg(windows)]
-fn query_exe_path(pid: u32) -> Option<String> {
+pub(crate) fn query_exe_path(pid: u32) -> Option<String> {
     use windows::core::PWSTR;
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{
