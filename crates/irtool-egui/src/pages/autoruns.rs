@@ -5,7 +5,7 @@ use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 use irtool_service::context::AppContext;
 use irtool_service::services::autoruns::AutorunsService;
-use irtool_service::types::{AutorunItem, ScanOptions, ScanPhase, ScanProgress, SignatureStatus};
+use irtool_service::types::{AutorunItem, DeleteResult, ScanOptions, ScanPhase, ScanProgress, SignatureStatus};
 
 use crate::theme;
 use crate::widgets::badge::{self, BadgeVariant};
@@ -78,6 +78,11 @@ pub struct AutorunsPageState {
     pub delete_confirm_open: bool,
     pub pending_delete_id: Option<u64>,
 
+    // Delete result feedback
+    delete_result_rx: std::sync::mpsc::Receiver<DeleteResult>,
+    delete_result_tx: std::sync::mpsc::Sender<DeleteResult>,
+    pub delete_banner: Option<DeleteResult>,
+
     // Refresh channel (set by app to allow async data refresh after hash calc etc.)
     pub refresh_tx: Option<std::sync::mpsc::Sender<Vec<AutorunItem>>>,
 
@@ -95,6 +100,7 @@ pub struct AutorunsPageState {
 impl Default for AutorunsPageState {
     fn default() -> Self {
         let (sigcheck_tx, sigcheck_rx) = std::sync::mpsc::channel();
+        let (delete_result_tx, delete_result_rx) = std::sync::mpsc::channel();
         Self {
             items: Vec::new(),
             last_error: None,
@@ -118,6 +124,9 @@ impl Default for AutorunsPageState {
             ctx_menu_just_opened: false,
             delete_confirm_open: false,
             pending_delete_id: None,
+            delete_result_rx,
+            delete_result_tx,
+            delete_banner: None,
             refresh_tx: None,
             sigcheck_result: None,
             sigcheck_dialog_open: false,
@@ -176,8 +185,59 @@ impl AutorunsPageState {
             self.sigcheck_dialog_open = true;
         }
 
+        // Poll delete results from async tasks
+        if let Ok(result) = self.delete_result_rx.try_recv() {
+            if result.success {
+                // Remove deleted item from list
+                self.items.retain(|item| Some(item.id) != self.pending_delete_id);
+                self.cache_dirty = true;
+            }
+            self.delete_banner = Some(result);
+            self.pending_delete_id = None;
+        }
+
         self.render_toolbar(ui, ctx, rt);
         ui.separator();
+
+        // Delete result banner
+        if let Some(ref result) = self.delete_banner {
+            let result = result.clone();
+            let (bg_color, text_color, prefix) = if result.success {
+                (
+                    theme::SEMANTIC_SUCCESS.linear_multiply(0.15),
+                    theme::SEMANTIC_SUCCESS,
+                    "删除成功",
+                )
+            } else {
+                (
+                    theme::SEMANTIC_DANGER.linear_multiply(0.15),
+                    theme::SEMANTIC_DANGER,
+                    "删除失败",
+                )
+            };
+            let mut close = false;
+            egui::Frame::new()
+                .fill(bg_color)
+                .inner_margin(theme::ELEMENT_GAP)
+                .corner_radius(4.0)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{}: {}", prefix, result.message))
+                                .color(text_color)
+                                .size(12.0),
+                        );
+                        ui.add_space((ui.available_width() - 20.0).max(0.0));
+                        if ui.small_button("×").clicked() {
+                            close = true;
+                        }
+                    });
+                });
+            if close {
+                self.delete_banner = None;
+            }
+            ui.add_space(4.0);
+        }
 
         // Error banner
         if let Some(ref err) = self.last_error {
@@ -896,14 +956,17 @@ impl AutorunsPageState {
         if confirmed {
             if let Some(entry_id) = self.pending_delete_id {
                 let ctx_clone = ctx.clone();
+                let tx = self.delete_result_tx.clone();
                 let was_selected = self.selected_id == Some(entry_id);
                 rt.spawn(async move {
-                    match (AutorunsService { ctx: &ctx_clone }).delete_entry(entry_id).await {
-                        Ok(result) => {
-                            tracing::info!("delete result: success={}, msg={}", result.success, result.message)
-                        }
-                        Err(e) => tracing::error!("delete failed: {}", e),
-                    }
+                    let result = match (AutorunsService { ctx: &ctx_clone }).delete_entry(entry_id).await {
+                        Ok(r) => r,
+                        Err(e) => DeleteResult {
+                            success: false,
+                            message: e.to_string(),
+                        },
+                    };
+                    let _ = tx.send(result);
                 });
                 if was_selected {
                     self.selected_id = None;

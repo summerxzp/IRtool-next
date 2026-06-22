@@ -49,6 +49,7 @@ pub struct IrtoolApp {
     tools_downloading: bool,
     tools_download_progress: std::collections::HashMap<String, u8>,
     tools_download_error: Option<String>,
+    tools_download_done: bool,
     tools_refresh_tx: std::sync::mpsc::Sender<Vec<ToolStatus>>,
     tools_refresh_rx: std::sync::mpsc::Receiver<Vec<ToolStatus>>,
 
@@ -171,6 +172,7 @@ impl IrtoolApp {
             tools_downloading: false,
             tools_download_progress: std::collections::HashMap::new(),
             tools_download_error: None,
+            tools_download_done: false,
             tools_refresh_tx,
             tools_refresh_rx,
             network: NetworkPageState::default(),
@@ -283,6 +285,7 @@ impl IrtoolApp {
             }
             AppEvent::ToolsDownloadComplete { errors } => {
                 self.tools_downloading = false;
+                self.tools_download_done = true;
                 if errors == 0 {
                     self.tools_download_error = None;
                 }
@@ -383,6 +386,7 @@ impl IrtoolApp {
         let mut close_clicked = false;
         let mut recheck_clicked = false;
         let mut download_clicked = false;
+        let mut relaunch_clicked = false;
 
         egui::Window::new("外部工具管理")
             .open(&mut open)
@@ -454,20 +458,57 @@ impl IrtoolApp {
                         ui.add(egui::ProgressBar::new(progress).desired_width(400.0));
                     }
 
-                    // 错误信息
-                    if let Some(ref err) = self.tools_download_error {
+                    // 下载完成提示
+                    if self.tools_download_done && !self.tools_downloading {
                         ui.add_space(4.0);
-                        egui::Frame::new()
-                            .fill(theme::SEMANTIC_DANGER.linear_multiply(0.15))
-                            .inner_margin(6.0)
-                            .corner_radius(4.0)
-                            .show(ui, |ui| {
-                                ui.label(
-                                    egui::RichText::new(format!("下载失败:\n{}", err))
+                        if self.tools_download_error.is_none() {
+                            egui::Frame::new()
+                                .fill(theme::SEMANTIC_SUCCESS.linear_multiply(0.15))
+                                .inner_margin(6.0)
+                                .corner_radius(4.0)
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(
+                                            "下载完成，EULA 已自动接受。点击「立即重启生效」以加载新工具。",
+                                        )
+                                        .size(11.0)
+                                        .color(theme::SEMANTIC_SUCCESS),
+                                    );
+                                });
+                        } else {
+                            egui::Frame::new()
+                                .fill(theme::SEMANTIC_DANGER.linear_multiply(0.15))
+                                .inner_margin(6.0)
+                                .corner_radius(4.0)
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "部分工具下载失败:\n{}",
+                                            self.tools_download_error.as_deref().unwrap_or("")
+                                        ))
                                         .size(11.0)
                                         .color(theme::SEMANTIC_DANGER),
-                                );
-                            });
+                                    );
+                                });
+                        }
+                    }
+
+                    // 错误信息（下载中）
+                    if self.tools_downloading {
+                        if let Some(ref err) = self.tools_download_error {
+                            ui.add_space(4.0);
+                            egui::Frame::new()
+                                .fill(theme::SEMANTIC_DANGER.linear_multiply(0.15))
+                                .inner_margin(6.0)
+                                .corner_radius(4.0)
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(format!("下载失败:\n{}", err))
+                                            .size(11.0)
+                                            .color(theme::SEMANTIC_DANGER),
+                                    );
+                                });
+                        }
                     }
 
                     ui.add_space(6.0);
@@ -478,11 +519,22 @@ impl IrtoolApp {
                                 .color(theme::FG_TERTIARY),
                         );
                         ui.add_space((ui.available_width() - 200.0).max(0.0));
+                        if self.tools_download_done
+                            && !self.tools_downloading
+                            && self.tools_download_error.is_none()
+                            && ui.button("立即重启生效").clicked()
+                        {
+                            relaunch_clicked = true;
+                        }
                         if ui.button("重新检测").clicked() {
                             recheck_clicked = true;
                         }
                         let missing = self.tools_status.iter().any(|t| !t.installed);
-                        if missing && !self.tools_downloading && ui.button("一键下载缺失工具").clicked() {
+                        if missing
+                            && !self.tools_downloading
+                            && !self.tools_download_done
+                            && ui.button("一键下载缺失工具").clicked()
+                        {
                             download_clicked = true;
                         }
                         if ui.button("关闭").clicked() {
@@ -493,10 +545,12 @@ impl IrtoolApp {
             });
 
         if close_clicked {
+            self.tools_download_done = false;
             open = false;
         }
 
         if recheck_clicked {
+            self.tools_download_done = false;
             let ctx_clone = self.ctx.clone();
             let tx = self.tools_refresh_tx.clone();
             self.tools_download_error = None;
@@ -516,6 +570,7 @@ impl IrtoolApp {
                 .collect();
             if !missing.is_empty() {
                 self.tools_downloading = true;
+                self.tools_download_done = false;
                 self.tools_download_progress.clear();
                 self.tools_download_error = None;
                 let ctx_clone = self.ctx.clone();
@@ -526,6 +581,72 @@ impl IrtoolApp {
                     }
                 });
             }
+        }
+
+        if relaunch_clicked {
+            // 退出后台模式
+            let ctx_clone = self.ctx.clone();
+            self.rt.handle().spawn(async move {
+                let _ = irtool_service::services::app::AppService { ctx: &ctx_clone }
+                    .force_quit()
+                    .await;
+            });
+
+            // 释放单实例锁，spawn 辅助进程等待当前进程退出后启动新实例
+            self.single_instance_guard = None;
+            let current_exe = std::env::current_exe().ok();
+            let pid = std::process::id();
+
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                use std::process::Stdio;
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+                if let Some(exe_path) = current_exe {
+                    let exe_str = exe_path.display().to_string();
+                    let exe_escaped = exe_str.replace('%', "%%");
+                    let bat_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.bat"));
+                    let log_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.log"));
+                    let script = format!(
+                        "@echo off\r\n\
+                         echo [%date% %time%] relaunch script started, waiting for PID {pid} > \"{log}\"\r\n\
+                         :wait\r\n\
+                         tasklist /fi \"pid eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
+                         if %errorlevel%==0 (\r\n\
+                             ping -n 2 127.0.0.1 >nul\r\n\
+                             goto wait\r\n\
+                         )\r\n\
+                         echo [%date% %time%] PID {pid} exited, starting {exe} >> \"{log}\"\r\n\
+                         start \"\" \"{exe}\"\r\n\
+                         echo [%date% %time%] start command issued >> \"{log}\"\r\n\
+                         del \"{log}\"\r\n\
+                         del \"%~f0\"\r\n",
+                        pid = pid,
+                        exe = exe_escaped,
+                        log = log_path.display(),
+                    );
+                    if std::fs::write(&bat_path, &script).is_ok() {
+                        let _ = std::process::Command::new("cmd")
+                            .args(["/c", bat_path.to_str().unwrap_or("")])
+                            .stdin(Stdio::null())
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .creation_flags(CREATE_NO_WINDOW)
+                            .spawn();
+                    }
+                }
+            }
+
+            #[cfg(not(windows))]
+            {
+                if let Some(exe_path) = current_exe {
+                    let _ = std::process::Command::new(&exe_path).spawn();
+                }
+            }
+
+            self.force_exit = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
         self.tools_check_open = open;
