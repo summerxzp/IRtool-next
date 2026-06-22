@@ -26,7 +26,7 @@ export function ProcessPage() {
   const viewMode = useProcessStore((s) => s.viewMode);
   const filter = useProcessStore((s) => s.filter);
   const search = useProcessStore((s) => s.search);
-  const expandAll = useProcessStore((s) => s.expandAll);
+  const expandAllVersion = useProcessStore((s) => s.expandAllVersion);
   const autoRefreshMs = useProcessStore((s) => s.autoRefreshMs);
   const detailPosition = useUIStore((s) => s.detailPositions["process"] ?? "right");
 
@@ -103,7 +103,7 @@ export function ProcessPage() {
               {viewMode === "list" ? (
                 <ProcessTable data={filteredData} onRowSelect={handleRowSelect} selectedRowId={selectedPid != null ? String(selectedPid) : null} />
               ) : (
-                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAll={expandAll} />
+                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAllVersion={expandAllVersion} />
               )}
             </Panel>
             {selectedPid != null && (
@@ -121,7 +121,7 @@ export function ProcessPage() {
               {viewMode === "list" ? (
                 <ProcessTable data={filteredData} onRowSelect={handleRowSelect} selectedRowId={selectedPid != null ? String(selectedPid) : null} />
               ) : (
-                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAll={expandAll} />
+                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAllVersion={expandAllVersion} />
               )}
             </Panel>
             {selectedPid != null && (

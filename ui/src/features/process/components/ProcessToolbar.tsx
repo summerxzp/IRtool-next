@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, List, GitBranch, X, ChevronsUpDown, Timer } from "lucide-react";
+import { RefreshCw, List, GitBranch, X, ChevronsUpDown, Play, Pause } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,8 +14,7 @@ interface Props {
 }
 
 const FILTER_OPTIONS: FilterMode[] = ["all", "suspicious"];
-const AUTO_REFRESH_OPTIONS = [
-  { value: 0, label: "process.toolbar.auto-refresh.off" },
+const INTERVAL_OPTIONS = [
   { value: 1000, label: "1s" },
   { value: 2000, label: "2s" },
   { value: 5000, label: "5s" },
@@ -30,10 +29,11 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
   const setFilter = useProcessStore((s) => s.setFilter);
   const search = useProcessStore((s) => s.search);
   const setSearch = useProcessStore((s) => s.setSearch);
-  const expandAll = useProcessStore((s) => s.expandAll);
   const toggleExpandAll = useProcessStore((s) => s.toggleExpandAll);
   const autoRefreshMs = useProcessStore((s) => s.autoRefreshMs);
   const setAutoRefreshMs = useProcessStore((s) => s.setAutoRefreshMs);
+
+  const isAutoRefresh = autoRefreshMs > 0;
 
   const [searchInput, setSearchInput] = useState(search);
   useEffect(() => {
@@ -47,6 +47,27 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
         <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />{t("process.toolbar.refresh")}
       </Button>
 
+      <Button
+        variant={isAutoRefresh ? "secondary" : "ghost"}
+        size="sm"
+        className="h-7"
+        onClick={() => setAutoRefreshMs(isAutoRefresh ? 0 : 1000)}
+      >
+        {isAutoRefresh ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        <span className="ml-1">{isAutoRefresh ? t("process.toolbar.pause") : t("process.toolbar.auto")}</span>
+      </Button>
+
+      {isAutoRefresh && (
+        <Select value={String(autoRefreshMs)} onValueChange={(v) => setAutoRefreshMs(parseInt(v, 10))}>
+          <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {INTERVAL_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
       <div className="flex items-center bg-bg-elev-2 rounded-md p-0.5">
         <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-6 px-2" onClick={() => setViewMode("list")}>
           <List className="h-3.5 w-3.5 mr-1" />{t("process.toolbar.view.list")}
@@ -57,9 +78,9 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
       </div>
 
       {viewMode === "tree" && (
-        <Button variant="ghost" size="sm" className="h-6 px-2" onClick={toggleExpandAll} title={expandAll ? t("process.toolbar.collapse-all") : t("process.toolbar.expand-all")}>
+        <Button variant="ghost" size="sm" className="h-6 px-2" onClick={toggleExpandAll} title={t("process.toolbar.expand-all")}>
           <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
-          {expandAll ? t("process.toolbar.collapse-all") : t("process.toolbar.expand-all")}
+          {t("process.toolbar.expand-all")}
         </Button>
       )}
 
@@ -74,20 +95,6 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
       {searchInput && (<Button variant="ghost" size="icon" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
 
       <div className="flex-1" />
-
-      <div className="flex items-center gap-1">
-        <Timer className="h-3.5 w-3.5 text-fg-tertiary" />
-        <Select value={String(autoRefreshMs)} onValueChange={(v) => setAutoRefreshMs(Number(v))}>
-          <SelectTrigger className="h-7 w-16 text-xs border-none shadow-none p-0"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {AUTO_REFRESH_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={String(opt.value)}>
-                {opt.value === 0 ? t(opt.label) : opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       {snapshotTime && (
         <span className="text-xs text-fg-tertiary select-none">{snapshotTime}</span>

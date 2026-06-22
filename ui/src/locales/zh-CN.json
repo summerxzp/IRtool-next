@@ -36,9 +36,8 @@
       "search-placeholder": "PID / 名称 / 路径",
       "expand-all": "展开全部",
       "collapse-all": "收起全部",
-      "auto-refresh": {
-        "off": "关"
-      }
+      "auto": "自动",
+      "pause": "暂停"
     },
     "chain": {
       "title": "进程链",

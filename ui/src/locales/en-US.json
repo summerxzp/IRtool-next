@@ -36,9 +36,8 @@
       "search-placeholder": "PID / Name / Path",
       "expand-all": "Expand All",
       "collapse-all": "Collapse All",
-      "auto-refresh": {
-        "off": "Off"
-      }
+      "auto": "Auto",
+      "pause": "Pause"
     },
     "chain": {
       "title": "Process Chain",

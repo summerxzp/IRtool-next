@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useSyncExternalStore } from "react";
+import { useState, useMemo, useCallback, useSyncExternalStore, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { iconCache, subscribePath } from "../columns";
@@ -8,7 +8,7 @@ interface Props {
   processes: ProcessEntry[];
   selectedPid: number | null;
   onSelect: (pid: number) => void;
-  expandAll?: boolean;
+  expandAllVersion?: number;
 }
 
 function buildProcessTree(processes: ProcessEntry[]): ProcessTreeNode[] {
@@ -31,6 +31,15 @@ function buildProcessTree(processes: ProcessEntry[]): ProcessTreeNode[] {
   }
 
   return roots;
+}
+
+function collectAllPids(nodes: ProcessTreeNode[]): number[] {
+  const pids: number[] = [];
+  for (const n of nodes) {
+    pids.push(n.pid);
+    pids.push(...collectAllPids(n.children));
+  }
+  return pids;
 }
 
 function TreeNodeIcon({ imagePath }: { imagePath: string | null }) {
@@ -58,9 +67,17 @@ function TreeNodeIcon({ imagePath }: { imagePath: string | null }) {
   return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
 }
 
-function TreeNode({ node, depth, selectedPid, onSelect, expanded }: { node: ProcessTreeNode; depth: number; selectedPid: number | null; onSelect: (pid: number) => void; expanded: boolean }) {
+function TreeNode({ node, depth, selectedPid, onSelect, expandedPids, toggleExpand }: {
+  node: ProcessTreeNode;
+  depth: number;
+  selectedPid: number | null;
+  onSelect: (pid: number) => void;
+  expandedPids: Set<number>;
+  toggleExpand: (pid: number) => void;
+}) {
   const hasChildren = node.children.length > 0;
   const isSelected = node.pid === selectedPid;
+  const isExpanded = expandedPids.has(node.pid);
 
   return (
     <div>
@@ -73,10 +90,11 @@ function TreeNode({ node, depth, selectedPid, onSelect, expanded }: { node: Proc
         style={{ paddingLeft: `${depth * 16 + 8}px`, height: 28 }}
         onClick={() => {
           onSelect(node.pid);
+          if (hasChildren) toggleExpand(node.pid);
         }}
       >
         {hasChildren ? (
-          expanded ? (
+          isExpanded ? (
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" />
           ) : (
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" />
@@ -91,10 +109,10 @@ function TreeNode({ node, depth, selectedPid, onSelect, expanded }: { node: Proc
         </span>
         {node.is_suspicious && <span className="text-warning text-xs ml-1 shrink-0" title={node.suspicious_reason ?? undefined}>⚠</span>}
       </div>
-      {expanded && hasChildren && (
+      {isExpanded && hasChildren && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.pid} node={child} depth={depth + 1} selectedPid={selectedPid} onSelect={onSelect} expanded={expanded} />
+            <TreeNode key={child.pid} node={child} depth={depth + 1} selectedPid={selectedPid} onSelect={onSelect} expandedPids={expandedPids} toggleExpand={toggleExpand} />
           ))}
         </div>
       )}
@@ -102,9 +120,39 @@ function TreeNode({ node, depth, selectedPid, onSelect, expanded }: { node: Proc
   );
 }
 
-export function ProcessTreeView({ processes, selectedPid, onSelect, expandAll = false }: Props) {
+export function ProcessTreeView({ processes, selectedPid, onSelect, expandAllVersion = 0 }: Props) {
   const { t } = useTranslation();
   const tree = useMemo(() => buildProcessTree(processes), [processes]);
+  const [expandedPids, setExpandedPids] = useState<Set<number>>(new Set());
+
+  // When expandAllVersion changes, set all pids as expanded (or clear all)
+  const prevVersion = useRef(expandAllVersion);
+  useEffect(() => {
+    if (expandAllVersion !== prevVersion.current) {
+      prevVersion.current = expandAllVersion;
+      const allPids = collectAllPids(tree);
+      setExpandedPids(new Set(allPids));
+    }
+  }, [expandAllVersion, tree]);
+
+  // Default: expand all on first render
+  useEffect(() => {
+    if (expandedPids.size === 0 && tree.length > 0) {
+      setExpandedPids(new Set(collectAllPids(tree)));
+    }
+  }, [tree]);
+
+  const toggleExpand = useCallback((pid: number) => {
+    setExpandedPids((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) {
+        next.delete(pid);
+      } else {
+        next.add(pid);
+      }
+      return next;
+    });
+  }, []);
 
   if (processes.length === 0) {
     return (
@@ -117,7 +165,7 @@ export function ProcessTreeView({ processes, selectedPid, onSelect, expandAll = 
   return (
     <div className="h-full overflow-auto bg-bg-base">
       {tree.map((node) => (
-        <TreeNode key={node.pid} node={node} depth={0} selectedPid={selectedPid} onSelect={onSelect} expanded={expandAll} />
+        <TreeNode key={node.pid} node={node} depth={0} selectedPid={selectedPid} onSelect={onSelect} expandedPids={expandedPids} toggleExpand={toggleExpand} />
       ))}
     </div>
   );
