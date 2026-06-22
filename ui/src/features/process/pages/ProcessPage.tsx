@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { Route } from "@/routes/process";
 import { useProcessSnapshot } from "../hooks";
@@ -26,10 +26,21 @@ export function ProcessPage() {
   const viewMode = useProcessStore((s) => s.viewMode);
   const filter = useProcessStore((s) => s.filter);
   const search = useProcessStore((s) => s.search);
+  const expandAll = useProcessStore((s) => s.expandAll);
+  const autoRefreshMs = useProcessStore((s) => s.autoRefreshMs);
   const detailPosition = useUIStore((s) => s.detailPositions["process"] ?? "right");
 
   const data = useMemo(() => query.data?.processes ?? [], [query.data]);
   const snapshotTime = useMemo(() => formatTimestamp(query.data?.timestamp ?? 0), [query.data]);
+
+  // Auto-refresh timer
+  const refreshRef = useRef(query.refetch);
+  refreshRef.current = query.refetch;
+  useEffect(() => {
+    if (autoRefreshMs <= 0) return;
+    const id = setInterval(() => refreshRef.current(), autoRefreshMs);
+    return () => clearInterval(id);
+  }, [autoRefreshMs]);
 
   useEffect(() => {
     if (data.length === 0) return;
@@ -92,7 +103,7 @@ export function ProcessPage() {
               {viewMode === "list" ? (
                 <ProcessTable data={filteredData} onRowSelect={handleRowSelect} selectedRowId={selectedPid != null ? String(selectedPid) : null} />
               ) : (
-                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} />
+                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAll={expandAll} />
               )}
             </Panel>
             {selectedPid != null && (
@@ -110,7 +121,7 @@ export function ProcessPage() {
               {viewMode === "list" ? (
                 <ProcessTable data={filteredData} onRowSelect={handleRowSelect} selectedRowId={selectedPid != null ? String(selectedPid) : null} />
               ) : (
-                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} />
+                <ProcessTreeView processes={filteredData} selectedPid={selectedPid} onSelect={setSelectedPid} expandAll={expandAll} />
               )}
             </Panel>
             {selectedPid != null && (

@@ -33,7 +33,12 @@
         "all": "All",
         "suspicious": "Suspicious"
       },
-      "search-placeholder": "PID / Name / Path"
+      "search-placeholder": "PID / Name / Path",
+      "expand-all": "Expand All",
+      "collapse-all": "Collapse All",
+      "auto-refresh": {
+        "off": "Off"
+      }
     },
     "chain": {
       "title": "Process Chain",

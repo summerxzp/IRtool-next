@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useSyncExternalStore } from "react";
+import { useMemo, useCallback, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { iconCache, subscribePath } from "../columns";
@@ -8,6 +8,7 @@ interface Props {
   processes: ProcessEntry[];
   selectedPid: number | null;
   onSelect: (pid: number) => void;
+  expandAll?: boolean;
 }
 
 function buildProcessTree(processes: ProcessEntry[]): ProcessTreeNode[] {
@@ -57,8 +58,7 @@ function TreeNodeIcon({ imagePath }: { imagePath: string | null }) {
   return <span className="w-4 h-4 shrink-0 inline-block rounded-sm bg-bg-elev-2" />;
 }
 
-function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNode; depth: number; selectedPid: number | null; onSelect: (pid: number) => void }) {
-  const [expanded, setExpanded] = useState(depth < 2 || node.is_suspicious);
+function TreeNode({ node, depth, selectedPid, onSelect, expanded }: { node: ProcessTreeNode; depth: number; selectedPid: number | null; onSelect: (pid: number) => void; expanded: boolean }) {
   const hasChildren = node.children.length > 0;
   const isSelected = node.pid === selectedPid;
 
@@ -73,7 +73,6 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
         style={{ paddingLeft: `${depth * 16 + 8}px`, height: 28 }}
         onClick={() => {
           onSelect(node.pid);
-          if (hasChildren) setExpanded(!expanded);
         }}
       >
         {hasChildren ? (
@@ -95,7 +94,7 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
       {expanded && hasChildren && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.pid} node={child} depth={depth + 1} selectedPid={selectedPid} onSelect={onSelect} />
+            <TreeNode key={child.pid} node={child} depth={depth + 1} selectedPid={selectedPid} onSelect={onSelect} expanded={expanded} />
           ))}
         </div>
       )}
@@ -103,7 +102,7 @@ function TreeNode({ node, depth, selectedPid, onSelect }: { node: ProcessTreeNod
   );
 }
 
-export function ProcessTreeView({ processes, selectedPid, onSelect }: Props) {
+export function ProcessTreeView({ processes, selectedPid, onSelect, expandAll = false }: Props) {
   const { t } = useTranslation();
   const tree = useMemo(() => buildProcessTree(processes), [processes]);
 
@@ -118,7 +117,7 @@ export function ProcessTreeView({ processes, selectedPid, onSelect }: Props) {
   return (
     <div className="h-full overflow-auto bg-bg-base">
       {tree.map((node) => (
-        <TreeNode key={node.pid} node={node} depth={0} selectedPid={selectedPid} onSelect={onSelect} />
+        <TreeNode key={node.pid} node={node} depth={0} selectedPid={selectedPid} onSelect={onSelect} expanded={expandAll} />
       ))}
     </div>
   );

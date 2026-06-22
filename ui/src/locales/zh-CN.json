@@ -33,7 +33,12 @@
         "all": "全部",
         "suspicious": "可疑"
       },
-      "search-placeholder": "PID / 名称 / 路径"
+      "search-placeholder": "PID / 名称 / 路径",
+      "expand-all": "展开全部",
+      "collapse-all": "收起全部",
+      "auto-refresh": {
+        "off": "关"
+      }
     },
     "chain": {
       "title": "进程链",
