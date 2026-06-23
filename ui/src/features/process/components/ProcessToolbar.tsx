@@ -30,6 +30,7 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
   const search = useProcessStore((s) => s.search);
   const setSearch = useProcessStore((s) => s.setSearch);
   const toggleExpandAll = useProcessStore((s) => s.toggleExpandAll);
+  const expandAllCollapsed = useProcessStore((s) => s.expandAllCollapsed);
   const autoRefreshMs = useProcessStore((s) => s.autoRefreshMs);
   const setAutoRefreshMs = useProcessStore((s) => s.setAutoRefreshMs);
 
@@ -78,9 +79,9 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
       </div>
 
       {viewMode === "tree" && (
-        <Button variant="ghost" size="sm" className="h-6 px-2" onClick={toggleExpandAll} title={t("process.toolbar.expand-all")}>
+        <Button variant="ghost" size="sm" className="h-6 px-2" onClick={toggleExpandAll} title={expandAllCollapsed ? t("process.toolbar.expand-all") : t("process.toolbar.collapse-all")}>
           <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
-          {t("process.toolbar.expand-all")}
+          {expandAllCollapsed ? t("process.toolbar.expand-all") : t("process.toolbar.collapse-all")}
         </Button>
       )}
 
@@ -91,10 +92,8 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
         </SelectContent>
       </Select>
 
-      <Input type="text" placeholder={t("process.toolbar.search-placeholder")} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="flex-1 max-w-xs" />
+      <Input type="text" placeholder={t("process.toolbar.search-placeholder")} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="flex-1 min-w-0" />
       {searchInput && (<Button variant="ghost" size="icon" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
-
-      <div className="flex-1" />
 
       {snapshotTime && (
         <span className="text-xs text-fg-tertiary select-none">{snapshotTime}</span>

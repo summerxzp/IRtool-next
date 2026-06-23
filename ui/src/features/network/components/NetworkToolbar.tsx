@@ -147,7 +147,7 @@ export function NetworkToolbar({
         placeholder={t("network.toolbar.search-placeholder")}
         value={searchInput}
         onChange={(e) => setSearchInput(e.target.value)}
-        className="flex-1 max-w-xs"
+        className="flex-1 min-w-0"
       />
       {searchInput && (
         <Button
@@ -171,8 +171,6 @@ export function NetworkToolbar({
           <SelectItem value="forever">{t("network.toolbar.retention-forever")}</SelectItem>
         </SelectContent>
       </Select>
-
-      <div className="flex-1" />
 
       <Button
         variant="destructive"

@@ -15,13 +15,14 @@ interface ProcessState {
   setSearch: (s: string) => void;
 
   expandAllVersion: number;
+  expandAllCollapsed: boolean;
   toggleExpandAll: () => void;
 
   autoRefreshMs: number;
   setAutoRefreshMs: (ms: number) => void;
 }
 
-export const useProcessStore = create<ProcessState>()((set, get) => ({
+export const useProcessStore = create<ProcessState>()((set) => ({
   selectedPid: null,
   setSelectedPid: (selectedPid) => set({ selectedPid }),
 
@@ -35,7 +36,11 @@ export const useProcessStore = create<ProcessState>()((set, get) => ({
   setSearch: (search) => set({ search }),
 
   expandAllVersion: 0,
-  toggleExpandAll: () => set({ expandAllVersion: get().expandAllVersion + 1 }),
+  expandAllCollapsed: false,
+  toggleExpandAll: () => set((s) => ({
+    expandAllVersion: s.expandAllVersion + 1,
+    expandAllCollapsed: !s.expandAllCollapsed,
+  })),
 
   autoRefreshMs: 0,
   setAutoRefreshMs: (autoRefreshMs) => set({ autoRefreshMs }),

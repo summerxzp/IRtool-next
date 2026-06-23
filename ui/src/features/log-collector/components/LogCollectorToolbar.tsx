@@ -104,15 +104,13 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
         placeholder={t("log-collector.toolbar.search-placeholder")}
         value={searchInput}
         onChange={(e) => setSearchInput(e.target.value)}
-        className="flex-1 max-w-xs"
+        className="flex-1 min-w-0"
       />
       {searchInput && (
         <Button variant="ghost" size="icon" onClick={() => setSearchInput("")} title="clear">
           <X className="h-3.5 w-3.5" />
         </Button>
       )}
-
-      <div className="flex-1" />
 
       <Button variant="secondary" size="sm" onClick={onOpenConfigDialog} disabled={loading} className="hover:shadow-sm transition-shadow">
         <Settings className="h-3.5 w-3.5 mr-1" />

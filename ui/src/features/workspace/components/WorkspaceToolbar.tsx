@@ -32,7 +32,7 @@ export function WorkspaceToolbar({ onSearch, onRuleScan, onRuleManager, onRefres
         value={searchInput}
         onChange={(e) => setSearchInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="flex-1 max-w-xs"
+        className="flex-1 min-w-0"
       />
       <Button
         variant="secondary"
@@ -52,8 +52,6 @@ export function WorkspaceToolbar({ onSearch, onRuleScan, onRuleManager, onRefres
         <RotateCcw className="h-3.5 w-3.5 mr-1" />
         {t("workspace.toolbar.reset")}
       </Button>
-
-      <div className="flex-1" />
 
       <Button variant="secondary" size="sm" onClick={onRuleScan} disabled={scanning} className="hover:shadow-sm transition-shadow">
         <Shield className="h-3.5 w-3.5 mr-1" />

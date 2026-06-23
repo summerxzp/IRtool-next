@@ -9,6 +9,7 @@ interface Props {
   selectedPid: number | null;
   onSelect: (pid: number) => void;
   expandAllVersion?: number;
+  expandAllCollapsed?: boolean;
 }
 
 function buildProcessTree(processes: ProcessEntry[]): ProcessTreeNode[] {
@@ -120,20 +121,24 @@ function TreeNode({ node, depth, selectedPid, onSelect, expandedPids, toggleExpa
   );
 }
 
-export function ProcessTreeView({ processes, selectedPid, onSelect, expandAllVersion = 0 }: Props) {
+export function ProcessTreeView({ processes, selectedPid, onSelect, expandAllVersion = 0, expandAllCollapsed = false }: Props) {
   const { t } = useTranslation();
   const tree = useMemo(() => buildProcessTree(processes), [processes]);
   const [expandedPids, setExpandedPids] = useState<Set<number>>(new Set());
 
-  // When expandAllVersion changes, set all pids as expanded (or clear all)
+  // When expandAllVersion changes, expand or collapse all based on expandAllCollapsed
   const prevVersion = useRef(expandAllVersion);
   useEffect(() => {
     if (expandAllVersion !== prevVersion.current) {
       prevVersion.current = expandAllVersion;
-      const allPids = collectAllPids(tree);
-      setExpandedPids(new Set(allPids));
+      if (expandAllCollapsed) {
+        setExpandedPids(new Set());
+      } else {
+        const allPids = collectAllPids(tree);
+        setExpandedPids(new Set(allPids));
+      }
     }
-  }, [expandAllVersion, tree]);
+  }, [expandAllVersion, expandAllCollapsed, tree]);
 
   // Default: expand all on first render
   useEffect(() => {
