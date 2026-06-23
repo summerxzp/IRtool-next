@@ -7,6 +7,7 @@ use irtool_service::context::AppContext;
 use irtool_service::services::autoruns::AutorunsService;
 use irtool_service::types::{AutorunItem, DeleteResult, ScanOptions, ScanPhase, ScanProgress, SignatureStatus};
 
+use crate::icon_cache::IconCache;
 use crate::theme;
 use crate::widgets::badge::{self, BadgeVariant};
 use crate::widgets::detail_row::detail_row;
@@ -92,6 +93,10 @@ pub struct AutorunsPageState {
     sigcheck_tx: std::sync::mpsc::Sender<(String, String)>,
     sigcheck_rx: std::sync::mpsc::Receiver<(String, String)>,
 
+    // 图标缓存（复用主 UI 的 extract_icon_base64）
+    icon_cache: IconCache,
+    last_items_len: usize,
+
     // Cache (B2 pattern)
     cached_items: Vec<AutorunItem>,
     cache_dirty: bool,
@@ -132,6 +137,8 @@ impl Default for AutorunsPageState {
             sigcheck_dialog_open: false,
             sigcheck_tx,
             sigcheck_rx,
+            icon_cache: IconCache::default(),
+            last_items_len: 0,
             cached_items: Vec::new(),
             cache_dirty: true,
         }
@@ -198,6 +205,18 @@ impl AutorunsPageState {
 
         self.render_toolbar(ui, ctx, rt);
         ui.separator();
+
+        // 图标预加载 / 轮询
+        if self.items.len() != self.last_items_len {
+            self.last_items_len = self.items.len();
+            let paths: Vec<String> = self
+                .items
+                .iter()
+                .filter_map(|i| i.image_path.clone())
+                .collect();
+            self.icon_cache.preload(rt, paths);
+        }
+        self.icon_cache.poll(ui.ctx());
 
         // Delete result banner
         if let Some(ref result) = self.delete_banner {
@@ -444,7 +463,8 @@ impl AutorunsPageState {
         let sc = self.sort_column;
         let sd = self.sort_dir;
         let sel_id = self.selected_id;
-        let items = self.get_filtered_sorted_items();
+        let items = self.get_filtered_sorted_items().to_vec();
+        let icon_cache = &self.icon_cache;
 
         if items.is_empty() {
             ui.add_space(80.0);
@@ -553,7 +573,11 @@ impl AutorunsPageState {
                     });
                     row.col(|ui| cell_signature(ui, &item.signature));
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.entry).color(theme::FG_PRIMARY).strong());
+                        ui.horizontal(|ui| {
+                            icon_cache.icon_or_placeholder(ui, item.image_path.as_deref(), 16.0);
+                            ui.add_space(4.0);
+                            ui.label(egui::RichText::new(&item.entry).color(theme::FG_PRIMARY).strong());
+                        });
                     });
                     row.col(|ui| {
                         let path = item.image_path.as_deref().unwrap_or("");

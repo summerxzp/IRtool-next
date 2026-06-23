@@ -4,6 +4,7 @@ pub enum Page {
     Network,
     Autoruns,
     Sysmon,
+    Process,
     Monitor,
     Database,
     Workspace,
@@ -11,10 +12,11 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 7] = [
+    pub const ALL: [Page; 8] = [
         Page::Network,
         Page::Autoruns,
         Page::Sysmon,
+        Page::Process,
         Page::Monitor,
         Page::Database,
         Page::Workspace,
@@ -26,6 +28,7 @@ impl Page {
             Page::Network => "网络监控",
             Page::Autoruns => "持久化检测",
             Page::Sysmon => "日志采集",
+            Page::Process => "进程",
             Page::Monitor => "后台监控",
             Page::Database => "数据库",
             Page::Workspace => "工作台",
@@ -36,6 +39,7 @@ impl Page {
     pub fn icon(&self) -> &'static str {
         match self {
             Page::Network => "",
+            Page::Process => "",
             Page::Autoruns => "",
             Page::Sysmon => "",
             Page::Monitor => "",

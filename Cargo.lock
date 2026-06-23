@@ -2561,12 +2561,16 @@ name = "irtool-egui"
 version = "2.0.2"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "chrono",
  "eframe",
  "egui",
  "egui_extras",
  "image",
+ "irtool-autoruns",
  "irtool-core",
+ "irtool-net-monitor",
+ "irtool-process",
  "irtool-service",
  "muda",
  "parking_lot",

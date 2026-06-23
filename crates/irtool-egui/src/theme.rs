@@ -92,12 +92,24 @@ pub const TABLE_ROW_SELECTED: Color32 = Color32::from_rgba_premultiplied(0x25, 0
 
 // ── Layout ──────────────────────────────────────────────────
 pub const TOPBAR_HEIGHT: f32 = 32.0;
-pub const SIDEBAR_WIDTH: f32 = 180.0;
+pub const SIDEBAR_WIDTH: f32 = 140.0;
 pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
 pub const PANEL_PADDING: f32 = 12.0;
 pub const ELEMENT_GAP: f32 = 8.0;
 pub const TABLE_ROW_HEIGHT: f32 = 22.0;
 pub const TABLE_HEADER_HEIGHT: f32 = 24.0;
+
+/// 全局面板统一 frame：纯白填充、无边框、无阴影、无外边距。
+/// 用于 TopBottomPanel / SidePanel / CentralPanel，避免默认阴影/边框造成的黑边。
+pub fn panel_frame(inner_margin: egui::Margin) -> egui::Frame {
+    egui::Frame::new()
+        .fill(BG_PRIMARY)
+        .inner_margin(inner_margin)
+        .outer_margin(egui::Margin::ZERO)
+        .stroke(egui::Stroke::NONE)
+        .corner_radius(0.0)
+        .shadow(egui::Shadow::NONE)
+}
 
 /// Apply the light theme and CJK font to an egui context.
 pub fn apply_light_theme(ctx: &egui::Context) {

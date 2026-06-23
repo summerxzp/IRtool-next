@@ -16,6 +16,7 @@ use crate::pages::{
     database::{DatabasePageState, DbRefresh},
     monitor::{MonitorPageState, MonitorRefresh},
     network::NetworkPageState,
+    process::ProcessPageState,
     settings::{SettingsPageState, SettingsRefresh},
     sysmon::{SysmonPageState, SysmonRefresh},
     workspace::{WorkspacePageState, WorkspaceRefresh},
@@ -55,6 +56,7 @@ pub struct IrtoolApp {
 
     // Per-page state
     pub network: NetworkPageState,
+    pub process: ProcessPageState,
     pub autoruns: AutorunsPageState,
     pub sysmon: SysmonPageState,
     pub monitor: MonitorPageState,
@@ -127,6 +129,10 @@ impl IrtoolApp {
         monitor.refresh_tx = Some(monitor_refresh_tx);
         monitor.trigger_config_load(&ctx, rt.handle());
 
+        // 进程页：首次加载快照
+        let mut process = ProcessPageState::default();
+        process.trigger_refresh(&ctx, rt.handle());
+
         let database = DatabasePageState {
             refresh_tx: Some(database_refresh_tx),
             ..Default::default()
@@ -176,6 +182,7 @@ impl IrtoolApp {
             tools_refresh_tx,
             tools_refresh_rx,
             network: NetworkPageState::default(),
+            process,
             autoruns,
             sysmon,
             monitor,
@@ -732,6 +739,11 @@ impl eframe::App for IrtoolApp {
             self.event_bridge.attach_context(ctx.clone());
         }
 
+        // 0. 全屏白色底层：防止 Panel 之间因 DPI 缩放/对齐产生缝隙，露出 eframe 默认深色背景。
+        let screen = ctx.screen_rect();
+        ctx.layer_painter(egui::LayerId::background())
+            .rect_filled(screen, 0.0, theme::BG_PRIMARY);
+
         // 1. Drain events from EventBus
         for event in self.event_bridge.drain() {
             self.handle_event(event, ctx);
@@ -798,21 +810,35 @@ impl eframe::App for IrtoolApp {
         }
 
         // 2. Top bar
-        egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
-            self.render_topbar(ui);
-        });
+        egui::TopBottomPanel::top("topbar")
+            .frame(theme::panel_frame(egui::Margin::symmetric(8, 6)))
+            .show(ctx, |ui| {
+                self.render_topbar(ui);
+            });
 
         // 3. Sidebar
-        egui::SidePanel::left("sidebar").show(ctx, |ui| {
-            self.render_sidebar(ui);
-        });
+        egui::SidePanel::left("sidebar")
+            .resizable(false)
+            .exact_width(theme::SIDEBAR_WIDTH)
+            .frame(theme::panel_frame(egui::Margin {
+                left: 4,
+                right: 0,
+                top: 8,
+                bottom: 4,
+            }))
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                self.render_sidebar(ui);
+            });
 
         // 4. Stats bar (bottom, always at the very bottom)
         if matches!(
             self.current_page,
             Page::Network | Page::Autoruns | Page::Sysmon | Page::Database | Page::Workspace
         ) {
-            egui::TopBottomPanel::bottom("stats_bar").show(ctx, |ui| match self.current_page {
+            egui::TopBottomPanel::bottom("stats_bar")
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
+                .show(ctx, |ui| match self.current_page {
                 Page::Autoruns => self.autoruns.render_stats_bar(ui),
                 Page::Sysmon => self.sysmon.render_stats_bar(ui),
                 Page::Database => self.database.render_stats_bar(ui),
@@ -828,8 +854,20 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("detail_panel")
                 .default_height(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
                     self.network.render_detail_panel(ui, &self.ctx, self.rt.handle());
+                });
+        } else if self.current_page == Page::Process
+            && self.process.detail_visible
+            && self.process.selected_pid.is_some()
+        {
+            egui::TopBottomPanel::bottom("process_detail_panel")
+                .default_height(theme::DETAIL_PANEL_HEIGHT)
+                .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
+                .show(ctx, |ui| {
+                    self.process.render_detail_panel(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
                 });
         } else if self.current_page == Page::Autoruns
             && self.autoruns.detail_visible
@@ -838,6 +876,7 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("autoruns_detail_panel")
                 .default_height(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
                     self.autoruns.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
@@ -845,6 +884,7 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("sysmon_detail_panel")
                 .default_height(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
                     self.sysmon.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
@@ -852,6 +892,7 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("database_detail_panel")
                 .default_height(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
                     self.database.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
@@ -859,15 +900,21 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("workspace_detail_panel")
                 .default_height(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
+                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
                     self.workspace.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         }
 
         // 5. Content area
-        egui::CentralPanel::default().show(ctx, |ui| match self.current_page {
+        egui::CentralPanel::default()
+            .frame(theme::panel_frame(egui::Margin::ZERO))
+            .show(ctx, |ui| match self.current_page {
             Page::Network => {
                 self.network.render(ui, &self.ctx, self.rt.handle());
+            }
+            Page::Process => {
+                self.process.render(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
             }
             Page::Autoruns => {
                 self.autoruns.render(ui, &self.ctx, self.rt.handle());
