@@ -19,6 +19,16 @@ powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1 -IncludeWebV
 powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1 -IncludeOfflineInstallers
 ```
 
+## 打包前清理
+
+Release 构建前建议清理旧的编译产物，避免增量编译残留导致产物不一致，同时释放磁盘空间：
+
+```powershell
+cargo clean
+```
+
+`cargo clean` 仅删除 `target/` 目录下的编译缓存，不影响源码和配置，重新构建即可恢复。
+
 ## 打包流程
 
 `build-portable.ps1` 自动执行以下步骤：
