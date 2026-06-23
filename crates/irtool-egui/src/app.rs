@@ -839,14 +839,14 @@ impl eframe::App for IrtoolApp {
             egui::TopBottomPanel::bottom("stats_bar")
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| match self.current_page {
-                Page::Autoruns => self.autoruns.render_stats_bar(ui),
-                Page::Sysmon => self.sysmon.render_stats_bar(ui),
-                Page::Database => self.database.render_stats_bar(ui),
-                Page::Workspace => self.workspace.render_stats_bar(ui),
-                _ => {
-                    ui.label("");
-                }
-            });
+                    Page::Autoruns => self.autoruns.render_stats_bar(ui),
+                    Page::Sysmon => self.sysmon.render_stats_bar(ui),
+                    Page::Database => self.database.render_stats_bar(ui),
+                    Page::Workspace => self.workspace.render_stats_bar(ui),
+                    _ => {
+                        ui.label("");
+                    }
+                });
         }
 
         // 4b. Detail panel (bottom, above stats bar — declared after so it stacks above)
@@ -867,7 +867,8 @@ impl eframe::App for IrtoolApp {
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ctx, |ui| {
-                    self.process.render_detail_panel(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
+                    self.process
+                        .render_detail_panel(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
                 });
         } else if self.current_page == Page::Autoruns
             && self.autoruns.detail_visible
@@ -910,31 +911,32 @@ impl eframe::App for IrtoolApp {
         egui::CentralPanel::default()
             .frame(theme::panel_frame(egui::Margin::ZERO))
             .show(ctx, |ui| match self.current_page {
-            Page::Network => {
-                self.network.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Process => {
-                self.process.render(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
-            }
-            Page::Autoruns => {
-                self.autoruns.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Sysmon => {
-                self.sysmon.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Monitor => {
-                self.monitor.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Database => {
-                self.database.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Workspace => {
-                self.workspace.render(ui, &self.ctx, self.rt.handle());
-            }
-            Page::Settings => {
-                self.settings.render(ui, &self.ctx, self.rt.handle());
-            }
-        });
+                Page::Network => {
+                    self.network.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Process => {
+                    self.process
+                        .render(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
+                }
+                Page::Autoruns => {
+                    self.autoruns.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Sysmon => {
+                    self.sysmon.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Monitor => {
+                    self.monitor.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Database => {
+                    self.database.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Workspace => {
+                    self.workspace.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::Settings => {
+                    self.settings.render(ui, &self.ctx, self.rt.handle());
+                }
+            });
 
         // 6. Startup dialogs (fallback notice + tools check)
         self.render_fallback_notice(ctx);

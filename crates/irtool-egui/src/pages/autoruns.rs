@@ -209,11 +209,7 @@ impl AutorunsPageState {
         // 图标预加载 / 轮询
         if self.items.len() != self.last_items_len {
             self.last_items_len = self.items.len();
-            let paths: Vec<String> = self
-                .items
-                .iter()
-                .filter_map(|i| i.image_path.clone())
-                .collect();
+            let paths: Vec<String> = self.items.iter().filter_map(|i| i.image_path.clone()).collect();
             self.icon_cache.preload(rt, paths);
         }
         self.icon_cache.poll(ui.ctx());

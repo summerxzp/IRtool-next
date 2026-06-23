@@ -2520,7 +2520,7 @@ checksum = "cf370abdafd54d13e54a620e8c3e1145f28e46cc9d704bc6d94414559df41763"
 
 [[package]]
 name = "irtool-autoruns"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "base64 0.22.1",
  "csv",
@@ -2543,7 +2543,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-core"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "dashmap",
  "dirs",
@@ -2558,7 +2558,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-egui"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2588,7 +2588,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-monitor"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "aho-corasick",
  "chrono",
@@ -2612,7 +2612,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-net-monitor"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "dashmap",
  "irtool-core",
@@ -2629,7 +2629,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-pcap"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "irtool-core",
@@ -2644,7 +2644,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-process"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "dashmap",
  "irtool-core",
@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-rules"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "irtool-core",
  "serde",
@@ -2668,7 +2668,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-service"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "irtool-autoruns",
@@ -2693,7 +2693,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-sysmon"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "dashmap",
@@ -2710,7 +2710,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-tauri"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "irtool-autoruns",
@@ -2751,7 +2751,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-threat-intel"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "async-trait",
  "irtool-core",
@@ -2762,7 +2762,7 @@ dependencies = [
 
 [[package]]
 name = "irtool-tools"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "futures-util",
  "irtool-core",

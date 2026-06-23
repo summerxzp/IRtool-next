@@ -89,11 +89,7 @@ impl IconCache {
     }
 }
 
-fn decode_icon_texture(
-    ctx: &egui::Context,
-    debug_name: &str,
-    data_url: &str,
-) -> Option<egui::TextureHandle> {
+fn decode_icon_texture(ctx: &egui::Context, debug_name: &str, data_url: &str) -> Option<egui::TextureHandle> {
     let b64 = data_url.strip_prefix("data:image/png;base64,")?;
     let png_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64).ok()?;
     let img = image::load_from_memory_with_format(&png_bytes, image::ImageFormat::Png).ok()?;
