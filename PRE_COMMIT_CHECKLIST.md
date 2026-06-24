@@ -124,3 +124,50 @@ cargo build --release -p irtool-tauri --features irtool-tauri/egui-fallback
 | pnpm | 本地版本 | 9.x |
 
 **关键差异**：本地编译通过不代表 CI 通过，因为 CI 启用了 `-D warnings`。务必在本地也运行 clippy 确认无警告。
+
+---
+
+## Release 发布流程
+
+### 前置条件
+
+- 环境变量 `GITEE_TOKEN`：Gitee 个人访问令牌（需 `projects` 权限），用于 Gitee Release API
+  - 设置方式：系统属性 → 高级 → 环境变量 → 用户变量 → 新建 `GITEE_TOKEN`
+  - 获取令牌：https://gitee.com/profile/personal_access_tokens
+
+### 1. 构建便携版
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-portable.ps1
+```
+
+产物位于 `dist/IRTool-v{version}-portable.zip`。
+
+### 2. 创建 GitHub Release
+
+```powershell
+gh release create v{version} dist/IRTool-v{version}-portable.zip --title "v{version}" --notes "## v{version} 更新`n`n### 新功能`n...`n`n### 修复`n..."
+```
+
+### 3. 同步到 Gitee
+
+```powershell
+# 同步 tag（确保 Gitee 指向正确 commit）
+git push git@gitee.com:summerxzp/IRtool-next.git v{version} --force
+
+# 确保 main 分支也是最新
+git push git@gitee.com:summerxzp/IRtool-next.git HEAD:main
+
+# 查找 Gitee Release ID
+$token = [System.Environment]::GetEnvironmentVariable('GITEE_TOKEN', 'User')
+$releases = Invoke-RestMethod "https://gitee.com/api/v5/repos/summerxzp/IRtool-next/releases?access_token=$token"
+$releases | ForEach-Object { "$($_.id) | $($_.tag_name)" }
+
+# 上传资源文件（用 curl.exe 处理二进制文件）
+curl.exe -X POST "https://gitee.com/api/v5/repos/summerxzp/IRtool-next/releases/{release_id}/attach_files" -F "access_token=$token" -F "file=@dist/IRTool-v{version}-portable.zip"
+```
+
+**注意**：
+- Gitee 在 tag push 时会自动创建同名 Release（含源码 zip/tar.gz），但不会上传便携版 ZIP
+- Gitee API 上传二进制文件必须用 `curl.exe`，PowerShell 的 `Invoke-RestMethod` 拼接 multipart 会损坏文件
+- 如果 Gitee Release 已存在，直接上传 attach_file 即可，不需要重新创建

@@ -45,13 +45,26 @@ async fn cmd_app_force_quit(app: tauri::AppHandle, ctx: State<'_, AppContext>) -
     Ok(())
 }
 
+/// Cross-process single-instance mutex handle.
+/// Stored globally so `cmd_relaunch` can release it before spawning a new instance.
+#[cfg(windows)]
+struct MutexHandle(windows::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+unsafe impl Send for MutexHandle {}
+#[cfg(windows)]
+unsafe impl Sync for MutexHandle {}
+
+#[cfg(windows)]
+static SINGLE_INSTANCE_MUTEX: std::sync::OnceLock<MutexHandle> = std::sync::OnceLock::new();
+
 /// 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
 /// 导致新进程启动后立即退出的问题。
 ///
-/// 原理：先退出后台模式，再通过 ShellExecuteW Win32 API 启动新实例。
+/// 原理：先退出后台模式，再释放所有单实例保护（tauri-plugin-single-instance 的 mutex +
+/// 隐藏窗口，以及自定义的 CreateMutexW 互斥锁），再通过 ShellExecuteW 启动新实例。
 /// ShellExecuteW 原生使用 UTF-16 编码，完美支持中文/Unicode 路径。
-/// 单实例互斥锁（CreateMutexW）在进程退出后由 OS 自动释放，
-/// 新进程启动时旧进程已退出，互斥锁可正常获取。
+/// 必须在启动新实例前先释放所有单实例保护，否则新进程检测到已有实例会直接退出。
 #[tauri::command]
 #[specta::specta]
 async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Result<(), IrError> {
@@ -65,8 +78,21 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
     #[cfg(windows)]
     {
         use windows::core::PCWSTR;
+        use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::UI::Shell::ShellExecuteW;
         use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
+
+        // 释放 tauri-plugin-single-instance 的单实例保护（mutex + 隐藏窗口）
+        tauri_plugin_single_instance::destroy(&app);
+        info!("[cmd_relaunch] destroyed tauri-plugin-single-instance guard");
+
+        // 释放自定义 CreateMutexW 互斥锁
+        if let Some(handle) = SINGLE_INSTANCE_MUTEX.get() {
+            unsafe {
+                let _ = CloseHandle(handle.0);
+            }
+            info!("[cmd_relaunch] released custom single-instance mutex");
+        }
 
         let verb: Vec<u16> = "open\0".encode_utf16().collect();
         let file: Vec<u16> = current_exe
@@ -92,6 +118,9 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
                 )));
             }
         }
+
+        // 短暂等待让新进程完成初始化并获取互斥锁
+        std::thread::sleep(std::time::Duration::from_millis(500));
 
         info!("[cmd_relaunch] new instance launched, exiting app");
     }
@@ -154,9 +183,8 @@ pub fn run() {
                     eprintln!("IRtool is already running.");
                     return;
                 }
-                // HANDLE is Copy with no Drop; the kernel mutex object stays
-                // alive until process exit since we never call CloseHandle.
-                let _ = handle;
+                // Store handle globally so cmd_relaunch can release it before relaunch
+                let _ = SINGLE_INSTANCE_MUTEX.set(MutexHandle(handle));
             }
             Err(_) => {
                 tracing::warn!("failed to create single-instance mutex, proceeding anyway");
