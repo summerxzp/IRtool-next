@@ -18,7 +18,7 @@ export interface DataTableProps<T> {
   data: T[];
   rowHeight?: number;
   onRowSelect?: (row: T | null) => void;
-  getRowId: (row: T) => string;
+  getRowId: (row: T, index: number) => string;
   rowClassName?: (row: T) => string | undefined;
   onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
   onRowDoubleClick?: (row: T, event: React.MouseEvent) => void;
@@ -131,6 +131,23 @@ export function DataTable<T>({
   const getRowIdRef = React.useRef(getRowId);
   getRowIdRef.current = getRowId;
 
+  // data 变化时清理无效的 rowSelection。
+  // 当 data 更新（如切换 profile）后，旧 rowSelection 里的 id 可能已不存在，
+  // react-table 内部 mutateRowIsSelected 会调 getRow(id) 找不到行而崩溃。
+  React.useEffect(() => {
+    if (Object.keys(rowSelection).length === 0) return;
+    const fn = getRowIdRef.current;
+    const validIds = new Set(data.map((d, i) => fn(d, i)));
+    const filtered = Object.fromEntries(
+      Object.entries(rowSelection).filter(([id]) => validIds.has(id)),
+    );
+    if (Object.keys(filtered).length !== Object.keys(rowSelection).length) {
+      setRowSelection(filtered);
+    }
+    // 仅依赖 data 引用变化，getRowId 通过 ref 读取避免频繁触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   React.useEffect(() => {
     const cb = onRowSelectRef.current;
     if (!cb) return;
@@ -143,7 +160,7 @@ export function DataTable<T>({
     if (ids.length === 0) {
       cb(null);
     } else {
-      const row = dataRef.current.find((d) => getRowIdRef.current(d) === ids[0]);
+      const row = dataRef.current.find((d, i) => getRowIdRef.current(d, i) === ids[0]);
       cb(row ?? null);
     }
   }, [rowSelection]);

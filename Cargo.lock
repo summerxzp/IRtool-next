@@ -2542,6 +2542,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "irtool-browser-forensics"
+version = "2.0.3"
+dependencies = [
+ "chrono",
+ "glob",
+ "irtool-core",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "specta",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+ "windows 0.59.0",
+]
+
+[[package]]
 name = "irtool-core"
 version = "2.0.3"
 dependencies = [
@@ -2568,6 +2586,7 @@ dependencies = [
  "egui_extras",
  "image",
  "irtool-autoruns",
+ "irtool-browser-forensics",
  "irtool-core",
  "irtool-net-monitor",
  "irtool-process",
@@ -2672,6 +2691,7 @@ version = "2.0.3"
 dependencies = [
  "chrono",
  "irtool-autoruns",
+ "irtool-browser-forensics",
  "irtool-core",
  "irtool-monitor",
  "irtool-net-monitor",
@@ -2714,6 +2734,7 @@ version = "2.0.3"
 dependencies = [
  "chrono",
  "irtool-autoruns",
+ "irtool-browser-forensics",
  "irtool-core",
  "irtool-egui",
  "irtool-monitor",

@@ -16,6 +16,7 @@
     "log-collector": "日志采集",
     "autoruns": "持久化检测",
     "process": "进程",
+    "browser-forensics": "浏览器取证",
     "workspace": "工作台",
     "settings": "设置",
     "background-detection": "后台监测",
@@ -54,7 +55,13 @@
       "chain": "进程链",
       "network": "网络",
       "sysmon": "日志",
-      "autoruns": "持久化"
+      "autoruns": "持久化",
+      "browser": "浏览器取证"
+    },
+    "browser": {
+      "not-a-browser": "选中的进程不是浏览器",
+      "description": "该进程是 {{browser}}。可查看扩展清单、历史记录、下载记录等浏览器取证数据。",
+      "open-forensics": "打开浏览器取证"
     },
     "association": {
       "view-network": "查看网络监控",
@@ -460,6 +467,59 @@
       "test-feishu-success": "飞书通知测试发送成功",
       "test-feishu-failed": "测试发送失败",
       "webhook-url-required": "请先输入 Webhook URL"
+    }
+  },
+  "browser-forensics": {
+    "extensions": "扩展清单",
+    "history": "历史记录",
+    "downloads": "下载记录",
+    "tabs": "当前标签页",
+    "context-attribution": "上下文归因",
+    "select-profile": "选择 Profile",
+    "search": "搜索",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "col": {
+      "name": "名称",
+      "version": "版本",
+      "risk": "风险标注",
+      "permissions": "权限数",
+      "install-source": "安装来源",
+      "install-time": "安装时间",
+      "filename": "文件名",
+      "danger-type": "危险类型",
+      "start-time": "开始时间",
+      "size": "大小",
+      "opened": "已打开",
+      "visit-time": "访问时间",
+      "title": "标题",
+      "tier": "时间层",
+      "evidence-type": "证据类型",
+      "active": "活跃",
+      "tab-index": "序号"
+    },
+    "risk": {
+      "high-privilege-combo": "高危组合",
+      "broad-host-access": "广泛访问",
+      "content-script-inject": "内容注入",
+      "side-loaded": "侧载",
+      "unknown-update-url": "未知来源",
+      "preferences-tampered": "篡改",
+      "recently-installed": "近期安装"
+    },
+    "detail": {
+      "select-extension": "请选择一个扩展查看详情",
+      "description": "描述",
+      "install-time": "安装时间",
+      "install-source": "安装来源",
+      "update-url": "更新地址",
+      "path": "路径",
+      "was-installed-by-default": "默认安装",
+      "has-content-scripts": "内容脚本",
+      "has-background": "后台脚本",
+      "preferences-tampered": "配置篡改",
+      "permissions": "权限",
+      "host-permissions": "主机权限"
     }
   },
   "settings": {

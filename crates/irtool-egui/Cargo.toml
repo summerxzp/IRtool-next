@@ -11,6 +11,7 @@ irtool-service = { path = "../irtool-service" }
 irtool-process = { path = "../irtool-process" }
 irtool-net-monitor = { path = "../irtool-net-monitor" }
 irtool-autoruns = { path = "../irtool-autoruns" }
+irtool-browser-forensics = { path = "../irtool-browser-forensics" }
 
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts"] }
 egui_extras = "0.31"

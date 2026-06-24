@@ -13,6 +13,7 @@ members = [
     "crates/irtool-service",
     "crates/irtool-tauri",
     "crates/irtool-egui",
+    "crates/irtool-browser-forensics",
 ]
 resolver = "2"
 

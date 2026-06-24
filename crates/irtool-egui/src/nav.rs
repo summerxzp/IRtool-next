@@ -3,6 +3,7 @@
 pub enum Page {
     Network,
     Autoruns,
+    BrowserForensics,
     Sysmon,
     Process,
     Monitor,
@@ -12,11 +13,12 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 8] = [
+    pub const ALL: [Page; 9] = [
         Page::Network,
         Page::Autoruns,
         Page::Sysmon,
         Page::Process,
+        Page::BrowserForensics,
         Page::Monitor,
         Page::Database,
         Page::Workspace,
@@ -27,6 +29,7 @@ impl Page {
         match self {
             Page::Network => "网络监控",
             Page::Autoruns => "持久化检测",
+            Page::BrowserForensics => "浏览器取证",
             Page::Sysmon => "日志采集",
             Page::Process => "进程",
             Page::Monitor => "后台监控",
@@ -41,6 +44,7 @@ impl Page {
             Page::Network => "",
             Page::Process => "",
             Page::Autoruns => "",
+            Page::BrowserForensics => "",
             Page::Sysmon => "",
             Page::Monitor => "",
             Page::Database => "",

@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "IRTool Network Attribution Helper",
+  "version": "1.0.0",
+  "description": "Attribution helper for IRTool browser forensics",
+  "permissions": ["webRequest", "management", "nativeMessaging"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "service_worker.js"
+  }
+}

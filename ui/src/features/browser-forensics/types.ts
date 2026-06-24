@@ -1,0 +1,138 @@
+export type BrowserKind = "chrome" | "edge";
+
+export interface BrowserProfile {
+  browser: BrowserKind;
+  name: string;
+  path: string;
+}
+
+export interface ExtensionInfo {
+  id: string;
+  name: string;
+  version: string;
+  description: string | null;
+  enabled: boolean;
+  install_time: string | null;
+  install_source: string | null;
+  update_url: string | null;
+  was_installed_by_default: boolean | null;
+  permissions: string[];
+  host_permissions: string[];
+  has_content_scripts: boolean;
+  has_background: boolean;
+  preferences_tampered: boolean;
+  risk_flags: string[];
+  path: string;
+}
+
+export interface ExtensionInventory {
+  browser: BrowserKind;
+  profile: string;
+  extensions: ExtensionInfo[];
+}
+
+export type DangerType =
+  | "NOT_DANGEROUS"
+  | "DANGEROUS_URL"
+  | "DANGEROUS_CONTENT"
+  | "DANGEROUS_HOST"
+  | "UNCOMMON_URL"
+  | "POTENTIALLY_UNWANTED"
+  | "ALLOWLISTED_BY_POLICY"
+  | "UNKNOWN";
+
+export interface DownloadInfo {
+  filename: string;
+  local_path: string;
+  download_url: string;
+  referrer: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  total_bytes: number | null;
+  danger_type: DangerType;
+  opened: boolean;
+  interrupt_reason: string | null;
+}
+
+export interface RecoveredTab {
+  url: string;
+  title: string;
+  active: boolean;
+  tab_index: number | null;
+}
+
+export interface SessionRecoveryResult {
+  browser: BrowserKind;
+  profile: string;
+  tabs: RecoveredTab[];
+  parse_errors: string[];
+}
+
+export type TimeTier = "immediate" | "nearby" | "recent";
+
+export interface RecentActivity {
+  url: string;
+  title: string;
+  visit_time: string;
+  tier: TimeTier;
+  time_distance_ms: number;
+  evidence_type: string;
+}
+
+export interface HistoryAttribution {
+  browser: BrowserKind;
+  profile: string;
+  recent_browser_activity: RecentActivity[];
+  navigation_chain: NavChainNode[];
+}
+
+export interface HistoryList {
+  browser: BrowserKind;
+  profile: string;
+  entries: RecentActivity[];
+}
+
+export interface NavChainNode {
+  url: string;
+  title: string | null;
+  transition: string | null;
+}
+
+export interface BrowserContext {
+  malicious_connection: MaliciousConnection;
+  context: BrowserContextDetail;
+}
+
+export interface MaliciousConnection {
+  domain: string;
+  ip: string | null;
+  process: string;
+  pid: number;
+  browser: BrowserKind;
+  profile: string;
+  timestamp: string;
+}
+
+export interface BrowserContextDetail {
+  recent_browser_activity: RecentActivity[];
+  navigation_chain: NavChainNode[];
+  current_tabs: CurrentTab[];
+  recent_downloads: DownloadInfo[];
+  matching_extensions: MatchedExtension[];
+}
+
+export interface CurrentTab {
+  url: string;
+  title: string;
+  active: boolean;
+  evidence_type: string;
+}
+
+export interface MatchedExtension {
+  id: string;
+  name: string;
+  version: string;
+  risk_flags: string[];
+  matched_patterns: string[];
+  has_sensitive_permissions: boolean;
+}

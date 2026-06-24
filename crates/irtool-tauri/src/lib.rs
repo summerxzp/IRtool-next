@@ -7,6 +7,7 @@ mod tray;
 mod types;
 
 use crate::commands::autoruns::*;
+use crate::commands::browser_forensics::*;
 use crate::commands::monitor::*;
 use crate::commands::network::*;
 use crate::commands::process::*;
@@ -288,6 +289,15 @@ pub fn run() {
         cmd_tools_check,
         cmd_tools_download,
         cmd_tools_import_zip,
+        // --- Browser Forensics ---
+        cmd_browser_forensics_list_profiles,
+        cmd_browser_forensics_scan_extensions,
+        cmd_browser_forensics_scan_all_extensions,
+        cmd_browser_forensics_scan_downloads,
+        cmd_browser_forensics_recover_tabs,
+        cmd_browser_forensics_attribute_history,
+        cmd_browser_forensics_scan_history,
+        cmd_browser_forensics_context_attribution,
     ]);
 
     #[cfg(debug_assertions)]

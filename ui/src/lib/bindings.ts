@@ -25,8 +25,10 @@ async cmdAppForceQuit() : Promise<Result<null, IrError>> {
  * 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
  * 导致新进程启动后立即退出的问题。
  * 
- * 原理：将批处理脚本写入临时 bat 文件，spawn 一个 detached cmd.exe 子进程，
- * 轮询等待当前进程退出后再启动新实例，然后当前进程调用 app.exit(0) 退出。
+ * 原理：先退出后台模式，再释放所有单实例保护（tauri-plugin-single-instance 的 mutex +
+ * 隐藏窗口，以及自定义的 CreateMutexW 互斥锁），再通过 ShellExecuteW 启动新实例。
+ * ShellExecuteW 原生使用 UTF-16 编码，完美支持中文/Unicode 路径。
+ * 必须在启动新实例前先释放所有单实例保护，否则新进程检测到已有实例会直接退出。
  */
 async cmdRelaunch() : Promise<Result<null, IrError>> {
     try {
@@ -579,6 +581,70 @@ async cmdToolsImportZip(toolId: string, zipPath: string) : Promise<Result<null, 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async cmdBrowserForensicsListProfiles() : Promise<Result<BrowserProfile[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_list_profiles") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsScanExtensions(browser: BrowserKind, profileName: string) : Promise<Result<ExtensionInventory, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_extensions", { browser, profileName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsScanAllExtensions(browser: BrowserKind) : Promise<Result<ExtensionInventory[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_all_extensions", { browser }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsScanDownloads(browser: BrowserKind, profileName: string) : Promise<Result<DownloadAttribution, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_downloads", { browser, profileName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsRecoverTabs(browser: BrowserKind, profileName: string) : Promise<Result<SessionRecoveryResult, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_recover_tabs", { browser, profileName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsAttributeHistory(browser: BrowserKind, profileName: string, targetTime: string) : Promise<Result<HistoryAttribution, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_attribute_history", { browser, profileName, targetTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsScanHistory(browser: BrowserKind, profileName: string) : Promise<Result<HistoryList, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_history", { browser, profileName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsContextAttribution(domain: string, ip: string | null, processName: string, pid: number, timestamp: string) : Promise<Result<BrowserContext, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_context_attribution", { domain, ip, processName, pid, timestamp }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -603,9 +669,113 @@ export type Alert = { id: number; timestamp: number; rule_name: string; event_ty
 export type AlertPopupParams = { rule_name: string; key_field: string; event_type: string; process_name: string; protocol: string; timestamp: number; source_addr: string | null; remote_addr: string | null; process_chain: string | null }
 export type AppInfo = { name: string; version: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
+/**
+ * Browser Context Attribution 综合输出
+ */
+export type BrowserContext = { malicious_connection: MaliciousConnection; context: BrowserContextDetail }
+/**
+ * Browser Context 详情
+ */
+export type BrowserContextDetail = { 
+/**
+ * 近期浏览器活动（来自 History Analysis）
+ */
+recent_browser_activity: RecentActivity[]; 
+/**
+ * 用户访问路径（来自 Navigation Chain）
+ */
+navigation_chain: NavChainNode[]; 
+/**
+ * 当前打开标签页（来自 Session Recovery，暂为空）
+ */
+current_tabs: CurrentTab[]; 
+/**
+ * 下载溯源（来自 Download Analysis）
+ */
+recent_downloads: DownloadInfo[]; 
+/**
+ * 匹配的扩展（来自 Permission Matcher）
+ */
+matching_extensions: MatchedExtension[] }
+/**
+ * Chromium 系浏览器类型
+ */
+export type BrowserKind = "chrome" | "edge"
+/**
+ * 浏览器 Profile 信息
+ */
+export type BrowserProfile = { browser: BrowserKind; 
+/**
+ * Profile 目录名（如 "Default", "Profile 1"）
+ */
+name: string; 
+/**
+ * Profile 目录完整路径
+ */
+path: string }
 export type CmdlineStatus = "unknown" | "pending" | "ready" | "denied" | "exited" | "failed"
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
+/**
+ * 当前标签页（Session Recovery 的占位结构，Phase 3 实现后填充）
+ */
+export type CurrentTab = { url: string; title: string; active: boolean; evidence_type: string }
+/**
+ * Chrome 对下载文件的安全判定值
+ */
+export type DangerType = "NOT_DANGEROUS" | "DANGEROUS_URL" | "DANGEROUS_CONTENT" | "DANGEROUS_HOST" | "UNCOMMON_URL" | "POTENTIALLY_UNWANTED" | "ALLOWLISTED_BY_POLICY" | "UNKNOWN"
 export type DeleteResult = { success: boolean; message: string }
+/**
+ * 下载溯源结果
+ */
+export type DownloadAttribution = { browser: BrowserKind; profile: string; downloads: DownloadInfo[] }
+/**
+ * 单个下载记录
+ */
+export type DownloadInfo = { 
+/**
+ * 下载文件名
+ */
+filename: string; 
+/**
+ * 下载文件本地路径
+ */
+local_path: string; 
+/**
+ * 下载源 URL
+ */
+download_url: string; 
+/**
+ * 来源页面 URL
+ */
+referrer: string | null; 
+/**
+ * 下载开始时间
+ */
+start_time: string | null; 
+/**
+ * 下载完成时间
+ */
+end_time: string | null; 
+/**
+ * 文件大小（字节）
+ */
+total_bytes: number | null; 
+/**
+ * Chrome 安全判定
+ */
+danger_type: DangerType; 
+/**
+ * 用户是否打开了文件
+ */
+opened: boolean; 
+/**
+ * 中断原因
+ */
+interrupt_reason: string | null; 
+/**
+ * 证据类型
+ */
+evidence_type: string }
 /**
  * Event configuration entry.
  */
@@ -619,8 +789,44 @@ export type EventPage = { items: MonitorEvent[]; total: number; limit: number; o
  */
 export type EventQuery = { source: string | null; event_type: string | null; process_name: string | null; key_field: string | null; is_external: boolean | null; search_text: string | null; limit: number; offset: number }
 export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
+/**
+ * 单个扩展的完整信息
+ */
+export type ExtensionInfo = { id: string; name: string; version: string; description: string | null; enabled: boolean; install_time: string | null; install_source: string | null; update_url: string | null; was_installed_by_default: boolean | null; permissions: string[]; host_permissions: string[]; has_content_scripts: boolean; has_background: boolean; preferences_tampered: boolean; risk_flags: string[]; ioc_matches: IocMatch[]; path: string }
+/**
+ * 扩展资产清单
+ */
+export type ExtensionInventory = { browser: BrowserKind; profile: string; extensions: ExtensionInfo[] }
 export type Family = "v4" | "v6"
+/**
+ * History 关联结果
+ */
+export type HistoryAttribution = { browser: BrowserKind; profile: string; recent_browser_activity: RecentActivity[]; navigation_chain: NavChainNode[] }
+/**
+ * History 列表结果
+ */
+export type HistoryList = { browser: BrowserKind; profile: string; entries: RecentActivity[] }
+/**
+ * IOC 匹配结果
+ */
+export type IocMatch = { ioc_type: string; value: string; description: string }
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
+/**
+ * 恶意连接信息
+ */
+export type MaliciousConnection = { domain: string; ip: string | null; process: string; pid: number; browser: BrowserKind; profile: string; timestamp: string }
+/**
+ * 匹配到的扩展
+ */
+export type MatchedExtension = { id: string; name: string; version: string; risk_flags: string[]; 
+/**
+ * 匹配到的 host_permissions 模式
+ */
+matched_patterns: string[]; 
+/**
+ * 是否拥有敏感权限组合（如 webRequest）
+ */
+has_sensitive_permissions: boolean }
 /**
  * 后台监控配置
  */
@@ -729,6 +935,10 @@ event_types: string[];
  * 是否启用
  */
 enabled: boolean }
+/**
+ * Navigation Chain 节点
+ */
+export type NavChainNode = { url: string; title: string | null; transition: string | null }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; cmdline_status: CmdlineStatus; first_seen: number; last_seen: number; is_current: boolean }
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
@@ -814,6 +1024,14 @@ suspicious_reason: string | null }
  */
 export type ProcessSnapshot = { processes: ProcessEntry[]; timestamp: number }
 export type Proto = "tcp" | "udp"
+/**
+ * 近期浏览器活动记录
+ */
+export type RecentActivity = { url: string; title: string; visit_time: string; tier: TimeTier; time_distance_ms: number; evidence_type: string }
+/**
+ * 恢复的标签页
+ */
+export type RecoveredTab = { url: string; title: string; active: boolean; tab_index: number | null }
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"
 /**
@@ -825,6 +1043,10 @@ export type RuntimeMode = "Foreground" | "Background"
  */
 export type RuntimeTelemetry = { mode: RuntimeMode; started_at: number | null; events_written: number; events_dropped: number; last_event_at: number | null; last_error: string | null }
 export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
+/**
+ * Session Recovery 结果
+ */
+export type SessionRecoveryResult = { browser: BrowserKind; profile: string; tabs: RecoveredTab[]; parse_errors: string[] }
 export type SignatureStatus = { kind: "valid"; detail: { signer: string } } | { kind: "invalid"; detail: { message: string } } | { kind: "unsigned" } | { kind: "not_verified" }
 /**
  * Unified Sysmon event struct. Fields not applicable to a given event type are None/empty.
@@ -838,6 +1060,22 @@ export type SysmonEventType = "process_create" | "file_create_time" | "network_c
  * Sysmon service status info.
  */
 export type SysmonStatus = { installed: boolean; running: boolean; service_name: string | null; sysmon_exe_exists: boolean; config_exists: boolean; sysmon_exe_path: string; config_path: string; started_by_irtool: boolean; config_managed_by_irtool: boolean }
+/**
+ * 时间窗层级
+ */
+export type TimeTier = 
+/**
+ * ±5s，极高概率关联
+ */
+"immediate" | 
+/**
+ * ±15s，较高概率关联
+ */
+"nearby" | 
+/**
+ * ±30s，参考性关联
+ */
+"recent"
 /**
  * Status of a single tool
  */

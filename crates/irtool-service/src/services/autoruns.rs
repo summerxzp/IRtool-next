@@ -52,7 +52,11 @@ impl<'a> AutorunsService<'a> {
                     let t_store_start = std::time::Instant::now();
                     store.clear_and_put(items);
                     let t_store = t_store_start.elapsed();
-                    tracing::info!("[autoruns-timing] store clear_and_put: {:.3}s ({} items)", t_store.as_secs_f64(), count);
+                    tracing::info!(
+                        "[autoruns-timing] store clear_and_put: {:.3}s ({} items)",
+                        t_store.as_secs_f64(),
+                        count
+                    );
                     event_bus_for_result.publish(AppEvent::AutorunsScanComplete { count });
                     // Also publish the final ScanProgress for frontend compatibility
                     event_bus_for_result.publish(AppEvent::AutorunsProgress(ScanProgress {
@@ -85,7 +89,11 @@ impl<'a> AutorunsService<'a> {
         let start = std::time::Instant::now();
         let result = self.ctx.autoruns_store.get_all();
         let elapsed = start.elapsed();
-        tracing::info!("[autoruns-timing] get_result: {:.3}s ({} items)", elapsed.as_secs_f64(), result.len());
+        tracing::info!(
+            "[autoruns-timing] get_result: {:.3}s ({} items)",
+            elapsed.as_secs_f64(),
+            result.len()
+        );
         Ok(result)
     }
 

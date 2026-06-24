@@ -13,6 +13,7 @@ use crate::event_bridge::EventBridge;
 use crate::nav::Page;
 use crate::pages::{
     autoruns::AutorunsPageState,
+    browser_forensics::BrowserForensicsPageState,
     database::{DatabasePageState, DbRefresh},
     monitor::{MonitorPageState, MonitorRefresh},
     network::NetworkPageState,
@@ -58,6 +59,7 @@ pub struct IrtoolApp {
     pub network: NetworkPageState,
     pub process: ProcessPageState,
     pub autoruns: AutorunsPageState,
+    pub browser_forensics: BrowserForensicsPageState,
     pub sysmon: SysmonPageState,
     pub monitor: MonitorPageState,
     pub database: DatabasePageState,
@@ -184,6 +186,7 @@ impl IrtoolApp {
             network: NetworkPageState::default(),
             process,
             autoruns,
+            browser_forensics: BrowserForensicsPageState::default(),
             sysmon,
             monitor,
             database,
@@ -906,6 +909,9 @@ impl eframe::App for IrtoolApp {
                 }
                 Page::Autoruns => {
                     self.autoruns.render(ui, &self.ctx, self.rt.handle());
+                }
+                Page::BrowserForensics => {
+                    self.browser_forensics.show(ui, &self.ctx, self.rt.handle());
                 }
                 Page::Sysmon => {
                     self.sysmon.render(ui, &self.ctx, self.rt.handle());

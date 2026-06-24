@@ -1,4 +1,5 @@
 pub mod autoruns;
+pub mod browser_forensics;
 pub mod database;
 pub mod monitor;
 pub mod network;

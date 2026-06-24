@@ -1,5 +1,6 @@
 pub mod app;
 pub mod autoruns;
+pub mod browser_forensics;
 pub mod monitor;
 pub mod network;
 pub mod pcap;

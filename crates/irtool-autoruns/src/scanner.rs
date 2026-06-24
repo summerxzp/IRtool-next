@@ -42,7 +42,10 @@ impl AutorunsScanner {
 
         let output = self.run_autorunsc(&options, &cancel).await?;
         let t_autorunsc = start.elapsed();
-        tracing::info!("[autoruns-timing] autorunsc execution: {:.2}s", t_autorunsc.as_secs_f64());
+        tracing::info!(
+            "[autoruns-timing] autorunsc execution: {:.2}s",
+            t_autorunsc.as_secs_f64()
+        );
 
         if cancel.is_cancelled() {
             tracing::info!("scan cancelled after autorunsc completed");
@@ -61,7 +64,11 @@ impl AutorunsScanner {
         let t_parse_start = std::time::Instant::now();
         let raw_entries = csv_parser::parse(&output)?;
         let t_parse = t_parse_start.elapsed();
-        tracing::info!("[autoruns-timing] CSV parsing: {:.3}s ({} entries)", t_parse.as_secs_f64(), raw_entries.len());
+        tracing::info!(
+            "[autoruns-timing] CSV parsing: {:.3}s ({} entries)",
+            t_parse.as_secs_f64(),
+            raw_entries.len()
+        );
 
         if cancel.is_cancelled() {
             return Err(IrError::Cancelled);
@@ -79,7 +86,11 @@ impl AutorunsScanner {
         let t_files_start = std::time::Instant::now();
         let file_info = check_files_batch(&raw_entries);
         let t_files = t_files_start.elapsed();
-        tracing::info!("[autoruns-timing] file existence check: {:.3}s ({} unique paths)", t_files.as_secs_f64(), file_info.len());
+        tracing::info!(
+            "[autoruns-timing] file existence check: {:.3}s ({} unique paths)",
+            t_files.as_secs_f64(),
+            file_info.len()
+        );
 
         // 4. Risk evaluation + build AutorunItem
         progress(ScanProgress {
@@ -154,7 +165,11 @@ impl AutorunsScanner {
             .collect();
 
         let t_build = t_build_start.elapsed();
-        tracing::info!("[autoruns-timing] risk evaluation + item build: {:.3}s ({} items)", t_build.as_secs_f64(), items.len());
+        tracing::info!(
+            "[autoruns-timing] risk evaluation + item build: {:.3}s ({} items)",
+            t_build.as_secs_f64(),
+            items.len()
+        );
 
         // 5. Category filter
         let items = if let Some(ref filter) = options.category_filter {
@@ -164,7 +179,11 @@ impl AutorunsScanner {
         };
 
         let elapsed = start.elapsed();
-        tracing::info!("[autoruns-timing] total scan: {:.2}s ({} items)", elapsed.as_secs_f64(), items.len());
+        tracing::info!(
+            "[autoruns-timing] total scan: {:.2}s ({} items)",
+            elapsed.as_secs_f64(),
+            items.len()
+        );
 
         progress(ScanProgress {
             task_id: 0,

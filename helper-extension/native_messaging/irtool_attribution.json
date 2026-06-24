@@ -1,0 +1,9 @@
+{
+  "name": "com.irtool.attribution",
+  "description": "IRTool Network Attribution Helper",
+  "path": "C:\\Program Files\\IRTool\\irtool.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://EXTENSION_ID_PLACEHOLDER/"
+  ]
+}

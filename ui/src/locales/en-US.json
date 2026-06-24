@@ -16,6 +16,7 @@
     "log-collector": "Log Collector",
     "autoruns": "Autoruns",
     "process": "Process",
+    "browser-forensics": "Browser Forensics",
     "workspace": "Workspace",
     "settings": "Settings",
     "background-detection": "Background Detection",
@@ -54,7 +55,13 @@
       "chain": "Process Chain",
       "network": "Network",
       "sysmon": "Events",
-      "autoruns": "Autoruns"
+      "autoruns": "Autoruns",
+      "browser": "Browser Forensics"
+    },
+    "browser": {
+      "not-a-browser": "Selected process is not a browser",
+      "description": "This process is {{browser}}. View browser forensics data including extensions, history, and downloads.",
+      "open-forensics": "Open Browser Forensics"
     },
     "association": {
       "view-network": "View in Network Monitor",
@@ -460,6 +467,59 @@
       "test-feishu-success": "Feishu notification test sent successfully",
       "test-feishu-failed": "Test send failed",
       "webhook-url-required": "Please enter Webhook URL first"
+    }
+  },
+  "browser-forensics": {
+    "extensions": "Extensions",
+    "history": "History",
+    "downloads": "Downloads",
+    "tabs": "Open Tabs",
+    "context-attribution": "Context Attribution",
+    "select-profile": "Select Profile",
+    "search": "Search",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "col": {
+      "name": "Name",
+      "version": "Version",
+      "risk": "Risk",
+      "permissions": "Perms",
+      "install-source": "Source",
+      "install-time": "Installed",
+      "filename": "Filename",
+      "danger-type": "Danger",
+      "start-time": "Start Time",
+      "size": "Size",
+      "opened": "Opened",
+      "visit-time": "Visit Time",
+      "title": "Title",
+      "tier": "Tier",
+      "evidence-type": "Evidence",
+      "active": "Active",
+      "tab-index": "Index"
+    },
+    "risk": {
+      "high-privilege-combo": "High Privilege",
+      "broad-host-access": "Broad Access",
+      "content-script-inject": "Content Inject",
+      "side-loaded": "Side-loaded",
+      "unknown-update-url": "Unknown Source",
+      "preferences-tampered": "Tampered",
+      "recently-installed": "Recent Install"
+    },
+    "detail": {
+      "select-extension": "Select an extension to view details",
+      "description": "Description",
+      "install-time": "Install Time",
+      "install-source": "Install Source",
+      "update-url": "Update URL",
+      "path": "Path",
+      "was-installed-by-default": "Installed by Default",
+      "has-content-scripts": "Content Scripts",
+      "has-background": "Background Script",
+      "preferences-tampered": "Preferences Tampered",
+      "permissions": "Permissions",
+      "host-permissions": "Host Permissions"
     }
   },
   "settings": {

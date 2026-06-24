@@ -24,6 +24,7 @@ irtool-process = { path = "../irtool-process" }
 irtool-monitor = { path = "../irtool-monitor" }
 irtool-pcap = { path = "../irtool-pcap" }
 irtool-tools = { path = "../irtool-tools" }
+irtool-browser-forensics = { path = "../irtool-browser-forensics" }
 irtool-egui = { path = "../irtool-egui", optional = true }
 
 tauri = { workspace = true, features = ["tray-icon"] }

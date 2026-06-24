@@ -1,7 +1,7 @@
 import { useState, useCallback, useSyncExternalStore, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { X, AlertTriangle } from "lucide-react";
+import { X, AlertTriangle, Globe } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useProcessChain, useNetworkByPid, useAutorunsByPath } from "../hooks";
 import { iconCache, subscribePath } from "../columns";
@@ -11,7 +11,17 @@ import { useLogCollectorStore } from "@/features/log-collector/store";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
-type TabId = "chain" | "network" | "sysmon" | "autoruns";
+type TabId = "chain" | "network" | "sysmon" | "autoruns" | "browser";
+
+const BROWSER_NAMES: Record<string, string> = {
+  "chrome.exe": "Chrome",
+  "msedge.exe": "Edge",
+};
+
+function isBrowserProcess(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === "chrome.exe" || lower === "msedge.exe";
+}
 
 interface Props {
   entry: ProcessEntry | null;
@@ -244,6 +254,40 @@ function SysmonTab({ entry }: { entry: ProcessEntry }) {
   );
 }
 
+function BrowserTab({ entry }: { entry: ProcessEntry }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  const browserName = entry.name ? BROWSER_NAMES[entry.name.toLowerCase()] : null;
+  if (!browserName) {
+    return (
+      <div className="text-xs text-fg-tertiary">
+        {t("process.browser.not-a-browser")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm">
+        <Globe className="h-4 w-4 text-accent" />
+        <span className="text-fg-primary font-medium">{browserName}</span>
+        <span className="text-fg-tertiary">PID {entry.pid}</span>
+      </div>
+      <div className="text-xs text-fg-tertiary">
+        {t("process.browser.description", { browser: browserName })}
+      </div>
+      <button
+        className="text-xs text-accent hover:underline select-none inline-flex items-center gap-1"
+        onClick={() => navigate({ to: "/browser-forensics" })}
+      >
+        <Globe className="h-3 w-3" />
+        {t("process.browser.open-forensics")} →
+      </button>
+    </div>
+  );
+}
+
 export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
   const { t } = useTranslation();
   const chainQuery = useProcessChain(entry?.pid ?? null);
@@ -273,6 +317,9 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
     { id: "sysmon", labelKey: "process.tabs.sysmon", count: sysmonCount },
     { id: "autoruns", labelKey: "process.tabs.autoruns", count: autorunsQuery.data?.length },
   ];
+  if (entry && isBrowserProcess(entry.name)) {
+    tabs.push({ id: "browser", labelKey: "process.tabs.browser" });
+  }
 
   return (
     <div className="h-full overflow-auto p-4 space-y-3">
@@ -372,6 +419,8 @@ export function ProcessDetail({ entry, snapshotTime, onClose }: Props) {
       {activeTab === "sysmon" && <SysmonTab entry={entry} />}
 
       {activeTab === "autoruns" && <AutorunsTab entry={entry} />}
+
+      {activeTab === "browser" && <BrowserTab entry={entry} />}
 
       {snapshotTime && (
         <>
