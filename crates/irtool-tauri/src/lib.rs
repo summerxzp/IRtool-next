@@ -48,8 +48,10 @@ async fn cmd_app_force_quit(app: tauri::AppHandle, ctx: State<'_, AppContext>) -
 /// 自定义重启命令：解决便携版下 tauri-plugin-process 的 relaunch() 因单实例互斥锁
 /// 导致新进程启动后立即退出的问题。
 ///
-/// 原理：将批处理脚本写入临时 bat 文件，spawn 一个 detached cmd.exe 子进程，
-/// 轮询等待当前进程退出后再启动新实例，然后当前进程调用 app.exit(0) 退出。
+/// 原理：先退出后台模式，再通过 ShellExecuteW Win32 API 启动新实例。
+/// ShellExecuteW 原生使用 UTF-16 编码，完美支持中文/Unicode 路径。
+/// 单实例互斥锁（CreateMutexW）在进程退出后由 OS 自动释放，
+/// 新进程启动时旧进程已退出，互斥锁可正常获取。
 #[tauri::command]
 #[specta::specta]
 async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Result<(), IrError> {
@@ -57,63 +59,45 @@ async fn cmd_relaunch(app: tauri::AppHandle, ctx: State<'_, AppContext>) -> Resu
     let _ = AppService { ctx: &ctx }.force_quit().await;
 
     let current_exe = std::env::current_exe().map_err(|e| IrError::Internal(format!("获取当前 exe 路径失败: {e}")))?;
-    let pid = std::process::id();
-    let exe_path = current_exe.display().to_string();
 
-    info!("[cmd_relaunch] pid={pid}, exe={exe_path}");
+    info!("[cmd_relaunch] exe={}", current_exe.display());
 
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        use std::process::Stdio;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        use windows::core::PCWSTR;
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
 
-        // 将批处理脚本写入临时文件，避免 cmd /c 多行字符串传递问题
-        let bat_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.bat"));
-        let log_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.log"));
+        let verb: Vec<u16> = "open\0".encode_utf16().collect();
+        let file: Vec<u16> = current_exe
+            .to_string_lossy()
+            .as_ref()
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
 
-        // 批处理脚本：等待当前 PID 退出后启动新实例
-        // 每步都写入日志文件，方便诊断
-        // 转义 exe_path 中的 % 字符，cmd.exe 中 %% 表示字面量 %
-        let exe_escaped = exe_path.replace('%', "%%");
-        let script = format!(
-            "@echo off\r\n\
-             echo [%date% %time%] relaunch script started, waiting for PID {pid} > \"{log}\"\r\n\
-             :wait\r\n\
-             tasklist /fi \"pid eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
-             if %errorlevel%==0 (\r\n\
-                 ping -n 2 127.0.0.1 >nul\r\n\
-                 goto wait\r\n\
-             )\r\n\
-             echo [%date% %time%] PID {pid} exited, starting {exe} >> \"{log}\"\r\n\
-             start \"\" \"{exe}\"\r\n\
-             echo [%date% %time%] start command issued >> \"{log}\"\r\n\
-             del \"{log}\"\r\n\
-             del \"%~f0\"\r\n",
-            pid = pid,
-            exe = exe_escaped,
-            log = log_path.display(),
-        );
+        unsafe {
+            let result = ShellExecuteW(
+                None,
+                PCWSTR(verb.as_ptr()),
+                PCWSTR(file.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_NORMAL,
+            );
+            if result.0 as isize <= 32 {
+                return Err(IrError::Internal(format!(
+                    "ShellExecuteW 失败，错误码 {}",
+                    result.0 as isize
+                )));
+            }
+        }
 
-        std::fs::write(&bat_path, &script).map_err(|e| IrError::Internal(format!("写入临时 bat 文件失败: {e}")))?;
-
-        info!("[cmd_relaunch] bat file: {}", bat_path.display());
-
-        std::process::Command::new("cmd")
-            .args(["/c", bat_path.to_str().unwrap()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| IrError::Internal(format!("启动重启辅助进程失败: {e}")))?;
-
-        info!("[cmd_relaunch] helper process spawned, exiting app");
+        info!("[cmd_relaunch] new instance launched, exiting app");
     }
 
     #[cfg(not(windows))]
     {
-        let _ = pid;
         std::process::Command::new(&current_exe)
             .spawn()
             .map_err(|e| IrError::Internal(format!("启动新实例失败: {e}")))?;

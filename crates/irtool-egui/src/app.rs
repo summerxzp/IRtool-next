@@ -599,48 +599,34 @@ impl IrtoolApp {
                     .await;
             });
 
-            // 释放单实例锁，spawn 辅助进程等待当前进程退出后启动新实例
+            // 释放单实例锁，通过 ShellExecuteW Win32 API 启动新实例
+            // ShellExecuteW 原生 UTF-16 编码，完美支持中文/Unicode 路径
             self.single_instance_guard = None;
             let current_exe = std::env::current_exe().ok();
-            let pid = std::process::id();
 
             #[cfg(windows)]
             {
-                use std::os::windows::process::CommandExt;
-                use std::process::Stdio;
-                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                use windows::core::PCWSTR;
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_NORMAL;
 
                 if let Some(exe_path) = current_exe {
-                    let exe_str = exe_path.display().to_string();
-                    let exe_escaped = exe_str.replace('%', "%%");
-                    let bat_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.bat"));
-                    let log_path = std::env::temp_dir().join(format!("irtool_relaunch_{pid}.log"));
-                    let script = format!(
-                        "@echo off\r\n\
-                         echo [%date% %time%] relaunch script started, waiting for PID {pid} > \"{log}\"\r\n\
-                         :wait\r\n\
-                         tasklist /fi \"pid eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
-                         if %errorlevel%==0 (\r\n\
-                             ping -n 2 127.0.0.1 >nul\r\n\
-                             goto wait\r\n\
-                         )\r\n\
-                         echo [%date% %time%] PID {pid} exited, starting {exe} >> \"{log}\"\r\n\
-                         start \"\" \"{exe}\"\r\n\
-                         echo [%date% %time%] start command issued >> \"{log}\"\r\n\
-                         del \"{log}\"\r\n\
-                         del \"%~f0\"\r\n",
-                        pid = pid,
-                        exe = exe_escaped,
-                        log = log_path.display(),
-                    );
-                    if std::fs::write(&bat_path, &script).is_ok() {
-                        let _ = std::process::Command::new("cmd")
-                            .args(["/c", bat_path.to_str().unwrap_or("")])
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .creation_flags(CREATE_NO_WINDOW)
-                            .spawn();
+                    let verb: Vec<u16> = "open\0".encode_utf16().collect();
+                    let file: Vec<u16> = exe_path
+                        .to_string_lossy()
+                        .as_ref()
+                        .encode_utf16()
+                        .chain(std::iter::once(0))
+                        .collect();
+                    unsafe {
+                        let _ = ShellExecuteW(
+                            None,
+                            PCWSTR(verb.as_ptr()),
+                            PCWSTR(file.as_ptr()),
+                            PCWSTR::null(),
+                            PCWSTR::null(),
+                            SW_NORMAL,
+                        );
                     }
                 }
             }
