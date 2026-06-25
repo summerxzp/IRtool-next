@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-import type { ExtensionInfo, DownloadInfo, RecentActivity, RecoveredTab } from "./types";
+import type { ExtensionInfo, DownloadInfo, HistoryEntry, RecoveredTab } from "./types";
+import { formatTimestamp } from "./utils";
 
 const RISK_VARIANT_MAP: Record<string, "danger" | "warning" | "info"> = {
   high_privilege_combo: "danger",
@@ -90,6 +91,7 @@ export function useExtensionColumns(): ColumnDef<ExtensionInfo, unknown>[] {
         accessorFn: (r) => r.install_time ?? "",
         header: t("browser-forensics.col.install-time"),
         size: 150,
+        cell: ({ row }) => <span>{formatTimestamp(row.original.install_time)}</span>,
       },
     ],
     [t],
@@ -131,6 +133,7 @@ export function useDownloadColumns(): ColumnDef<DownloadInfo, unknown>[] {
         accessorFn: (r) => r.start_time ?? "",
         header: t("browser-forensics.col.start-time"),
         size: 150,
+        cell: ({ row }) => <span>{formatTimestamp(row.original.start_time)}</span>,
       },
       {
         id: "total_bytes",
@@ -157,7 +160,7 @@ export function useDownloadColumns(): ColumnDef<DownloadInfo, unknown>[] {
   );
 }
 
-export function useHistoryColumns(): ColumnDef<RecentActivity, unknown>[] {
+export function useHistoryColumns(): ColumnDef<HistoryEntry, unknown>[] {
   const { t } = useTranslation();
   return useMemo(
     () => [
@@ -166,6 +169,7 @@ export function useHistoryColumns(): ColumnDef<RecentActivity, unknown>[] {
         accessorFn: (r) => r.visit_time,
         header: t("browser-forensics.col.visit-time"),
         size: 150,
+        cell: ({ row }) => <span>{formatTimestamp(row.original.visit_time)}</span>,
       },
       {
         id: "title",
@@ -183,21 +187,10 @@ export function useHistoryColumns(): ColumnDef<RecentActivity, unknown>[] {
         ),
       },
       {
-        id: "tier",
-        accessorFn: (r) => r.tier,
-        header: t("browser-forensics.col.tier"),
+        id: "visit_count",
+        accessorFn: (r) => r.visit_count,
+        header: t("browser-forensics.col.visit-count"),
         size: 80,
-        cell: ({ row }) => {
-          const tier = row.original.tier;
-          const variant = tier === "immediate" ? "danger" : tier === "nearby" ? "warning" : "info";
-          return <Badge variant={variant}>{tier}</Badge>;
-        },
-      },
-      {
-        id: "evidence_type",
-        accessorFn: (r) => r.evidence_type,
-        header: t("browser-forensics.col.evidence-type"),
-        size: 100,
       },
     ],
     [t],

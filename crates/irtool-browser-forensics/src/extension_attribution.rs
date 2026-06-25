@@ -52,20 +52,19 @@ pub fn attribute_extension(
     let target_profile_name = cmdline.and_then(extract_profile_directory);
 
     let target_profiles: Vec<_> = match target_profile_name {
-        Some(ref name) => profiles.into_iter().filter(|p| p.name == *name).collect(),
+        Some(ref name) => {
+            let filtered: Vec<_> = profiles.into_iter().filter(|p| p.name == *name).collect();
+            if filtered.is_empty() {
+                warn!(
+                    "profile '{}' specified in cmdline not found for {}",
+                    name,
+                    browser.display_name()
+                );
+                return None;
+            }
+            filtered
+        }
         None => profiles,
-    };
-
-    // cmdline 指定了 Profile 但未找到 → 扫描所有 Profile
-    let target_profiles = if target_profiles.is_empty() && target_profile_name.is_some() {
-        warn!(
-            "profile '{}' not found for {}, scanning all profiles",
-            target_profile_name.as_deref().unwrap_or_default(),
-            browser.display_name()
-        );
-        enumerate_profiles(browser)
-    } else {
-        target_profiles
     };
 
     if target_profiles.is_empty() {
@@ -158,14 +157,15 @@ mod tests {
 
     #[test]
     fn attribution_with_cmdline_profile() {
-        // 此测试依赖本机 Chrome 安装
+        // 此测试依赖本机 Chrome 安装和 Default Profile
         let browser = browser_kind_from_process_name("chrome.exe");
         if browser.is_none() {
             return;
         }
 
         let profiles = enumerate_profiles(BrowserKind::Chrome);
-        if profiles.is_empty() {
+        if !profiles.iter().any(|p| p.name == "Default") {
+            eprintln!("skipping: no Default profile found for Chrome");
             return;
         }
 

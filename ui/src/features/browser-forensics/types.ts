@@ -6,6 +6,12 @@ export interface BrowserProfile {
   path: string;
 }
 
+export interface IocMatch {
+  ioc_type: string;
+  value: string;
+  severity: string;
+}
+
 export interface ExtensionInfo {
   id: string;
   name: string;
@@ -23,6 +29,7 @@ export interface ExtensionInfo {
   preferences_tampered: boolean;
   risk_flags: string[];
   path: string;
+  ioc_matches: IocMatch[];
 }
 
 export interface ExtensionInventory {
@@ -52,6 +59,7 @@ export interface DownloadInfo {
   danger_type: DangerType;
   opened: boolean;
   interrupt_reason: string | null;
+  evidence_type: string;
 }
 
 export interface RecoveredTab {
@@ -86,10 +94,17 @@ export interface HistoryAttribution {
   navigation_chain: NavChainNode[];
 }
 
+export interface HistoryEntry {
+  url: string;
+  title: string;
+  visit_time: string;
+  visit_count: number;
+}
+
 export interface HistoryList {
   browser: BrowserKind;
   profile: string;
-  entries: RecentActivity[];
+  entries: HistoryEntry[];
 }
 
 export interface NavChainNode {

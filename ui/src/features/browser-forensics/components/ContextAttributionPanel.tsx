@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useBrowserForensicsStore } from "../store";
 import * as api from "../api";
 import type { BrowserContext, MatchedExtension, CurrentTab, NavChainNode, RecentActivity } from "../types";
+import { formatTimestamp } from "../utils";
 
 function RiskBadge({ flags }: { flags: string[] }) {
   if (flags.length === 0) return null;
@@ -24,8 +25,9 @@ function RiskBadge({ flags }: { flags: string[] }) {
 }
 
 function NavChainView({ nodes }: { nodes: NavChainNode[] }) {
+  const { t } = useTranslation();
   if (nodes.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">No navigation chain found</div>;
+    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-navigation-chain")}</div>;
   }
   return (
     <div className="space-y-0.5">
@@ -51,8 +53,9 @@ function NavChainView({ nodes }: { nodes: NavChainNode[] }) {
 }
 
 function RecentActivityView({ items }: { items: RecentActivity[] }) {
+  const { t } = useTranslation();
   if (items.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">No recent activity</div>;
+    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-recent-activity")}</div>;
   }
   return (
     <div className="space-y-0.5 max-h-40 overflow-y-auto">
@@ -78,8 +81,9 @@ function RecentActivityView({ items }: { items: RecentActivity[] }) {
 }
 
 function MatchingExtensionsView({ extensions: exts }: { extensions: MatchedExtension[] }) {
+  const { t } = useTranslation();
   if (exts.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">No matching extensions</div>;
+    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-matching-extensions")}</div>;
   }
   return (
     <div className="space-y-1">
@@ -110,8 +114,9 @@ function MatchingExtensionsView({ extensions: exts }: { extensions: MatchedExten
 }
 
 function CurrentTabsView({ tabs }: { tabs: CurrentTab[] }) {
+  const { t } = useTranslation();
   if (tabs.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">No recovered tabs</div>;
+    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-recovered-tabs")}</div>;
   }
   return (
     <div className="space-y-0.5 max-h-32 overflow-y-auto">
@@ -126,29 +131,30 @@ function CurrentTabsView({ tabs }: { tabs: CurrentTab[] }) {
 }
 
 function ContextDetailView({ context }: { context: NonNullable<BrowserContext["context"]> }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 gap-4 p-3">
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Activity
+          {t("browser-forensics.context.recent-activity")}
         </h4>
         <RecentActivityView items={context.recent_browser_activity} />
       </div>
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Navigation Chain
+          {t("browser-forensics.context.navigation-chain")}
         </h4>
         <NavChainView nodes={context.navigation_chain} />
       </div>
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Matching Extensions
+          {t("browser-forensics.context.matching-extensions")}
         </h4>
         <MatchingExtensionsView extensions={context.matching_extensions} />
       </div>
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Current Tabs
+          {t("browser-forensics.context.current-tabs")}
         </h4>
         <CurrentTabsView tabs={context.current_tabs} />
       </div>
@@ -157,6 +163,7 @@ function ContextDetailView({ context }: { context: NonNullable<BrowserContext["c
 }
 
 export function ContextAttributionPanel() {
+  const { t } = useTranslation();
 
   const contextInputDomain = useBrowserForensicsStore((s) => s.contextInputDomain);
   const setContextInputDomain = useBrowserForensicsStore((s) => s.setContextInputDomain);
@@ -168,6 +175,7 @@ export function ContextAttributionPanel() {
   const setContextLoading = useBrowserForensicsStore((s) => s.setContextLoading);
 
   const [processName, setProcessName] = useState("chrome.exe");
+  const [cmdline, setCmdline] = useState("");
 
   const handleQuery = async () => {
     if (!contextInputDomain.trim()) return;
@@ -177,6 +185,7 @@ export function ContextAttributionPanel() {
       null,
       processName,
       parseInt(contextInputPid) || 0,
+      cmdline.trim() || undefined,
     );
     setContextResult(result);
     setContextLoading(false);
@@ -192,25 +201,31 @@ export function ContextAttributionPanel() {
       <div className="px-3 py-2 border-b border-border flex items-center gap-2 flex-wrap">
         <Input
           className="w-48 h-8 text-sm"
-          placeholder="Domain (e.g. evil.com)"
+          placeholder={t("browser-forensics.context.domain-placeholder")}
           value={contextInputDomain}
           onChange={(e) => setContextInputDomain(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleQuery()}
         />
         <Input
           className="w-28 h-8 text-sm"
-          placeholder="Process name"
+          placeholder={t("browser-forensics.context.process-name")}
           value={processName}
           onChange={(e) => setProcessName(e.target.value)}
         />
         <Input
+          className="w-48 h-8 text-sm"
+          placeholder={t("browser-forensics.context.process-cmdline")}
+          value={cmdline}
+          onChange={(e) => setCmdline(e.target.value)}
+        />
+        <Input
           className="w-20 h-8 text-sm"
-          placeholder="PID"
+          placeholder={t("browser-forensics.context.pid")}
           value={contextInputPid}
           onChange={(e) => setContextInputPid(e.target.value)}
         />
         <Button size="sm" onClick={handleQuery} disabled={contextLoading}>
-          {contextLoading ? "Querying..." : "Query"}
+          {contextLoading ? t("browser-forensics.context.querying") : t("browser-forensics.context.query")}
         </Button>
         {connection && (
           <Button
@@ -218,7 +233,7 @@ export function ContextAttributionPanel() {
             variant="secondary"
             onClick={() => setContextResult(null)}
           >
-            Clear
+            {t("browser-forensics.context.clear")}
           </Button>
         )}
       </div>
@@ -229,10 +244,7 @@ export function ContextAttributionPanel() {
           <div className="p-6 text-sm text-muted-foreground text-center flex flex-col items-center gap-2 pt-12">
             <span className="text-2xl">🔍</span>
             <p>
-              Enter a domain, process name, and optional PID above, then click <strong>Query</strong>
-            </p>
-            <p className="text-xs">
-              Results will show recent browser activity, navigation chain, matching extensions, and recovered tabs.
+              {t("browser-forensics.context.domain-placeholder")}, {t("browser-forensics.context.process-name")}, {t("browser-forensics.context.process-cmdline")}, {t("browser-forensics.context.pid")}
             </p>
           </div>
         )}
@@ -242,7 +254,7 @@ export function ContextAttributionPanel() {
             {/* Connection summary card */}
             <div className="rounded-lg border border-border bg-bg-elev-1 p-3 mb-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Connection
+                {t("browser-forensics.context.connection")}
               </h3>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <div className="flex gap-2">
@@ -273,7 +285,7 @@ export function ContextAttributionPanel() {
                 </div>
                 <div className="flex gap-2">
                   <span className="text-muted-foreground">Timestamp:</span>
-                  <span className="text-fg-primary text-[10px]">{connection.timestamp}</span>
+                  <span className="text-fg-primary text-[10px]">{formatTimestamp(connection.timestamp)}</span>
                 </div>
               </div>
             </div>

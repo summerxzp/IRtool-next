@@ -26,4 +26,5 @@ pub struct ContextAttributionRequest {
     pub process_name: String,
     pub pid: u32,
     pub timestamp: String, // RFC3339 格式
+    pub cmdline: Option<String>,
 }

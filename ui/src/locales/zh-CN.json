@@ -495,6 +495,7 @@
       "title": "标题",
       "tier": "时间层",
       "evidence-type": "证据类型",
+      "visit-count": "访问次数",
       "active": "活跃",
       "tab-index": "序号"
     },
@@ -520,6 +521,24 @@
       "preferences-tampered": "配置篡改",
       "permissions": "权限",
       "host-permissions": "主机权限"
+    },
+    "context": {
+      "domain-placeholder": "域名（如 evil.com）",
+      "process-name": "进程名",
+      "process-cmdline": "进程命令行",
+      "pid": "PID",
+      "query": "查询",
+      "querying": "查询中...",
+      "clear": "清除",
+      "connection": "连接",
+      "recent-activity": "最近活动",
+      "navigation-chain": "导航链",
+      "matching-extensions": "匹配扩展",
+      "current-tabs": "当前标签页",
+      "no-navigation-chain": "未找到导航链",
+      "no-recent-activity": "无最近活动",
+      "no-matching-extensions": "无匹配扩展",
+      "no-recovered-tabs": "无恢复标签页"
     }
   },
   "settings": {

@@ -130,6 +130,7 @@ impl<'a> BrowserForensicsService<'a> {
                 &req.process_name,
                 req.pid,
                 timestamp,
+                req.cmdline.as_deref(),
             ))
         })
         .await

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type {
   BrowserKind, BrowserProfile, ExtensionInfo, DownloadInfo, RecoveredTab,
-  RecentActivity, BrowserContext,
+  HistoryEntry, BrowserContext,
 } from "./types";
 
 export type ForensicsTab = "extensions" | "history" | "downloads" | "tabs" | "context";
@@ -28,8 +28,8 @@ interface BrowserForensicsState {
   tabs: RecoveredTab[];
   setTabs: (t: RecoveredTab[]) => void;
 
-  history: RecentActivity[];
-  setHistory: (h: RecentActivity[]) => void;
+  history: HistoryEntry[];
+  setHistory: (h: HistoryEntry[]) => void;
 
   // Context Attribution state
   contextResult: BrowserContext | null;

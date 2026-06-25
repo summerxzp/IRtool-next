@@ -111,14 +111,16 @@ pub async fn cmd_browser_forensics_scan_history(
     _ctx: State<'_, AppContext>,
     browser: BrowserKind,
     profile_name: String,
+    limit: Option<i64>,
 ) -> Result<HistoryList, IrError> {
+    let limit = limit.unwrap_or(500);
     tokio::task::spawn_blocking(move || {
         let profiles = enumerate_profiles(browser);
         let profile = profiles
             .into_iter()
             .find(|p| p.name == profile_name)
             .ok_or_else(|| IrError::Internal(format!("profile not found: {}", profile_name)))?;
-        Ok(irtool_browser_forensics::scan_history(&profile, 500))
+        Ok(irtool_browser_forensics::scan_history(&profile, limit))
     })
     .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
@@ -133,6 +135,7 @@ pub async fn cmd_browser_forensics_context_attribution(
     process_name: String,
     pid: u32,
     timestamp: String,
+    cmdline: Option<String>,
 ) -> Result<BrowserContext, IrError> {
     let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
         .map_err(|e| IrError::Internal(format!("invalid timestamp: {}", e)))?
@@ -144,6 +147,7 @@ pub async fn cmd_browser_forensics_context_attribution(
             &process_name,
             pid,
             ts,
+            cmdline.as_deref(),
         ))
     })
     .await

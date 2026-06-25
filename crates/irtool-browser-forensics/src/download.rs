@@ -248,7 +248,7 @@ pub fn scan_downloads(profile: &BrowserProfile) -> DownloadAttribution {
         }
     };
 
-    let downloads = read_downloads_from_conn(&conn);
+    let downloads = read_downloads_from_conn(&*conn);
 
     DownloadAttribution {
         browser: profile.browser,
@@ -280,7 +280,7 @@ pub fn scan_downloads_in_time_window(
     let start_webkit = webkit_timestamp::to_webkit_micros(&start);
     let end_webkit = webkit_timestamp::to_webkit_micros(&end);
 
-    let has_url = downloads_has_url_column(&conn);
+    let has_url = downloads_has_url_column(&*conn);
     // 注意：WHERE 子句使用 d. 前缀以兼容带别名的 SQL
     let sql = build_downloads_sql(has_url, "d.start_time BETWEEN ? AND ?");
     let mut stmt = match conn.prepare(&sql) {

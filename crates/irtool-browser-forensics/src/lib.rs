@@ -23,8 +23,8 @@ pub use extension_attribution::{attribute_extension, ExtensionAttribution};
 pub use extension_inventory::{scan_extensions, ExtensionInfo, ExtensionInventory};
 pub use extension_risk::IocMatch;
 pub use history::{
-    attribute_history, build_navigation_chain, scan_history, transition_to_string, HistoryAttribution, HistoryList,
-    NavChainNode, RecentActivity, TimeTier,
+    attribute_history, build_navigation_chain, scan_history, transition_to_string, HistoryAttribution,
+    HistoryEntry, HistoryList, NavChainNode, RecentActivity, TimeTier,
 };
 pub use permission_matcher::{match_domain_to_extensions, MatchedExtension, PermissionMatchResult};
 pub use profile::{enumerate_all_profiles, enumerate_profiles, BrowserProfile};

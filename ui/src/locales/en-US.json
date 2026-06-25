@@ -495,6 +495,7 @@
       "title": "Title",
       "tier": "Tier",
       "evidence-type": "Evidence",
+      "visit-count": "Visit Count",
       "active": "Active",
       "tab-index": "Index"
     },
@@ -520,6 +521,24 @@
       "preferences-tampered": "Preferences Tampered",
       "permissions": "Permissions",
       "host-permissions": "Host Permissions"
+    },
+    "context": {
+      "domain-placeholder": "Domain (e.g. evil.com)",
+      "process-name": "Process Name",
+      "process-cmdline": "Process Command Line",
+      "pid": "PID",
+      "query": "Query",
+      "querying": "Querying...",
+      "clear": "Clear",
+      "connection": "Connection",
+      "recent-activity": "Recent Activity",
+      "navigation-chain": "Navigation Chain",
+      "matching-extensions": "Matching Extensions",
+      "current-tabs": "Current Tabs",
+      "no-navigation-chain": "No navigation chain found",
+      "no-recent-activity": "No recent activity",
+      "no-matching-extensions": "No matching extensions",
+      "no-recovered-tabs": "No recovered tabs"
     }
   },
   "settings": {

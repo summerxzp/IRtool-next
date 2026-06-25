@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import type { ExtensionInfo } from "../types";
+import { formatTimestamp } from "../utils";
 
 interface Props {
   item: ExtensionInfo | null;
@@ -68,7 +69,7 @@ export function ExtensionDetail({ item, onClose }: Props) {
 
       <div className="space-y-2 text-xs">
         <DetailRow label={t("browser-forensics.detail.description")} value={item.description} />
-        <DetailRow label={t("browser-forensics.detail.install-time")} value={item.install_time} />
+        <DetailRow label={t("browser-forensics.detail.install-time")} value={formatTimestamp(item.install_time)} />
         <DetailRow label={t("browser-forensics.detail.install-source")} value={item.install_source} />
         <DetailRow label={t("browser-forensics.detail.update-url")} value={item.update_url} />
         <DetailRow label={t("browser-forensics.detail.path")} value={item.path} mono />

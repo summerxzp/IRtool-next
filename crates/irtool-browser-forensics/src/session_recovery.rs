@@ -33,16 +33,19 @@ const SNSS_MAGIC: [u8; 4] = [0x53, 0x4E, 0x53, 0x53];
 /// SNSS 记录类型：Tab
 const COMMAND_TAB: u8 = 6;
 
+/// SNSS 记录类型：Window
+const COMMAND_WINDOW: u8 = 1;
+
 /// 恢复指定 Profile 的当前标签页
 pub fn recover_tabs(profile: &BrowserProfile) -> SessionRecoveryResult {
-    let tabs_path = match find_tabs_file(&profile.path) {
+    let tabs_path = match find_session_files(&profile.path) {
         Some(p) => p,
         None => {
             return SessionRecoveryResult {
                 browser: profile.browser,
                 profile: profile.name.clone(),
                 tabs: vec![],
-                parse_errors: vec!["no Tabs file found".to_string()],
+                parse_errors: vec!["no Tabs/Session file found".to_string()],
             };
         }
     };
@@ -63,11 +66,11 @@ pub fn recover_tabs(profile: &BrowserProfile) -> SessionRecoveryResult {
     parse_snss_tabs(&data, profile.browser, &profile.name)
 }
 
-/// 查找 Tabs 文件
+/// 查找 Session/Tabs 文件
 ///
 /// 优先检查 `<Profile>/Sessions/` 目录下最新的 `Tabs_<id>` 文件，
-/// 如果不存在则 fallback 到 `<Profile>/Current Tabs`。
-fn find_tabs_file(profile_path: &std::path::Path) -> Option<std::path::PathBuf> {
+/// 如果不存在则依次检查 Current Tabs、Current Session、Last Session。
+fn find_session_files(profile_path: &std::path::Path) -> Option<std::path::PathBuf> {
     let sessions_dir = profile_path.join("Sessions");
 
     if sessions_dir.is_dir() {
@@ -78,9 +81,11 @@ fn find_tabs_file(profile_path: &std::path::Path) -> Option<std::path::PathBuf> 
     }
 
     // Fallback: 旧版路径
-    let legacy = profile_path.join("Current Tabs");
-    if legacy.is_file() {
-        return Some(legacy);
+    for name in &["Current Tabs", "Current Session", "Last Session"] {
+        let legacy = profile_path.join(name);
+        if legacy.is_file() {
+            return Some(legacy);
+        }
     }
 
     None
@@ -112,6 +117,7 @@ fn find_latest_tabs_in_sessions(sessions_dir: &std::path::Path) -> Option<std::p
 fn parse_snss_tabs(data: &[u8], browser: BrowserKind, profile: &str) -> SessionRecoveryResult {
     let mut errors = Vec::new();
     let mut tabs = Vec::new();
+    let mut window_current_index: Option<u32> = None;
 
     // 验证文件头
     if data.len() < 8 {
@@ -134,7 +140,30 @@ fn parse_snss_tabs(data: &[u8], browser: BrowserKind, profile: &str) -> SessionR
 
     let _version = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
 
-    // 逐条读取记录
+    // 第一遍：提取所有 Window 记录的 current_index
+    let mut offset = 8usize;
+    while offset + 5 <= data.len() {
+        let command_type = data[offset];
+        let record_len =
+            u32::from_le_bytes([data[offset + 1], data[offset + 2], data[offset + 3], data[offset + 4]]) as usize;
+
+        offset += 5;
+
+        if offset + record_len > data.len() {
+            break;
+        }
+
+        if command_type == COMMAND_WINDOW {
+            let record_data = &data[offset..offset + record_len];
+            if let Some(idx) = parse_window_record(record_data) {
+                window_current_index = Some(idx);
+            }
+        }
+
+        offset += record_len;
+    }
+
+    // 第二遍：解析 Tab 记录，匹配 active 状态
     let mut offset = 8usize;
     while offset + 5 <= data.len() {
         let command_type = data[offset];
@@ -154,7 +183,7 @@ fn parse_snss_tabs(data: &[u8], browser: BrowserKind, profile: &str) -> SessionR
         let record_data = &data[offset..offset + record_len];
 
         if command_type == COMMAND_TAB {
-            match parse_tab_record(record_data) {
+            match parse_tab_record(record_data, window_current_index) {
                 Some(tab) => tabs.push(tab),
                 None => {
                     errors.push(format!("failed to parse tab record at offset {}", offset));
@@ -173,13 +202,48 @@ fn parse_snss_tabs(data: &[u8], browser: BrowserKind, profile: &str) -> SessionR
     }
 }
 
+/// 解析 Window 记录，提取 current_index (field 4, varint)
+fn parse_window_record(data: &[u8]) -> Option<u32> {
+    let mut offset = 0usize;
+    while offset < data.len() {
+        let (tag, tag_len) = parse_varint(&data[offset..])?;
+        offset += tag_len;
+
+        let field_number = (tag >> 3) as u32;
+        let wire_type = (tag & 0x07) as u8;
+
+        match wire_type {
+            0 => {
+                // varint
+                let (val, val_len) = parse_varint(&data[offset..])?;
+                if field_number == 4 {
+                    return Some(val as u32);
+                }
+                offset += val_len;
+            }
+            2 => {
+                // length-delimited - 跳过
+                let (len, len_size) = parse_varint(&data[offset..])?;
+                offset += len_size;
+                offset += len as usize;
+            }
+            _ => {
+                // 未知 wire type，无法跳过
+                return None;
+            }
+        }
+    }
+    None
+}
+
 /// 解析 protobuf 编码的 Tab 记录
 ///
 /// 关键字段：
 /// - field 7 (length-delimited): current_url
 /// - field 9 (length-delimited): title
 /// - field 15 (varint): tab_index
-fn parse_tab_record(data: &[u8]) -> Option<RecoveredTab> {
+/// - `window_current_index`: 如果 tab_index 匹配，则 active = true
+fn parse_tab_record(data: &[u8], window_current_index: Option<u32>) -> Option<RecoveredTab> {
     let mut url = None;
     let mut title = None;
     let mut tab_index = None;
@@ -240,7 +304,7 @@ fn parse_tab_record(data: &[u8]) -> Option<RecoveredTab> {
     Some(RecoveredTab {
         url,
         title,
-        active: false, // SNSS Tab 记录不直接标记 active 状态
+        active: tab_index.is_some() && Some(tab_index.unwrap()) == window_current_index,
         tab_index,
     })
 }
@@ -337,7 +401,7 @@ mod tests {
     #[test]
     fn parse_tab_record_basic() {
         let data = build_tab_protobuf("https://example.com", "Example", 0);
-        let tab = parse_tab_record(&data).unwrap();
+        let tab = parse_tab_record(&data, None).unwrap();
         assert_eq!(tab.url, "https://example.com");
         assert_eq!(tab.title, "Example");
         assert_eq!(tab.tab_index, Some(0));
@@ -353,7 +417,7 @@ mod tests {
         append_varint(&mut buf, title_bytes.len() as u64);
         buf.extend_from_slice(title_bytes);
 
-        assert!(parse_tab_record(&buf).is_none());
+        assert!(parse_tab_record(&buf, None).is_none());
     }
 
     #[test]
@@ -365,7 +429,7 @@ mod tests {
         append_varint(&mut buf, url_bytes.len() as u64);
         buf.extend_from_slice(url_bytes);
 
-        let tab = parse_tab_record(&buf).unwrap();
+        let tab = parse_tab_record(&buf, None).unwrap();
         assert_eq!(tab.url, "https://example.com");
         assert_eq!(tab.title, "");
     }
@@ -373,7 +437,7 @@ mod tests {
     #[test]
     fn parse_tab_record_with_large_tab_index() {
         let data = build_tab_protobuf("https://test.com", "Test", 42);
-        let tab = parse_tab_record(&data).unwrap();
+        let tab = parse_tab_record(&data, None).unwrap();
         assert_eq!(tab.tab_index, Some(42));
     }
 
@@ -465,8 +529,56 @@ mod tests {
         assert_eq!(result.tabs.len(), 1);
     }
 
+    /// 构造 protobuf 编码的 Window 记录，包含 field 4 (current_index)
+    fn build_window_protobuf(current_index: u32) -> Vec<u8> {
+        let mut buf = Vec::new();
+        // field 4 (current_index): wire_type=0, tag = 4<<3 | 0 = 32
+        buf.push(32);
+        append_varint(&mut buf, current_index as u64);
+        buf
+    }
+
     #[test]
-    fn find_tabs_file_fallback_legacy() {
+    fn snss_with_window_and_active_tab() {
+        // 构造 SNSS: Window (current_index=1) + Tab (index=0) + Tab (index=1, should be active) + Tab (index=2)
+        let tab0 = build_tab_protobuf("https://page0.com", "Page 0", 0);
+        let tab1 = build_tab_protobuf("https://page1.com", "Page 1", 1);
+        let tab2 = build_tab_protobuf("https://page2.com", "Page 2", 2);
+        let window = build_window_protobuf(1);
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&SNSS_MAGIC);
+        data.extend_from_slice(&1u32.to_le_bytes());
+
+        // Window 记录
+        data.push(COMMAND_WINDOW);
+        data.extend_from_slice(&(window.len() as u32).to_le_bytes());
+        data.extend_from_slice(&window);
+
+        // Tab 记录 (index=0)
+        data.push(COMMAND_TAB);
+        data.extend_from_slice(&(tab0.len() as u32).to_le_bytes());
+        data.extend_from_slice(&tab0);
+
+        // Tab 记录 (index=1) - 应该标记为 active
+        data.push(COMMAND_TAB);
+        data.extend_from_slice(&(tab1.len() as u32).to_le_bytes());
+        data.extend_from_slice(&tab1);
+
+        // Tab 记录 (index=2)
+        data.push(COMMAND_TAB);
+        data.extend_from_slice(&(tab2.len() as u32).to_le_bytes());
+        data.extend_from_slice(&tab2);
+
+        let result = parse_snss_tabs(&data, BrowserKind::Chrome, "Test");
+        assert_eq!(result.tabs.len(), 3);
+        assert!(!result.tabs[0].active, "tab 0 should not be active");
+        assert!(result.tabs[1].active, "tab 1 should be active (matches window current_index)");
+        assert!(!result.tabs[2].active, "tab 2 should not be active");
+    }
+
+    #[test]
+    fn find_session_files_fallback_legacy() {
         let temp_dir = tempfile::tempdir().unwrap();
         let profile_path = temp_dir.path();
 
@@ -474,13 +586,13 @@ mod tests {
         let legacy = profile_path.join("Current Tabs");
         std::fs::write(&legacy, "dummy").unwrap();
 
-        let result = find_tabs_file(profile_path);
+        let result = find_session_files(profile_path);
         assert!(result.is_some());
         assert_eq!(result.unwrap().file_name().unwrap(), "Current Tabs");
     }
 
     #[test]
-    fn find_tabs_file_prefers_sessions() {
+    fn find_session_files_prefers_sessions() {
         let temp_dir = tempfile::tempdir().unwrap();
         let profile_path = temp_dir.path();
 
@@ -494,15 +606,15 @@ mod tests {
         // 旧版路径也存在
         std::fs::write(profile_path.join("Current Tabs"), "dummy").unwrap();
 
-        let result = find_tabs_file(profile_path);
+        let result = find_session_files(profile_path);
         assert!(result.is_some());
         assert_eq!(result.unwrap().file_name().unwrap(), "Tabs_200");
     }
 
     #[test]
-    fn find_tabs_file_no_file() {
+    fn find_session_files_no_file() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let result = find_tabs_file(temp_dir.path());
+        let result = find_session_files(temp_dir.path());
         assert!(result.is_none());
     }
 
@@ -517,7 +629,7 @@ mod tests {
 
         let result = recover_tabs(&profile);
         assert!(result.tabs.is_empty());
-        assert!(result.parse_errors.iter().any(|e| e.contains("no Tabs file found")));
+        assert!(result.parse_errors.iter().any(|e| e.contains("no Tabs/Session file found")));
     }
 
     #[test]
@@ -561,7 +673,7 @@ mod tests {
         }
 
         for profile in &profiles {
-            let tabs_path = find_tabs_file(&profile.path);
+            let tabs_path = find_session_files(&profile.path);
             if tabs_path.is_none() {
                 eprintln!("skipping: no Tabs file for Edge profile {}", profile.name);
                 continue;
@@ -592,7 +704,7 @@ mod tests {
         }
 
         for profile in &profiles {
-            let tabs_path = find_tabs_file(&profile.path);
+            let tabs_path = find_session_files(&profile.path);
             if tabs_path.is_none() {
                 eprintln!("skipping: no Tabs file for Chrome profile {}", profile.name);
                 continue;

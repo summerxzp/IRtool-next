@@ -31,6 +31,15 @@ pub struct RecentActivity {
     pub evidence_type: String,
 }
 
+/// 历史记录条目（用于 scan_history 返回）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct HistoryEntry {
+    pub url: String,
+    pub title: String,
+    pub visit_time: String,
+    pub visit_count: i64,
+}
+
 /// Navigation Chain 节点
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct NavChainNode {
@@ -134,7 +143,7 @@ const TIER_LIMIT: i64 = 5;
 pub struct HistoryList {
     pub browser: crate::core::BrowserKind,
     pub profile: String,
-    pub entries: Vec<RecentActivity>,
+    pub entries: Vec<HistoryEntry>,
 }
 
 /// 扫描指定 Profile 的最近历史记录
@@ -155,14 +164,11 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
         }
     };
 
-    let sql = format!(
-        "SELECT u.url, u.title, v.visit_time \
+    let sql = "SELECT u.url, u.title, v.visit_time, u.visit_count \
          FROM visits v \
          JOIN urls u ON v.url = u.id \
          ORDER BY v.visit_time DESC \
-         LIMIT {}",
-        limit
-    );
+         LIMIT ?".to_string();
 
     let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
@@ -176,26 +182,25 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
         }
     };
 
-    let rows = stmt.query_map([], |row| {
+    let rows = stmt.query_map([limit], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
             row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
         ))
     });
 
     let entries = match rows {
         Ok(mapped_rows) => mapped_rows
             .filter_map(|r| {
-                r.ok().map(|(url, title, visit_time)| RecentActivity {
+                r.ok().map(|(url, title, visit_time, visit_count)| HistoryEntry {
                     url,
                     title,
                     visit_time: webkit_timestamp::from_webkit_micros(visit_time)
                         .map(|dt| dt.to_rfc3339())
                         .unwrap_or_default(),
-                    tier: TimeTier::Recent,
-                    time_distance_ms: 0,
-                    evidence_type: "history".to_string(),
+                    visit_count,
                 })
             })
             .collect(),
@@ -305,7 +310,7 @@ pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime
 
     // 构建 Navigation Chain：从最近（Tier 1 → Tier 2 → Tier 3 依次 fallback）的记录开始回溯
     let navigation_chain = match best_visit_id {
-        Some(vid) => build_navigation_chain(&conn, vid),
+        Some(vid) => build_navigation_chain(&*conn, vid),
         None => vec![],
     };
 
