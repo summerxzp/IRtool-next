@@ -4,12 +4,23 @@ use crate::extension_inventory::ExtensionInfo;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::sync::OnceLock;
+use tracing::warn;
 
 /// IOC 匹配结果
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct IocMatch {
     pub ioc_type: String,
     pub value: String,
+    pub severity: String,
+}
+
+/// IOC 条目（来自 JSON 文件）
+#[derive(Debug, Clone, Deserialize)]
+pub struct IocEntry {
+    pub ioc_type: String, // "extension_id", "update_url", "name"
+    pub value: String,
+    pub severity: String, // "high", "medium", "low"
     pub description: String,
 }
 
@@ -71,10 +82,56 @@ pub fn compute_risk_flags(ext: &ExtensionInfo) -> Vec<String> {
 
 /// IOC 精确匹配
 ///
-/// 暂时实现为空（无 IOC 数据库），但保留接口。
-pub fn match_ioc(_ext: &ExtensionInfo) -> Vec<IocMatch> {
-    // TODO: 接入 IOC 数据库后实现
-    vec![]
+/// 匹配扩展信息与全局 IOC 数据库，返回所有命中的匹配结果。
+pub fn match_ioc(ext: &ExtensionInfo) -> Vec<IocMatch> {
+    let ioc_db = get_or_load_ioc_database();
+    let mut matches = Vec::new();
+    for entry in ioc_db {
+        let matched = match entry.ioc_type.as_str() {
+            "extension_id" => ext.id == entry.value,
+            "update_url" => ext.update_url.as_deref() == Some(&entry.value),
+            "name" => ext.name.to_lowercase().contains(&entry.value.to_lowercase()),
+            _ => false,
+        };
+        if matched {
+            matches.push(IocMatch {
+                ioc_type: entry.ioc_type.clone(),
+                value: entry.value.clone(),
+                severity: entry.severity.clone(),
+            });
+        }
+    }
+    matches
+}
+
+/// 从本地 JSON 文件加载 IOC 列表
+///
+/// 文件路径: %APPDATA%/irtool/browser-forensics/ioc.json
+/// 如果文件不存在或解析失败，返回空列表。
+fn load_ioc_database(app_dirs: &irtool_core::AppDirs) -> Vec<IocEntry> {
+    let path = app_dirs.data_dir().join("browser-forensics").join("ioc.json");
+    if !path.exists() {
+        return vec![];
+    }
+    match std::fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str(&content).unwrap_or_else(|e| {
+            warn!("failed to parse IOC database: {}", e);
+            vec![]
+        }),
+        Err(e) => {
+            warn!("failed to read IOC database: {}", e);
+            vec![]
+        }
+    }
+}
+
+/// 延迟加载 / 缓存的 IOC 数据库（进程级别）
+fn get_or_load_ioc_database() -> &'static Vec<IocEntry> {
+    static IOC_DB: OnceLock<Vec<IocEntry>> = OnceLock::new();
+    IOC_DB.get_or_init(|| {
+        let app_dirs = irtool_core::AppDirs::detect();
+        load_ioc_database(&app_dirs)
+    })
 }
 
 /// 检查 update_url 是否属于官方商店

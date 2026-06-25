@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::context::AppContext;
+use crate::dto::browser_forensics::BrowserMaliciousConnectionPayload;
 use crate::dto::network::{NetworkEnrichmentPayload, NetworkPollingControl, NetworkSnapshotPayload};
 use crate::event_bus::AppEvent;
 
@@ -309,6 +310,20 @@ async fn run_polling_loop(
                                 let alerts = monitor_engine.lock().await.process_monitor_event(&monitor_event).await;
                                 for alert in &alerts {
                                     event_bus.publish(AppEvent::MonitorAlert(alert.clone()));
+
+                                    // 检查是否为浏览器进程的恶意连接
+                                    let proc_name = conn.process_name.as_deref().unwrap_or("").to_lowercase();
+                                    if proc_name.contains("chrome.exe") || proc_name.contains("msedge.exe") {
+                                        let payload = BrowserMaliciousConnectionPayload {
+                                            domain: conn.remote.addr.clone(),
+                                            ip: conn.remote.addr.clone(),
+                                            process_name: conn.process_name.clone().unwrap_or_default(),
+                                            pid: conn.pid,
+                                            cmdline: conn.process_cmdline.clone(),
+                                            alert_id: alert.id.to_string(),
+                                        };
+                                        event_bus.publish(AppEvent::BrowserMaliciousConnection(payload));
+                                    }
                                 }
                             }
                         }

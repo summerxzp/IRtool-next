@@ -678,6 +678,7 @@ mod tests {
         let profile = BrowserProfile {
             browser: crate::core::BrowserKind::Chrome,
             name: "TestProfile".to_string(),
+            display_name: None,
             path: temp_dir.clone(),
         };
 
@@ -754,6 +755,7 @@ mod tests {
         let profile = BrowserProfile {
             browser: crate::core::BrowserKind::Chrome,
             name: "TierTest".to_string(),
+            display_name: None,
             path: temp_dir.clone(),
         };
 

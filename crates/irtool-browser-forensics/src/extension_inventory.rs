@@ -5,7 +5,11 @@ use crate::extension_risk::{compute_risk_flags, match_ioc};
 use crate::profile::BrowserProfile;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 /// 扩展资产清单
@@ -141,7 +145,7 @@ pub fn scan_extensions(profile: &BrowserProfile) -> ExtensionInventory {
         let permissions = parse_permissions(&manifest.permissions);
 
         // 从 Preferences 提取补充信息
-        let (pref_entry, tampered) = extract_pref_info(&prefs, &secure_prefs, &ext_id);
+        let (pref_entry, tampered) = extract_pref_info(&prefs, &secure_prefs, &ext_id, profile.browser);
 
         let install_time = pref_entry
             .as_ref()
@@ -182,6 +186,44 @@ pub fn scan_extensions(profile: &BrowserProfile) -> ExtensionInventory {
         inventory.extensions.push(ext_info);
     }
 
+    inventory
+}
+
+/// 扩展扫描缓存键
+type CacheKey = (crate::core::BrowserKind, String);
+
+/// 缓存条目
+type CacheValue = (Instant, ExtensionInventory);
+
+/// 获取扩展扫描全局缓存
+fn get_extension_cache() -> &'static Mutex<HashMap<CacheKey, CacheValue>> {
+    static CACHE: OnceLock<Mutex<HashMap<CacheKey, CacheValue>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 缓存 TTL（秒）
+const CACHE_TTL_SECS: u64 = 30;
+
+/// 带缓存的扩展扫描
+///
+/// 使用进程级缓存避免重复 I/O，缓存 TTL 为 30 秒。
+/// 如果缓存未命中或已过期，重新扫描并更新缓存。
+pub fn scan_extensions_cached(browser: crate::core::BrowserKind, profile: &BrowserProfile) -> ExtensionInventory {
+    let mut cache = get_extension_cache().lock().unwrap();
+    let key = (browser, profile.name.clone());
+
+    // 清理过期条目
+    let now = Instant::now();
+    cache.retain(|_, (ts, _)| now.duration_since(*ts) < Duration::from_secs(CACHE_TTL_SECS));
+
+    // 查找缓存
+    if let Some((_, inventory)) = cache.get(&key) {
+        return inventory.clone();
+    }
+
+    // 未命中，重新扫描
+    let inventory = scan_extensions(profile);
+    cache.insert(key, (now, inventory.clone()));
     inventory
 }
 
@@ -283,6 +325,7 @@ fn extract_pref_info(
     prefs: &Option<serde_json::Value>,
     secure_prefs: &Option<serde_json::Value>,
     ext_id: &str,
+    browser: crate::core::BrowserKind,
 ) -> (Option<ExtensionPrefEntry>, bool) {
     // 先从 Preferences 读取
     let pref_entry = prefs
@@ -323,16 +366,24 @@ fn extract_pref_info(
     };
 
     // Secure Preferences HMAC 检查
-    let tampered = check_hmac(secure_prefs, ext_id);
+    let tampered = check_hmac(secure_prefs, ext_id, browser);
 
     (pref_entry, tampered)
 }
 
 /// 检查 Secure Preferences 中扩展条目的 HMAC 是否存在
 ///
-/// Chromium 系浏览器的 HMAC 存储在 `protection.macs.extensions.settings.<ext_id>` 路径下，
-/// 而非 `extensions.settings.<ext_id>.hmac`。如果该路径下缺少 HMAC，则标记为被篡改。
-fn check_hmac(secure_prefs: &Option<serde_json::Value>, ext_id: &str) -> bool {
+/// Chrome/Chromium 浏览器使用 HMAC 机制保护扩展配置完整性，HMAC 存储在
+/// `protection.macs.extensions.settings.<ext_id>` 路径下。如果该路径下缺少
+/// HMAC，则标记为被篡改。
+///
+/// Edge 部分版本不使用此 HMAC 机制，跳过检查。
+fn check_hmac(secure_prefs: &Option<serde_json::Value>, ext_id: &str, browser: crate::core::BrowserKind) -> bool {
+    // Edge 某些版本不使用 HMAC 机制，跳过检查
+    if browser == crate::core::BrowserKind::Edge {
+        return false;
+    }
+
     let hmac = secure_prefs
         .as_ref()
         .and_then(|p| p.get("protection"))
@@ -379,6 +430,7 @@ mod tests {
         BrowserProfile {
             browser: BrowserKind::Chrome,
             name: "Default".to_string(),
+            display_name: None,
             path: dir.to_path_buf(),
         }
     }
@@ -563,26 +615,29 @@ mod tests {
 
     #[test]
     fn check_hmac_missing_entry() {
+        use crate::core::BrowserKind;
         let secure = Some(serde_json::json!({
             "protection": {"macs": {"extensions": {"settings": {}}}}
         }));
-        assert!(check_hmac(&secure, "missing_ext"));
+        assert!(check_hmac(&secure, "missing_ext", BrowserKind::Chrome));
     }
 
     #[test]
     fn check_hmac_null_value() {
+        use crate::core::BrowserKind;
         let secure = Some(serde_json::json!({
             "protection": {"macs": {"extensions": {"settings": {"extid": null}}}}
         }));
-        assert!(check_hmac(&secure, "extid"));
+        assert!(check_hmac(&secure, "extid", BrowserKind::Chrome));
     }
 
     #[test]
     fn check_hmac_present() {
+        use crate::core::BrowserKind;
         let secure = Some(serde_json::json!({
             "protection": {"macs": {"extensions": {"settings": {"extid": "valid_hmac"}}}}
         }));
-        assert!(!check_hmac(&secure, "extid"));
+        assert!(!check_hmac(&secure, "extid", BrowserKind::Chrome));
     }
 
     #[test]

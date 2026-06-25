@@ -20,7 +20,7 @@ pub use context_attribution::{
 pub use core::*;
 pub use download::{scan_downloads, scan_downloads_in_time_window, DangerType, DownloadAttribution, DownloadInfo};
 pub use extension_attribution::{attribute_extension, ExtensionAttribution};
-pub use extension_inventory::{scan_extensions, ExtensionInfo, ExtensionInventory};
+pub use extension_inventory::{scan_extensions, scan_extensions_cached, ExtensionInfo, ExtensionInventory};
 pub use extension_risk::IocMatch;
 pub use history::{
     attribute_history, build_navigation_chain, scan_history, transition_to_string, HistoryAttribution,

@@ -298,6 +298,7 @@ pub fn run() {
         cmd_browser_forensics_attribute_history,
         cmd_browser_forensics_scan_history,
         cmd_browser_forensics_context_attribution,
+        cmd_browser_forensics_attribute_extension,
     ]);
 
     #[cfg(debug_assertions)]

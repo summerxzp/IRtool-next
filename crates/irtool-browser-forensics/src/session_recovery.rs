@@ -624,6 +624,7 @@ mod tests {
         let profile = BrowserProfile {
             browser: BrowserKind::Chrome,
             name: "Test".to_string(),
+            display_name: None,
             path: temp_dir.path().to_path_buf(),
         };
 
@@ -654,6 +655,7 @@ mod tests {
         let profile = BrowserProfile {
             browser: BrowserKind::Chrome,
             name: "Test".to_string(),
+            display_name: None,
             path: profile_path.to_path_buf(),
         };
 

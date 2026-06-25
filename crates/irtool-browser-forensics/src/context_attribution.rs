@@ -5,7 +5,7 @@
 
 use crate::core::{browser_kind_from_process_name, extract_profile_directory, BrowserKind};
 use crate::download::scan_downloads_in_time_window;
-use crate::extension_inventory::scan_extensions;
+use crate::extension_inventory::scan_extensions_cached;
 use crate::history::attribute_history;
 use crate::permission_matcher::match_domain_to_extensions;
 use crate::profile::enumerate_profiles;
@@ -173,7 +173,7 @@ fn build_context_for_profile(
     let downloads = scan_downloads_in_time_window(profile, download_start, download_end);
 
     // 5. Extension 匹配
-    let inventory = scan_extensions(profile);
+    let inventory = scan_extensions_cached(profile.browser, profile);
     let perm_result = match_domain_to_extensions(domain, &inventory.extensions);
 
     // 6. Session Recovery: 当前标签页

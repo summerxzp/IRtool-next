@@ -1,5 +1,5 @@
 import { commands } from "@/lib/bindings";
-import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, BrowserContext, HistoryEntry } from "./types";
+import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, BrowserContext, HistoryEntry, ExtensionAttribution } from "./types";
 
 export async function listProfiles(onError?: (msg: string) => void): Promise<BrowserProfile[]> {
   try {
@@ -127,6 +127,30 @@ export async function attributeBrowserContext(
     return result.data;
   } catch (e) {
     const msg = `Failed to attribute browser context: ${e}`;
+    console.error(msg);
+    onError?.(msg);
+    return null;
+  }
+}
+
+export async function attributeExtension(
+  processName: string,
+  pid: number,
+  domain: string,
+  cmdline?: string,
+  onError?: (msg: string) => void,
+): Promise<ExtensionAttribution | null> {
+  try {
+    const result = await (commands as any).cmdBrowserForensicsAttributeExtension(
+      processName,
+      pid,
+      domain,
+      cmdline ?? null,
+    );
+    if (result.status === "error") throw new Error(result.error);
+    return result.data;
+  } catch (e) {
+    const msg = `Failed to attribute extension: ${e}`;
     console.error(msg);
     onError?.(msg);
     return null;

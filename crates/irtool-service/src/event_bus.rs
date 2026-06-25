@@ -7,6 +7,7 @@ use irtool_monitor::Alert;
 use irtool_pcap::PcapEvent;
 use irtool_sysmon::SysmonEvent;
 
+use crate::dto::browser_forensics::BrowserMaliciousConnectionPayload;
 use crate::dto::network::{NetworkEnrichmentPayload, NetworkSnapshotPayload};
 
 /// Unified application event enum, published via [`EventBus`].
@@ -39,6 +40,9 @@ pub enum AppEvent {
 
     // Monitor
     MonitorAlert(Alert),
+
+    /// 浏览器恶意连接检测
+    BrowserMaliciousConnection(BrowserMaliciousConnectionPayload),
 
     // Pcap
     PcapEvent(PcapEvent),

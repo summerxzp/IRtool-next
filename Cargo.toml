@@ -14,6 +14,7 @@ members = [
     "crates/irtool-tauri",
     "crates/irtool-egui",
     "crates/irtool-browser-forensics",
+    "crates/irtool-native-messaging",
 ]
 resolver = "2"
 

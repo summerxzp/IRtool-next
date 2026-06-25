@@ -1,8 +1,9 @@
-export type BrowserKind = "chrome" | "edge";
+export type BrowserKind = "chrome" | "edge" | "brave" | "vivaldi";
 
 export interface BrowserProfile {
   browser: BrowserKind;
   name: string;
+  display_name: string | null;
   path: string;
 }
 
@@ -150,4 +151,23 @@ export interface MatchedExtension {
   risk_flags: string[];
   matched_patterns: string[];
   has_sensitive_permissions: boolean;
+}
+
+export interface ExtensionAttribution {
+  label: string;
+  browser: BrowserKind;
+  profile: string;
+  pid: number;
+  domain: string;
+  candidate_extensions: MatchedExtension[];
+}
+
+/// 后端推送的浏览器恶意连接事件负载
+export interface BrowserMaliciousConnectionPayload {
+  domain: string;
+  ip: string;
+  process_name: string;
+  pid: number;
+  cmdline: string | null;
+  alert_id: string;
 }

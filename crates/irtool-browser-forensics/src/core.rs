@@ -10,12 +10,14 @@ use std::path::PathBuf;
 pub enum BrowserKind {
     Chrome,
     Edge,
+    Brave,
+    Vivaldi,
 }
 
 impl BrowserKind {
     /// 所有支持的浏览器
     pub fn all() -> &'static [BrowserKind] {
-        &[BrowserKind::Chrome, BrowserKind::Edge]
+        &[BrowserKind::Chrome, BrowserKind::Edge, BrowserKind::Brave, BrowserKind::Vivaldi]
     }
 
     /// 浏览器用户数据目录
@@ -24,6 +26,8 @@ impl BrowserKind {
         let sub = match self {
             BrowserKind::Chrome => r"Google\Chrome\User Data",
             BrowserKind::Edge => r"Microsoft\Edge\User Data",
+            BrowserKind::Brave => r"BraveSoftware\Brave-Browser\User Data",
+            BrowserKind::Vivaldi => r"Vivaldi\User Data",
         };
         Some(PathBuf::from(local_app_data).join(sub))
     }
@@ -33,6 +37,8 @@ impl BrowserKind {
         match self {
             BrowserKind::Chrome => "chrome.exe",
             BrowserKind::Edge => "msedge.exe",
+            BrowserKind::Brave => "brave.exe",
+            BrowserKind::Vivaldi => "vivaldi.exe",
         }
     }
 
@@ -42,6 +48,8 @@ impl BrowserKind {
         match self {
             BrowserKind::Chrome => r"SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist",
             BrowserKind::Edge => r"SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist",
+            BrowserKind::Brave => r"SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist",
+            BrowserKind::Vivaldi => r"SOFTWARE\Policies\Vivaldi\ExtensionInstallForcelist",
         }
     }
 
@@ -50,6 +58,8 @@ impl BrowserKind {
         match self {
             BrowserKind::Chrome => "Chrome",
             BrowserKind::Edge => "Edge",
+            BrowserKind::Brave => "Brave",
+            BrowserKind::Vivaldi => "Vivaldi",
         }
     }
 }
@@ -128,6 +138,8 @@ pub fn browser_kind_from_process_name(name: &str) -> Option<BrowserKind> {
     match lower.as_str() {
         "chrome.exe" => Some(BrowserKind::Chrome),
         "msedge.exe" => Some(BrowserKind::Edge),
+        "brave.exe" => Some(BrowserKind::Brave),
+        "vivaldi.exe" => Some(BrowserKind::Vivaldi),
         _ => None,
     }
 }
@@ -150,12 +162,16 @@ mod tests {
     fn browser_kind_process_name() {
         assert_eq!(BrowserKind::Chrome.process_name(), "chrome.exe");
         assert_eq!(BrowserKind::Edge.process_name(), "msedge.exe");
+        assert_eq!(BrowserKind::Brave.process_name(), "brave.exe");
+        assert_eq!(BrowserKind::Vivaldi.process_name(), "vivaldi.exe");
     }
 
     #[test]
     fn browser_kind_display() {
         assert_eq!(BrowserKind::Chrome.to_string(), "Chrome");
         assert_eq!(BrowserKind::Edge.to_string(), "Edge");
+        assert_eq!(BrowserKind::Brave.to_string(), "Brave");
+        assert_eq!(BrowserKind::Vivaldi.to_string(), "Vivaldi");
     }
 
     #[test]
@@ -204,6 +220,8 @@ mod tests {
     fn browser_kind_from_process() {
         assert_eq!(browser_kind_from_process_name("chrome.exe"), Some(BrowserKind::Chrome));
         assert_eq!(browser_kind_from_process_name("MSEdge.exe"), Some(BrowserKind::Edge));
+        assert_eq!(browser_kind_from_process_name("Brave.exe"), Some(BrowserKind::Brave));
+        assert_eq!(browser_kind_from_process_name("VIVALDI.EXE"), Some(BrowserKind::Vivaldi));
         assert_eq!(browser_kind_from_process_name("notepad.exe"), None);
     }
 }

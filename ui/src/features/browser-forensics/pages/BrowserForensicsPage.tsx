@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useCallback } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { ScanLine } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useBrowserForensicsStore, type ForensicsTab } from "../store";
@@ -12,11 +13,13 @@ import { HistoryTable } from "../components/HistoryTable";
 import { DownloadTable } from "../components/DownloadTable";
 import { TabTable } from "../components/TabTable";
 import { ContextAttributionPanel } from "../components/ContextAttributionPanel";
-import type { BrowserKind, ExtensionInfo } from "../types";
+import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload } from "../types";
 
 const BROWSERS: { kind: BrowserKind; label: string }[] = [
   { kind: "chrome", label: "Chrome" },
   { kind: "edge", label: "Edge" },
+  { kind: "brave", label: "Brave" },
+  { kind: "vivaldi", label: "Vivaldi" },
 ];
 
 const TAB_KEYS: { key: ForensicsTab; i18nKey: string }[] = [
@@ -54,6 +57,8 @@ export function BrowserForensicsPage() {
   const setSelectedExtensionId = useBrowserForensicsStore((s) => s.setSelectedExtensionId);
   const search = useBrowserForensicsStore((s) => s.search);
   const setSearch = useBrowserForensicsStore((s) => s.setSearch);
+  const setContextInputDomain = useBrowserForensicsStore((s) => s.setContextInputDomain);
+  const setContextInputPid = useBrowserForensicsStore((s) => s.setContextInputPid);
 
   // Load profiles on mount (auto — no privacy concern, just file listing)
   useEffect(() => {
@@ -66,6 +71,26 @@ export function BrowserForensicsPage() {
       setSelectedProfile(profiles[0].name);
     }
   }, [profiles, selectedProfile, setSelectedProfile]);
+
+  // ── 监听后端推送的浏览器恶意连接事件 ──────────────────
+  useEffect(() => {
+    const unlistenPromise = listen<BrowserMaliciousConnectionPayload>(
+      "evt_browser_malicious_connection",
+      (event) => {
+        const { domain, pid } = event.payload;
+        console.info("[browser-forensics] malicious connection detected:", event.payload);
+
+        // 预填 Context Attribution 查询参数并自动切换到 context 面板
+        setContextInputDomain(domain);
+        setContextInputPid(String(pid));
+        setActiveTab("context");
+      },
+    );
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── 扫描：按需触发，替代自动加载 ──────────────────────
   const reqIdRef = useRef(0);

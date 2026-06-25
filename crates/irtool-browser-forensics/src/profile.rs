@@ -3,6 +3,7 @@
 use crate::core::BrowserKind;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// 浏览器 Profile 信息
@@ -11,8 +12,29 @@ pub struct BrowserProfile {
     pub browser: BrowserKind,
     /// Profile 目录名（如 "Default", "Profile 1"）
     pub name: String,
+    /// Profile 显示名（来自 Local State 文件，可能为 None）
+    pub display_name: Option<String>,
     /// Profile 目录完整路径
     pub path: PathBuf,
+}
+
+/// 从浏览器 User Data 目录的 Local State 文件读取 Profile 显示名
+///
+/// 返回: profile 目录名 → 显示名 的映射
+fn read_local_state(user_data_dir: &std::path::Path) -> Option<HashMap<String, String>> {
+    let local_state_path = user_data_dir.join("Local State");
+    let content = std::fs::read_to_string(local_state_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let info_cache = json.get("profile")?.get("info_cache")?;
+    let mut result = HashMap::new();
+    if let Some(obj) = info_cache.as_object() {
+        for (profile_name, info) in obj {
+            if let Some(name) = info.get("name").and_then(|v| v.as_str()) {
+                result.insert(profile_name.clone(), name.to_string());
+            }
+        }
+    }
+    Some(result)
 }
 
 /// 扫描指定浏览器下的所有 Profile 目录
@@ -30,6 +52,7 @@ pub fn enumerate_profiles(browser: BrowserKind) -> Vec<BrowserProfile> {
         return vec![];
     }
 
+    let name_map = read_local_state(&user_data_dir).unwrap_or_default();
     let mut profiles = Vec::new();
 
     // 检查 Default 目录
@@ -38,6 +61,7 @@ pub fn enumerate_profiles(browser: BrowserKind) -> Vec<BrowserProfile> {
         profiles.push(BrowserProfile {
             browser,
             name: "Default".to_string(),
+            display_name: name_map.get("Default").cloned(),
             path: default_path,
         });
     }
@@ -51,6 +75,7 @@ pub fn enumerate_profiles(browser: BrowserKind) -> Vec<BrowserProfile> {
                 profiles.push(BrowserProfile {
                     browser,
                     name: name_str.to_string(),
+                    display_name: name_map.get(name_str.as_ref()).cloned(),
                     path: entry.path(),
                 });
             }

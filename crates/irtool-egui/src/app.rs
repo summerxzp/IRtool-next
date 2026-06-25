@@ -233,6 +233,15 @@ impl IrtoolApp {
                     alert.key_field
                 );
             }
+            AppEvent::BrowserMaliciousConnection(payload) => {
+                tracing::info!(
+                    "browser malicious connection: process={}, pid={}, domain={}, ip={}",
+                    payload.process_name,
+                    payload.pid,
+                    payload.domain,
+                    payload.ip,
+                );
+            }
             AppEvent::AutorunsProgress(p) => {
                 self.autoruns.handle_scan_progress(p);
             }

@@ -4,7 +4,7 @@
 //! host_permissions 的扩展做匹配，生成归因标签和候选扩展列表。
 
 use crate::core::{browser_kind_from_process_name, extract_profile_directory, BrowserKind};
-use crate::extension_inventory::scan_extensions;
+use crate::extension_inventory::scan_extensions_cached;
 use crate::permission_matcher::match_domain_to_extensions;
 use crate::profile::enumerate_profiles;
 use crate::MatchedExtension;
@@ -75,7 +75,7 @@ pub fn attribute_extension(
     let mut all_candidates: Vec<MatchedExtension> = Vec::new();
 
     for profile in &target_profiles {
-        let inventory = scan_extensions(profile);
+        let inventory = scan_extensions_cached(browser, profile);
         let result = match_domain_to_extensions(domain, &inventory.extensions);
         all_candidates.extend(result.matching_extensions);
     }
@@ -212,5 +212,7 @@ mod tests {
     fn case_insensitive_process_name() {
         assert_eq!(browser_kind_from_process_name("Chrome.exe"), Some(BrowserKind::Chrome));
         assert_eq!(browser_kind_from_process_name("MSEdge.exe"), Some(BrowserKind::Edge));
+        assert_eq!(browser_kind_from_process_name("brave.exe"), Some(BrowserKind::Brave));
+        assert_eq!(browser_kind_from_process_name("VIVALDI.EXE"), Some(BrowserKind::Vivaldi));
     }
 }
