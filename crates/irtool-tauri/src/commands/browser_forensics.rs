@@ -100,7 +100,7 @@ pub async fn cmd_browser_forensics_attribute_history(
             .into_iter()
             .find(|p| p.name == profile_name)
             .ok_or_else(|| IrError::Internal(format!("profile not found: {}", profile_name)))?;
-        Ok(attribute_history(&profile, target_time))
+        Ok(attribute_history(&profile, target_time, ""))
     })
     .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
@@ -138,7 +138,7 @@ pub async fn cmd_browser_forensics_context_attribution(
     pid: u32,
     timestamp: String,
     cmdline: Option<String>,
-) -> Result<BrowserContext, IrError> {
+) -> Result<EvidenceObject, IrError> {
     let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
         .map_err(|e| IrError::Internal(format!("invalid timestamp: {}", e)))?
         .to_utc();
@@ -184,9 +184,7 @@ pub async fn cmd_browser_forensics_attribute_extension(
 /// 支持 Chrome / Edge。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_install_native_messaging_host(
-    browser: BrowserKind,
-) -> Result<String, IrError> {
+pub async fn cmd_browser_forensics_install_native_messaging_host(browser: BrowserKind) -> Result<String, IrError> {
     tokio::task::spawn_blocking(move || {
         irtool_browser_forensics::install_helper::install_native_messaging_host(browser)
             .map_err(|e| IrError::Internal(format!("failed to install native messaging host: {}", e)))
@@ -203,11 +201,9 @@ pub async fn cmd_browser_forensics_attribute_by_domain(
     target: String,
     browser: BrowserKind,
 ) -> Result<Vec<DomainAttribution>, IrError> {
-    tokio::task::spawn_blocking(move || {
-        Ok(attribute_by_domain(&target, browser))
-    })
-    .await
-    .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+    tokio::task::spawn_blocking(move || Ok(attribute_by_domain(&target, browser)))
+        .await
+        .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
 }
 
 /// 向 Helper Extension 下发域名过滤规则（config 下行通道）。
@@ -218,9 +214,7 @@ pub async fn cmd_browser_forensics_attribute_by_domain(
 /// 传递空数组可清除过滤规则。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_send_config(
-    filter_domains: Vec<String>,
-) -> Result<(), IrError> {
+pub async fn cmd_browser_forensics_send_config(filter_domains: Vec<String>) -> Result<(), IrError> {
     irtool_service::services::browser_forensics::send_config(&filter_domains);
     Ok(())
 }

@@ -18,12 +18,14 @@ pub mod sqlite;
 pub mod url_utils;
 
 pub use context_attribution::{
-    attribute_browser_context, attribute_by_domain, BrowserContext, BrowserContextDetail, CurrentTab,
-    DomainAttribution, MaliciousConnection,
+    attribute_browser_context, attribute_by_domain, CurrentTab, DomainAttribution, MaliciousConnection,
 };
 pub use core::*;
 pub use download::{scan_downloads, scan_downloads_in_time_window, DangerType, DownloadAttribution, DownloadInfo};
-pub use evidence::{AttributionLevel, BrowserEvent, BrowserSourceType, EvidenceScore, ScoreWeights};
+pub use evidence::{
+    AttributionLevel, BrowserEvent, BrowserSourceType, EvidenceObject, EvidenceScore, ExtensionAttributionSummary,
+    HistoryCorrelation, ScoreWeights, ScoredActivity, TabAttribution,
+};
 pub use extension_attribution::{attribute_extension, ExtensionAttribution};
 pub use extension_inventory::{scan_extensions, scan_extensions_cached, ExtensionInfo, ExtensionInventory};
 pub use extension_risk::IocMatch;

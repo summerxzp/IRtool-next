@@ -1,17 +1,20 @@
 //! Browser Context Attribution：横向关联模块
 //!
 //! 对恶意网络连接执行综合归因，消费 History、Download、Extension 等模块数据，
-//! 产出 BrowserContext 综合结果。
+//! 产出 EvidenceObject 综合结果。
 //!
 //! 两种归因模式：
 //! - 时间窗口归因（`attribute_browser_context`）：给定时间点，查找附近的浏览活动
 //! - 域名归因（`attribute_by_domain`）：给定域名/IP，查找所有相关痕迹
 
 use crate::core::{browser_kind_from_process_name, extract_profile_directory, BrowserKind};
-use crate::download::{scan_downloads, scan_downloads_in_time_window};
+use crate::download::{scan_downloads, scan_downloads_in_time_window, DownloadInfo};
+use crate::evidence::{
+    AttributionLevel, EvidenceObject, EvidenceScore, ExtensionAttributionSummary, HistoryCorrelation, ScoredActivity,
+};
 use crate::extension_inventory::scan_extensions_cached;
-use crate::history::attribute_history;
-use crate::permission_matcher::match_domain_to_extensions;
+use crate::history::{attribute_history, NavChainNode, RecentActivity};
+use crate::permission_matcher::{match_domain_to_extensions, MatchedExtension};
 use crate::profile::enumerate_profiles;
 use crate::session_recovery::recover_tabs;
 use crate::sqlite::open_browser_db;
@@ -32,28 +35,6 @@ pub struct MaliciousConnection {
     pub timestamp: String,
 }
 
-/// Browser Context Attribution 综合输出
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct BrowserContext {
-    pub malicious_connection: MaliciousConnection,
-    pub context: BrowserContextDetail,
-}
-
-/// Browser Context 详情
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct BrowserContextDetail {
-    /// 近期浏览器活动（来自 History Analysis）
-    pub recent_browser_activity: Vec<crate::history::RecentActivity>,
-    /// 用户访问路径（来自 Navigation Chain）
-    pub navigation_chain: Vec<crate::history::NavChainNode>,
-    /// 当前打开标签页（来自 Session Recovery，暂为空）
-    pub current_tabs: Vec<CurrentTab>,
-    /// 下载溯源（来自 Download Analysis）
-    pub recent_downloads: Vec<crate::download::DownloadInfo>,
-    /// 匹配的扩展（来自 Permission Matcher）
-    pub matching_extensions: Vec<crate::permission_matcher::MatchedExtension>,
-}
-
 /// 当前标签页（Session Recovery 的占位结构，Phase 3 实现后填充）
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CurrentTab {
@@ -63,9 +44,18 @@ pub struct CurrentTab {
     pub evidence_type: String,
 }
 
+/// 单 Profile 的子证据组件（内部聚合用,EvidenceObject 的构造原料）
+#[derive(Default)]
+struct ContextParts {
+    recent_browser_activity: Vec<RecentActivity>,
+    navigation_chain: Vec<NavChainNode>,
+    recent_downloads: Vec<DownloadInfo>,
+    matching_extensions: Vec<MatchedExtension>,
+}
+
 /// 对恶意连接执行 Browser Context Attribution
 ///
-/// 这是横向关联的主入口，消费其他模块数据产出综合归因结果。
+/// 这是横向关联的主入口，消费其他模块数据产出 `EvidenceObject` 综合归因结果。
 /// 如果提供了 `cmdline`，将通过 `extract_profile_directory` 精确定位 Profile。
 pub fn attribute_browser_context(
     domain: &str,
@@ -74,23 +64,20 @@ pub fn attribute_browser_context(
     pid: u32,
     timestamp: chrono::DateTime<chrono::Utc>,
     cmdline: Option<&str>,
-) -> BrowserContext {
+) -> EvidenceObject {
     // 1. 进程→浏览器识别
     let browser = match browser_kind_from_process_name(process_name) {
         Some(b) => b,
         None => {
-            return BrowserContext {
-                malicious_connection: MaliciousConnection {
-                    domain: domain.to_string(),
-                    ip: ip.map(String::from),
-                    process: process_name.to_string(),
-                    pid,
-                    browser: BrowserKind::Chrome, // 占位，非浏览器进程无意义
-                    profile: String::new(),
-                    timestamp: timestamp.to_rfc3339(),
-                },
-                context: empty_context_detail(),
-            };
+            return empty_evidence_object(
+                domain,
+                ip,
+                process_name,
+                pid,
+                timestamp,
+                BrowserKind::Chrome, // 占位，非浏览器进程无意义
+                String::new(),
+            );
         }
     };
 
@@ -112,46 +99,104 @@ pub fn attribute_browser_context(
 
     if target_profiles.is_empty() {
         warn!("no profiles found for {}", browser);
-        return BrowserContext {
-            malicious_connection: MaliciousConnection {
-                domain: domain.to_string(),
-                ip: ip.map(String::from),
-                process: process_name.to_string(),
-                pid,
-                browser,
-                profile: "Unknown".to_string(),
-                timestamp: timestamp.to_rfc3339(),
-            },
-            context: empty_context_detail(),
-        };
+        return empty_evidence_object(domain, ip, process_name, pid, timestamp, browser, "Unknown".to_string());
     }
 
     // 对每个 Profile 执行关联，合并结果
     // 优先使用 total_score 最高的 Profile（基于 RecentActivity 评分汇总）
-    let mut best_context: Option<BrowserContextDetail> = None;
+    let mut best_parts: Option<ContextParts> = None;
     let mut best_profile_name = String::new();
     let mut best_total_score = 0u32;
 
     for profile in &target_profiles {
-        let ctx = build_context_for_profile(domain, profile, timestamp);
+        let parts = build_context_parts(domain, profile, timestamp);
 
         // 汇总 RecentActivity 的 score.total 作为 Profile 评分
-        let total_score: u32 = ctx
+        let total_score: u32 = parts
             .recent_browser_activity
             .iter()
             .filter_map(|a| a.score.as_ref().map(|s| s.total))
             .sum();
 
-        if total_score > best_total_score || best_context.is_none() {
+        if total_score > best_total_score || best_parts.is_none() {
             best_total_score = total_score;
-            best_context = Some(ctx);
+            best_parts = Some(parts);
             best_profile_name = profile.name.clone();
         }
     }
 
-    let context = best_context.unwrap_or_else(empty_context_detail);
+    let parts = best_parts.unwrap_or_default();
 
-    BrowserContext {
+    // 构造 HistoryCorrelation（无活动时为 None）
+    let history_correlation = if parts.recent_browser_activity.is_empty() {
+        None
+    } else {
+        let scored: Vec<ScoredActivity> = parts
+            .recent_browser_activity
+            .iter()
+            .map(|a| ScoredActivity {
+                activity: a.clone(),
+                score: a.score.clone().unwrap_or_else(EvidenceScore::zero),
+            })
+            .collect();
+
+        // 聚合评分:各分项取 max,total 取 sum 封顶 100
+        let time_score = parts
+            .recent_browser_activity
+            .iter()
+            .filter_map(|a| a.score.as_ref().map(|s| s.time_score))
+            .max()
+            .unwrap_or(0);
+        let domain_score = parts
+            .recent_browser_activity
+            .iter()
+            .filter_map(|a| a.score.as_ref().map(|s| s.domain_score))
+            .max()
+            .unwrap_or(0);
+        let chain_score = parts
+            .recent_browser_activity
+            .iter()
+            .filter_map(|a| a.score.as_ref().map(|s| s.chain_score))
+            .max()
+            .unwrap_or(0);
+        let total = best_total_score.min(100);
+        let score = EvidenceScore {
+            time_score,
+            domain_score,
+            chain_score,
+            total,
+        };
+
+        Some(HistoryCorrelation {
+            confidence: score.level(),
+            score,
+            recent_activity: scored,
+        })
+    };
+
+    // 构造 ExtensionAttributionSummary（无匹配扩展时为 None）
+    // P0 阶段不连接 Helper Extension/CDP,匹配仅说明"可能",故使用 Possible
+    let extension_attribution = if parts.matching_extensions.is_empty() {
+        None
+    } else {
+        Some(ExtensionAttributionSummary {
+            confidence: AttributionLevel::Possible,
+            matched: parts.matching_extensions.clone(),
+        })
+    };
+
+    // overall_confidence 由 overall_score 推断(>=70 → Probable,否则 Possible)
+    let overall_confidence = if best_total_score >= 70 {
+        AttributionLevel::Probable
+    } else {
+        AttributionLevel::Possible
+    };
+
+    EvidenceObject {
+        domain: domain.to_string(),
+        process: process_name.to_string(),
+        pid,
+        alert_id: None,
         malicious_connection: MaliciousConnection {
             domain: domain.to_string(),
             ip: ip.map(String::from),
@@ -161,57 +206,78 @@ pub fn attribute_browser_context(
             profile: best_profile_name,
             timestamp: timestamp.to_rfc3339(),
         },
-        context,
+        history_correlation,
+        downloads: parts.recent_downloads,
+        navigation_chain: parts.navigation_chain,
+        extension_attribution,
+        tab_attribution: None,
+        overall_confidence,
+        overall_score: best_total_score,
     }
 }
 
-/// 对单个 Profile 构建上下文详情
-fn build_context_for_profile(
+/// 构造一个无子证据的空 EvidenceObject
+///
+/// 用于非浏览器进程或无 Profile 场景,overall_score = 0、confidence = Possible。
+fn empty_evidence_object(
+    domain: &str,
+    ip: Option<&str>,
+    process_name: &str,
+    pid: u32,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    browser: BrowserKind,
+    profile: String,
+) -> EvidenceObject {
+    EvidenceObject {
+        domain: domain.to_string(),
+        process: process_name.to_string(),
+        pid,
+        alert_id: None,
+        malicious_connection: MaliciousConnection {
+            domain: domain.to_string(),
+            ip: ip.map(String::from),
+            process: process_name.to_string(),
+            pid,
+            browser,
+            profile,
+            timestamp: timestamp.to_rfc3339(),
+        },
+        history_correlation: None,
+        downloads: vec![],
+        navigation_chain: vec![],
+        extension_attribution: None,
+        tab_attribution: None,
+        overall_confidence: AttributionLevel::Possible,
+        overall_score: 0,
+    }
+}
+
+/// 对单个 Profile 构建子证据组件
+///
+/// P0 阶段不调用 `recover_tabs`：`EvidenceObject.tab_attribution` 暂为 None,
+/// Session Recovery 数据由 `attribute_by_domain` 路径独立消费。
+fn build_context_parts(
     domain: &str,
     profile: &crate::profile::BrowserProfile,
     timestamp: chrono::DateTime<chrono::Utc>,
-) -> BrowserContextDetail {
-    // 3. History 关联
+) -> ContextParts {
+    // History 关联
     let history = attribute_history(profile, timestamp, domain);
 
-    // 4. Download 关联：±30s 时间窗口
+    // Download 关联：±30s 时间窗口
     let download_start = timestamp - chrono::Duration::seconds(30);
     let download_end = timestamp + chrono::Duration::seconds(30);
     let downloads = scan_downloads_in_time_window(profile, download_start, download_end);
 
-    // 5. Extension 匹配
+    // Extension 匹配
     let inventory = scan_extensions_cached(profile.browser, profile);
     let perm_result = match_domain_to_extensions(domain, &inventory.extensions);
 
-    // 6. Session Recovery: 当前标签页
-    let rec_result = recover_tabs(profile);
-
-    BrowserContextDetail {
+    ContextParts {
         recent_browser_activity: history.recent_browser_activity,
         navigation_chain: history.navigation_chain,
-        current_tabs: rec_result
-            .tabs
-            .into_iter()
-            .map(|t| CurrentTab {
-                url: t.url,
-                title: t.title,
-                active: t.active,
-                evidence_type: "session-recovery".to_string(),
-            })
-            .collect(),
         recent_downloads: downloads.downloads,
         matching_extensions: perm_result.matching_extensions,
-    }
-}
-
-/// 空的上下文详情
-fn empty_context_detail() -> BrowserContextDetail {
-    BrowserContextDetail {
-        recent_browser_activity: vec![],
-        navigation_chain: vec![],
-        current_tabs: vec![],
-        recent_downloads: vec![],
-        matching_extensions: vec![],
     }
 }
 
@@ -376,12 +442,15 @@ mod tests {
         let ts = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
         let result = attribute_browser_context("evil.com", None, "notepad.exe", 1234, ts, None);
 
-        assert!(result.context.recent_browser_activity.is_empty());
-        assert!(result.context.navigation_chain.is_empty());
-        assert!(result.context.current_tabs.is_empty());
-        assert!(result.context.recent_downloads.is_empty());
-        assert!(result.context.matching_extensions.is_empty());
+        // 非浏览器进程:无任何子证据,overall_score = 0
+        assert!(result.history_correlation.is_none());
+        assert!(result.navigation_chain.is_empty());
+        assert!(result.downloads.is_empty());
+        assert!(result.extension_attribution.is_none());
+        assert!(result.tab_attribution.is_none());
         assert!(result.malicious_connection.profile.is_empty());
+        assert_eq!(result.overall_score, 0);
+        assert_eq!(result.overall_confidence, crate::evidence::AttributionLevel::Possible);
     }
 
     #[test]
@@ -401,16 +470,12 @@ mod tests {
         assert_eq!(result.malicious_connection.process, "notepad.exe");
         assert_eq!(result.malicious_connection.pid, 5678);
         assert_eq!(result.malicious_connection.timestamp, ts.to_rfc3339());
-    }
 
-    #[test]
-    fn empty_context_detail_is_empty() {
-        let ctx = empty_context_detail();
-        assert!(ctx.recent_browser_activity.is_empty());
-        assert!(ctx.navigation_chain.is_empty());
-        assert!(ctx.current_tabs.is_empty());
-        assert!(ctx.recent_downloads.is_empty());
-        assert!(ctx.matching_extensions.is_empty());
+        // EvidenceObject 顶层冗余字段
+        assert_eq!(result.domain, "evil.com");
+        assert_eq!(result.process, "notepad.exe");
+        assert_eq!(result.pid, 5678);
+        assert!(result.alert_id.is_none());
     }
 
     #[test]
@@ -440,7 +505,7 @@ mod tests {
         let ts = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
         let result = attribute_browser_context("evil.com", None, "notepad.exe", 9999, ts, Some("chrome.exe"));
         // 非浏览器进程会直接返回空
-        assert!(result.context.recent_browser_activity.is_empty());
+        assert!(result.history_correlation.is_none());
         assert!(result.malicious_connection.profile.is_empty());
     }
 
@@ -464,5 +529,31 @@ mod tests {
                 || result.malicious_connection.profile == "Profile 1"
                 || !result.malicious_connection.profile.is_empty()
         );
+    }
+
+    #[test]
+    fn attribute_browser_context_returns_evidence_object() {
+        let ts = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+        let result = attribute_browser_context("evil.com", Some("1.2.3.4"), "notepad.exe", 1234, ts, None);
+
+        // 验证返回值是 EvidenceObject 类型（通过字段访问）
+        assert_eq!(result.domain, "evil.com");
+        assert_eq!(result.process, "notepad.exe");
+        assert_eq!(result.pid, 1234);
+        assert!(result.alert_id.is_none());
+
+        // 非浏览器进程 → 无子证据,overall_score = 0,confidence = Possible
+        assert_eq!(result.overall_score, 0);
+        assert_eq!(result.overall_confidence, crate::evidence::AttributionLevel::Possible);
+        assert!(result.history_correlation.is_none());
+        assert!(result.extension_attribution.is_none());
+        assert!(result.tab_attribution.is_none());
+        assert!(result.downloads.is_empty());
+        assert!(result.navigation_chain.is_empty());
+
+        // malicious_connection 仍含完整连接信息
+        assert_eq!(result.malicious_connection.domain, "evil.com");
+        assert_eq!(result.malicious_connection.ip.as_deref(), Some("1.2.3.4"));
+        assert_eq!(result.malicious_connection.process, "notepad.exe");
     }
 }

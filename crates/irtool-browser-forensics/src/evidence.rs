@@ -6,7 +6,11 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::context_attribution::MaliciousConnection;
 use crate::core::BrowserKind;
+use crate::download::DownloadInfo;
+use crate::history::{NavChainNode, RecentActivity};
+use crate::permission_matcher::MatchedExtension;
 
 /// 证据来源类型（当前 P0 四类，未来 P1/P2 扩展）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -110,6 +114,59 @@ impl Default for ScoreWeights {
     }
 }
 
+// ── P0.7a EvidenceObject 与子证据 DTO ───────────────────────────
+
+/// 历史关联详情（含评分）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct HistoryCorrelation {
+    pub confidence: AttributionLevel,
+    pub score: EvidenceScore,
+    pub recent_activity: Vec<ScoredActivity>,
+}
+
+/// 评分后的历史活动条目
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ScoredActivity {
+    pub activity: RecentActivity,
+    pub score: EvidenceScore,
+}
+
+/// 扩展归因汇总（P0 阶段 Probable/Possible，P1 可达 Confirmed）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExtensionAttributionSummary {
+    pub confidence: AttributionLevel,
+    pub matched: Vec<MatchedExtension>,
+}
+
+/// Tab 归因（P2 阶段填充，P0 为 None）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct TabAttribution {
+    pub confidence: AttributionLevel,
+    pub url: String,
+}
+
+/// 统一证据对象（设计方案目标 JSON 结构的 Rust 对应）
+///
+/// `attribute_browser_context` 的返回值，组合 5 类子证据并通过 `overall_score`/`overall_confidence`
+/// 给出综合归因结论。P0 阶段 `alert_id`/`tab_attribution` 暂为 None。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EvidenceObject {
+    pub domain: String,
+    pub process: String,
+    pub pid: u32,
+    pub alert_id: Option<String>,
+
+    pub malicious_connection: MaliciousConnection,
+    pub history_correlation: Option<HistoryCorrelation>,
+    pub downloads: Vec<DownloadInfo>,
+    pub navigation_chain: Vec<NavChainNode>,
+    pub extension_attribution: Option<ExtensionAttributionSummary>,
+    pub tab_attribution: Option<TabAttribution>,
+
+    pub overall_confidence: AttributionLevel,
+    pub overall_score: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,5 +241,200 @@ mod tests {
         assert_eq!(back.browser, BrowserKind::Chrome);
         assert_eq!(back.source_type, BrowserSourceType::History);
         assert_eq!(back.title, Some("Example".to_string()));
+    }
+
+    // ── P0.7a EvidenceObject 测试 ───────────────────────────────
+
+    #[test]
+    fn evidence_object_construction() {
+        use crate::context_attribution::MaliciousConnection;
+        use crate::download::DownloadInfo;
+        use crate::history::{NavChainNode, RecentActivity, TimeTier};
+        use crate::permission_matcher::MatchedExtension;
+
+        let mc = MaliciousConnection {
+            domain: "evil.com".to_string(),
+            ip: Some("1.2.3.4".to_string()),
+            process: "chrome.exe".to_string(),
+            pid: 1234,
+            browser: BrowserKind::Chrome,
+            profile: "Default".to_string(),
+            timestamp: "2024-06-15T12:00:00Z".to_string(),
+        };
+
+        let activity = RecentActivity {
+            url: "https://evil.com/payload".to_string(),
+            title: "Evil".to_string(),
+            visit_time: "2024-06-15T12:00:00Z".to_string(),
+            tier: TimeTier::Immediate,
+            time_distance_ms: 1000,
+            evidence_type: "recent-visit".to_string(),
+            score: Some(EvidenceScore {
+                time_score: 50,
+                domain_score: 30,
+                chain_score: 20,
+                total: 100,
+            }),
+        };
+
+        let scored = ScoredActivity {
+            score: activity.score.clone().unwrap_or_else(EvidenceScore::zero),
+            activity: activity.clone(),
+        };
+
+        let hc_score = EvidenceScore {
+            time_score: 50,
+            domain_score: 30,
+            chain_score: 20,
+            total: 100,
+        };
+        let hc = HistoryCorrelation {
+            confidence: AttributionLevel::Probable,
+            score: hc_score.clone(),
+            recent_activity: vec![scored],
+        };
+
+        let matched_ext = MatchedExtension {
+            id: "ext1".to_string(),
+            name: "Ad Blocker".to_string(),
+            version: "1.0".to_string(),
+            risk_flags: vec!["broad_host_access".to_string()],
+            matched_patterns: vec!["<all_urls>".to_string()],
+            has_sensitive_permissions: true,
+        };
+        let eas = ExtensionAttributionSummary {
+            confidence: AttributionLevel::Possible,
+            matched: vec![matched_ext.clone()],
+        };
+
+        let nav_node = NavChainNode {
+            url: "https://evil.com".to_string(),
+            title: Some("Evil".to_string()),
+            transition: Some("LINK".to_string()),
+            qualifiers: vec![],
+            referrer: None,
+        };
+
+        let download = DownloadInfo {
+            filename: "payload.exe".to_string(),
+            local_path: r"C:\Downloads\payload.exe".to_string(),
+            download_url: "https://evil.com/payload.exe".to_string(),
+            referrer: Some("https://evil.com/page".to_string()),
+            start_time: Some("2024-06-15T12:00:00Z".to_string()),
+            end_time: None,
+            total_bytes: Some(2048),
+            danger_type: crate::download::DangerType::DangerousContent,
+            opened: false,
+            interrupt_reason: None,
+            evidence_type: "download".to_string(),
+            url_chain: vec!["https://evil.com/payload.exe".to_string()],
+            tab_url: None,
+            tab_referrer_url: None,
+        };
+
+        let obj = EvidenceObject {
+            domain: "evil.com".to_string(),
+            process: "chrome.exe".to_string(),
+            pid: 1234,
+            alert_id: None,
+            malicious_connection: mc,
+            history_correlation: Some(hc),
+            downloads: vec![download],
+            navigation_chain: vec![nav_node],
+            extension_attribution: Some(eas),
+            tab_attribution: None,
+            overall_confidence: AttributionLevel::Probable,
+            overall_score: 100,
+        };
+
+        // 顶层字段
+        assert_eq!(obj.domain, "evil.com");
+        assert_eq!(obj.process, "chrome.exe");
+        assert_eq!(obj.pid, 1234);
+        assert!(obj.alert_id.is_none());
+
+        // malicious_connection
+        assert_eq!(obj.malicious_connection.domain, "evil.com");
+        assert_eq!(obj.malicious_connection.ip.as_deref(), Some("1.2.3.4"));
+        assert_eq!(obj.malicious_connection.profile, "Default");
+
+        // history_correlation
+        let hc_ref = obj
+            .history_correlation
+            .as_ref()
+            .expect("history_correlation should be Some");
+        assert_eq!(hc_ref.confidence, AttributionLevel::Probable);
+        assert_eq!(hc_ref.score.total, 100);
+        assert_eq!(hc_ref.recent_activity.len(), 1);
+        assert_eq!(hc_ref.recent_activity[0].activity.url, "https://evil.com/payload");
+        assert_eq!(hc_ref.recent_activity[0].score.total, 100);
+
+        // downloads
+        assert_eq!(obj.downloads.len(), 1);
+        assert_eq!(obj.downloads[0].filename, "payload.exe");
+
+        // navigation_chain
+        assert_eq!(obj.navigation_chain.len(), 1);
+        assert_eq!(obj.navigation_chain[0].url, "https://evil.com");
+
+        // extension_attribution
+        let eas_ref = obj
+            .extension_attribution
+            .as_ref()
+            .expect("extension_attribution should be Some");
+        assert_eq!(eas_ref.confidence, AttributionLevel::Possible);
+        assert_eq!(eas_ref.matched.len(), 1);
+        assert_eq!(eas_ref.matched[0].id, "ext1");
+
+        // tab_attribution (P0 为 None)
+        assert!(obj.tab_attribution.is_none());
+
+        // 评分汇总
+        assert_eq!(obj.overall_confidence, AttributionLevel::Probable);
+        assert_eq!(obj.overall_score, 100);
+    }
+
+    #[test]
+    fn evidence_object_serialization_roundtrip() {
+        use crate::context_attribution::MaliciousConnection;
+
+        let mc = MaliciousConnection {
+            domain: "evil.com".to_string(),
+            ip: None,
+            process: "chrome.exe".to_string(),
+            pid: 1234,
+            browser: BrowserKind::Chrome,
+            profile: "Default".to_string(),
+            timestamp: "2024-06-15T12:00:00Z".to_string(),
+        };
+
+        let obj = EvidenceObject {
+            domain: "evil.com".to_string(),
+            process: "chrome.exe".to_string(),
+            pid: 1234,
+            alert_id: Some("alert-001".to_string()),
+            malicious_connection: mc,
+            history_correlation: None,
+            downloads: vec![],
+            navigation_chain: vec![],
+            extension_attribution: None,
+            tab_attribution: Some(TabAttribution {
+                confidence: AttributionLevel::Possible,
+                url: "https://evil.com/tab".to_string(),
+            }),
+            overall_confidence: AttributionLevel::Possible,
+            overall_score: 30,
+        };
+
+        let json = serde_json::to_string(&obj).unwrap();
+        let back: EvidenceObject = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.domain, "evil.com");
+        assert_eq!(back.pid, 1234);
+        assert_eq!(back.alert_id.as_deref(), Some("alert-001"));
+        assert!(back.history_correlation.is_none());
+        assert!(back.extension_attribution.is_none());
+        assert!(back.tab_attribution.is_some());
+        assert_eq!(back.tab_attribution.unwrap().url, "https://evil.com/tab");
+        assert_eq!(back.overall_score, 30);
     }
 }

@@ -61,7 +61,7 @@ impl<'a> BrowserForensicsService<'a> {
                 .into_iter()
                 .find(|p| p.name == profile_name)
                 .ok_or_else(|| IrError::Internal(format!("profile not found: {}", profile_name)))?;
-            Ok(attribute_history(&profile, target_time))
+            Ok(attribute_history(&profile, target_time, ""))
         })
         .await
         .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
@@ -121,7 +121,7 @@ impl<'a> BrowserForensicsService<'a> {
     }
 
     /// Browser Context Attribution
-    pub async fn attribute_browser_context(&self, req: ContextAttributionRequest) -> Result<BrowserContext, IrError> {
+    pub async fn attribute_browser_context(&self, req: ContextAttributionRequest) -> Result<EvidenceObject, IrError> {
         tokio::task::spawn_blocking(move || {
             let timestamp = chrono::DateTime::parse_from_rfc3339(&req.timestamp)
                 .map_err(|e| IrError::Internal(format!("invalid timestamp: {}", e)))?
