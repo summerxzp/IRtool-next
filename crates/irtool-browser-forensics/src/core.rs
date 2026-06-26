@@ -17,7 +17,12 @@ pub enum BrowserKind {
 impl BrowserKind {
     /// 所有支持的浏览器
     pub fn all() -> &'static [BrowserKind] {
-        &[BrowserKind::Chrome, BrowserKind::Edge, BrowserKind::Brave, BrowserKind::Vivaldi]
+        &[
+            BrowserKind::Chrome,
+            BrowserKind::Edge,
+            BrowserKind::Brave,
+            BrowserKind::Vivaldi,
+        ]
     }
 
     /// 浏览器用户数据目录
@@ -221,7 +226,10 @@ mod tests {
         assert_eq!(browser_kind_from_process_name("chrome.exe"), Some(BrowserKind::Chrome));
         assert_eq!(browser_kind_from_process_name("MSEdge.exe"), Some(BrowserKind::Edge));
         assert_eq!(browser_kind_from_process_name("Brave.exe"), Some(BrowserKind::Brave));
-        assert_eq!(browser_kind_from_process_name("Vivaldi.exe"), Some(BrowserKind::Vivaldi));
+        assert_eq!(
+            browser_kind_from_process_name("Vivaldi.exe"),
+            Some(BrowserKind::Vivaldi)
+        );
         assert_eq!(browser_kind_from_process_name("notepad.exe"), None);
     }
 }

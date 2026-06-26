@@ -15,9 +15,18 @@ const NM_HOST_NAME: &str = "irtool_attribution";
 fn nm_host_json_path(browser: BrowserKind) -> PathBuf {
     let app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
     match browser {
-        BrowserKind::Chrome => PathBuf::from(app_data).join("Google").join("Chrome").join("NativeMessagingHosts"),
-        BrowserKind::Edge => PathBuf::from(app_data).join("Microsoft").join("Edge").join("NativeMessagingHosts"),
-        BrowserKind::Brave => PathBuf::from(app_data).join("BraveSoftware").join("Brave-Browser").join("NativeMessagingHosts"),
+        BrowserKind::Chrome => PathBuf::from(app_data)
+            .join("Google")
+            .join("Chrome")
+            .join("NativeMessagingHosts"),
+        BrowserKind::Edge => PathBuf::from(app_data)
+            .join("Microsoft")
+            .join("Edge")
+            .join("NativeMessagingHosts"),
+        BrowserKind::Brave => PathBuf::from(app_data)
+            .join("BraveSoftware")
+            .join("Brave-Browser")
+            .join("NativeMessagingHosts"),
         BrowserKind::Vivaldi => PathBuf::from(app_data).join("Vivaldi").join("NativeMessagingHosts"),
     }
 }
@@ -43,7 +52,9 @@ fn irtool_exe_path() -> io::Result<PathBuf> {
 /// 2. 通过 `reg add` 注册到浏览器注册表
 pub fn install_native_messaging_host(browser: BrowserKind) -> Result<String, String> {
     let exe_path = irtool_exe_path().map_err(|e| format!("failed to get exe path: {}", e))?;
-    let exe_str = exe_path.to_str().ok_or_else(|| "exe path is not valid unicode".to_string())?;
+    let exe_str = exe_path
+        .to_str()
+        .ok_or_else(|| "exe path is not valid unicode".to_string())?;
 
     // 1. 生成 JSON 配置
     let json_content = format!(
@@ -69,7 +80,9 @@ pub fn install_native_messaging_host(browser: BrowserKind) -> Result<String, Str
     // 3. 注册到注册表（使用 reg add 避免提权问题）
     let reg_path = nm_host_reg_path(browser);
     let reg_key = format!(r"{}\{}", reg_path, NM_HOST_NAME);
-    let json_path_str = json_path.to_str().ok_or_else(|| "json path is not valid unicode".to_string())?;
+    let json_path_str = json_path
+        .to_str()
+        .ok_or_else(|| "json path is not valid unicode".to_string())?;
 
     let output = std::process::Command::new("reg")
         .args(["add", &reg_key, "/ve", "/d", json_path_str, "/f"])

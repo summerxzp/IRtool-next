@@ -15,6 +15,7 @@ use crate::permission_matcher::match_domain_to_extensions;
 use crate::profile::enumerate_profiles;
 use crate::session_recovery::recover_tabs;
 use crate::sqlite::open_browser_db;
+use crate::url_utils::domain_matches_url;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tracing::warn;
@@ -241,10 +242,7 @@ pub struct DomainAttribution {
 /// - 浏览历史中是否访问过该域名（History LIKE 筛选）
 /// - 下载记录中是否有来自该域名的文件（Download URL 筛选）
 /// - 当前标签页中是否有该域名（Session Recovery 筛选）
-pub fn attribute_by_domain(
-    target: &str,
-    browser: BrowserKind,
-) -> Vec<DomainAttribution> {
+pub fn attribute_by_domain(target: &str, browser: BrowserKind) -> Vec<DomainAttribution> {
     let profiles = enumerate_profiles(browser);
     if profiles.is_empty() {
         return vec![];
@@ -273,7 +271,13 @@ fn build_domain_attribution(
     let related_downloads: Vec<_> = all_downloads
         .downloads
         .into_iter()
-        .filter(|d| domain_matches_url(target, &d.download_url) || d.referrer.as_deref().map(|r| domain_matches_url(target, r)).unwrap_or(false))
+        .filter(|d| {
+            domain_matches_url(target, &d.download_url)
+                || d.referrer
+                    .as_deref()
+                    .map(|r| domain_matches_url(target, r))
+                    .unwrap_or(false)
+        })
         .collect();
 
     // 4. Session Recovery 筛选：包含目标域名的标签页
@@ -343,14 +347,15 @@ fn query_history_by_domain(
     match rows {
         Ok(mapped_rows) => mapped_rows
             .filter_map(|r| {
-                r.ok().map(|(url, title, visit_time, visit_count)| crate::history::HistoryEntry {
-                    url,
-                    title,
-                    visit_time: crate::core::webkit_timestamp::from_webkit_micros(visit_time)
-                        .map(|dt| dt.to_rfc3339())
-                        .unwrap_or_default(),
-                    visit_count,
-                })
+                r.ok()
+                    .map(|(url, title, visit_time, visit_count)| crate::history::HistoryEntry {
+                        url,
+                        title,
+                        visit_time: crate::core::webkit_timestamp::from_webkit_micros(visit_time)
+                            .map(|dt| dt.to_rfc3339())
+                            .unwrap_or_default(),
+                        visit_count,
+                    })
             })
             .collect(),
         Err(e) => {
@@ -358,14 +363,6 @@ fn query_history_by_domain(
             vec![]
         }
     }
-}
-
-/// 检查域名是否匹配 URL
-fn domain_matches_url(domain: &str, url: &str) -> bool {
-    let lower_url = url.to_lowercase();
-    let domain_lower = domain.to_lowercase();
-    // 匹配 http(s)://domain 或包含 domain 作为子域名
-    lower_url.contains(&domain_lower)
 }
 
 #[cfg(test)]

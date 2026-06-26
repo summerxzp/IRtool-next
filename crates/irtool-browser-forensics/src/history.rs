@@ -174,7 +174,7 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64, since: Option<i64>) ->
          ORDER BY v.visit_time DESC \
          LIMIT ?";
 
-    let mut stmt = match conn.prepare(&sql) {
+    let mut stmt = match conn.prepare(sql) {
         Ok(s) => s,
         Err(e) => {
             warn!("failed to prepare history scan query: {}", e);
@@ -314,7 +314,7 @@ pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime
 
     // 构建 Navigation Chain：从最近（Tier 1 → Tier 2 → Tier 3 依次 fallback）的记录开始回溯
     let navigation_chain = match best_visit_id {
-        Some(vid) => build_navigation_chain(&*conn, vid),
+        Some(vid) => build_navigation_chain(&conn, vid),
         None => vec![],
     };
 

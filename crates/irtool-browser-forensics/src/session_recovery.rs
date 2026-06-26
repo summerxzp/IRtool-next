@@ -587,7 +587,10 @@ mod tests {
         let result = parse_snss_tabs(&data, BrowserKind::Chrome, "Test");
         assert_eq!(result.tabs.len(), 3);
         assert!(!result.tabs[0].active, "tab 0 should not be active");
-        assert!(result.tabs[1].active, "tab 1 should be active (matches window current_index)");
+        assert!(
+            result.tabs[1].active,
+            "tab 1 should be active (matches window current_index)"
+        );
         assert!(!result.tabs[2].active, "tab 2 should not be active");
     }
 
@@ -644,7 +647,10 @@ mod tests {
 
         let result = recover_tabs(&profile);
         assert!(result.tabs.is_empty());
-        assert!(result.parse_errors.iter().any(|e| e.contains("no Tabs/Session file found")));
+        assert!(result
+            .parse_errors
+            .iter()
+            .any(|e| e.contains("no Tabs/Session file found")));
     }
 
     #[test]

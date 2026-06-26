@@ -4,9 +4,9 @@
 //! Chromium 默认使用 WAL 模式，允许并发读取。
 
 use rusqlite::Connection;
+use std::ffi::OsString;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::ffi::OsString;
 use tracing::{debug, warn};
 
 /// SQLite 读取错误
@@ -270,11 +270,7 @@ mod tests {
         {
             let conn = open_browser_db(&db_path).unwrap();
             // 直接打开成功不会有 temp_files
-            assert_eq!(
-                conn.temp_files.len(),
-                0,
-                "direct open should have no temp files"
-            );
+            assert_eq!(conn.temp_files.len(), 0, "direct open should have no temp files");
         }
 
         // 清理
