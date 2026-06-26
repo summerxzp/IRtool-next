@@ -178,11 +178,7 @@ fn build_config_message(content: &str) -> Result<String, NativeMessagingError> {
     let filter_domains: Vec<String> = config
         .get("filterDomains")
         .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
     let msg = if filter_domains.is_empty() {
@@ -242,10 +238,7 @@ fn check_and_forward_config(
 ///
 /// 从 stdin 持续读取消息，写入队列文件。
 /// 当 stdin 关闭（浏览器进程退出）时优雅返回。
-pub fn run_event_loop(
-    queue_dir: &Path,
-    config_dir: &Path,
-) -> Result<(), NativeMessagingError> {
+pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeMessagingError> {
     info!(
         "Native Messaging Host started, queue dir: {:?}, config dir: {:?}",
         queue_dir, config_dir
@@ -301,27 +294,17 @@ fn trace_event(msg: &NativeMessage) {
                 .and_then(|v| v.as_array())
                 .map(|a| a.len())
                 .unwrap_or(0);
-            info!(
-                "received network_batch with {} events",
-                count
-            );
+            info!("received network_batch with {} events", count);
         }
         "extension_list" => {
-            let mode = msg
-                .payload
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let mode = msg.payload.get("mode").and_then(|v| v.as_str()).unwrap_or("unknown");
             let count = msg
                 .payload
                 .get("extensions")
                 .and_then(|v| v.as_array())
                 .map(|a| a.len())
                 .unwrap_or(0);
-            info!(
-                "received extension_list (mode={}, count={})",
-                mode, count
-            );
+            info!("received extension_list (mode={}, count={})", mode, count);
         }
         other => {
             info!("received message: type={}", other);
@@ -348,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_parse_network_batch() {
-        let json = r#"{"type":"network_batch","batch_id":"abc-123","events":[{"url":"https://example.com","method":"GET"}]}"#;
+        let json =
+            r#"{"type":"network_batch","batch_id":"abc-123","events":[{"url":"https://example.com","method":"GET"}]}"#;
         let data = encode_message(json);
 
         // Mock stdin: 注入编码后的数据
@@ -378,7 +362,10 @@ mod tests {
         let msg: NativeMessage = serde_json::from_slice(&msg_buf).unwrap();
 
         assert_eq!(msg.msg_type, "heartbeat");
-        assert_eq!(msg.payload.get("timestamp").and_then(|v| v.as_u64()), Some(1700000000000));
+        assert_eq!(
+            msg.payload.get("timestamp").and_then(|v| v.as_u64()),
+            Some(1700000000000)
+        );
     }
 
     #[test]

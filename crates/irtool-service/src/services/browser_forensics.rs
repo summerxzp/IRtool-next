@@ -87,7 +87,12 @@ impl<'a> BrowserForensicsService<'a> {
     }
 
     /// 扫描历史记录
-    pub async fn scan_history(&self, browser: BrowserKind, profile_name: &str, since: Option<i64>) -> Result<HistoryList, IrError> {
+    pub async fn scan_history(
+        &self,
+        browser: BrowserKind,
+        profile_name: &str,
+        since: Option<i64>,
+    ) -> Result<HistoryList, IrError> {
         let profile_name = profile_name.to_string();
         tokio::task::spawn_blocking(move || {
             let profiles = enumerate_profiles(browser);
@@ -247,8 +252,7 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
             "network_batch" => {
                 if let Some(events) = msg.payload.get("events").and_then(|v| v.as_array()) {
                     for evt in events {
-                        if let Ok(req) = serde_json::from_value::<AttributedWebRequest>(evt.clone())
-                        {
+                        if let Ok(req) = serde_json::from_value::<AttributedWebRequest>(evt.clone()) {
                             tracing::info!(
                                 "native attribution: {} {} → {:?}",
                                 req.method,
@@ -276,30 +280,19 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
                 }
             }
             "extension_list" => {
-                let mode = msg
-                    .payload
-                    .get("mode")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
+                let mode = msg.payload.get("mode").and_then(|v| v.as_str()).unwrap_or("unknown");
                 let count = msg
                     .payload
                     .get("extensions")
                     .and_then(|v| v.as_array())
                     .map(|a| a.len())
                     .unwrap_or(0);
-                tracing::info!(
-                    "native extension list: mode={}, count={}",
-                    mode,
-                    count
-                );
+                tracing::info!("native extension list: mode={}, count={}", mode, count);
 
                 // 解析扩展清单条目
-                if let Some(extensions) = msg.payload.get("extensions").and_then(|v| v.as_array())
-                {
+                if let Some(extensions) = msg.payload.get("extensions").and_then(|v| v.as_array()) {
                     for ext in extensions {
-                        if let Ok(entry) =
-                            serde_json::from_value::<ExtensionListEntry>(ext.clone())
-                        {
+                        if let Ok(entry) = serde_json::from_value::<ExtensionListEntry>(ext.clone()) {
                             tracing::debug!(
                                 "  extension: {} (id={}, enabled={})",
                                 entry.name.as_deref().unwrap_or("?"),
@@ -353,11 +346,7 @@ pub fn send_config(filter_domains: &[String]) {
     });
 
     match std::fs::write(&config_path, serde_json::to_string_pretty(&content).unwrap()) {
-        Ok(_) => tracing::info!(
-            "config written to {:?} ({} domains)",
-            config_path,
-            filter_domains.len()
-        ),
+        Ok(_) => tracing::info!("config written to {:?} ({} domains)", config_path, filter_domains.len()),
         Err(e) => tracing::error!("failed to write config {:?}: {}", config_path, e),
     }
 }

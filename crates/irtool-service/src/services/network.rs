@@ -13,9 +13,9 @@ use tracing::{error, info};
 
 use crate::context::AppContext;
 use crate::dto::browser_forensics::BrowserMaliciousConnectionPayload;
-use irtool_browser_forensics::browser_kind_from_process_name;
 use crate::dto::network::{NetworkEnrichmentPayload, NetworkPollingControl, NetworkSnapshotPayload};
 use crate::event_bus::AppEvent;
+use irtool_browser_forensics::browser_kind_from_process_name;
 
 pub struct NetworkService<'a> {
     pub ctx: &'a AppContext,

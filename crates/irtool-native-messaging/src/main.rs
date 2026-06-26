@@ -7,18 +7,14 @@ use std::path::PathBuf;
 
 fn main() {
     // 队列目录: %TEMP%\irtool\attr-queue
-    let queue_dir = PathBuf::from(std::env::temp_dir())
-        .join("irtool")
-        .join("attr-queue");
+    let queue_dir = PathBuf::from(std::env::temp_dir()).join("irtool").join("attr-queue");
 
     // 配置目录: %TEMP%\irtool（service 写 config.json 于此）
     let config_dir = PathBuf::from(std::env::temp_dir()).join("irtool");
 
     // 初始化日志：默认 info 级别，可通过 RUST_LOG 环境变量覆盖
     tracing_subscriber::fmt()
-        .with_env_filter(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
-        )
+        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
         .with_writer(std::io::stderr) // 写入 stderr 避免干扰 stdout 的 Native Messaging 协议
         .init();
 
