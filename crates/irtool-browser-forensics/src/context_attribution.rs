@@ -140,32 +140,8 @@ pub fn attribute_browser_context(
             })
             .collect();
 
-        // 聚合评分:各分项取 max,total 取 sum 封顶 100
-        let time_score = parts
-            .recent_browser_activity
-            .iter()
-            .filter_map(|a| a.score.as_ref().map(|s| s.time_score))
-            .max()
-            .unwrap_or(0);
-        let domain_score = parts
-            .recent_browser_activity
-            .iter()
-            .filter_map(|a| a.score.as_ref().map(|s| s.domain_score))
-            .max()
-            .unwrap_or(0);
-        let chain_score = parts
-            .recent_browser_activity
-            .iter()
-            .filter_map(|a| a.score.as_ref().map(|s| s.chain_score))
-            .max()
-            .unwrap_or(0);
-        let total = best_total_score.min(100);
-        let score = EvidenceScore {
-            time_score,
-            domain_score,
-            chain_score,
-            total,
-        };
+        // 聚合评分:各分项取 max, total = min(分项之和, 100), 保持 EvidenceScore 不变式
+        let score = aggregate_activity_score(&parts.recent_browser_activity);
 
         Some(HistoryCorrelation {
             confidence: score.level(),
@@ -212,7 +188,36 @@ pub fn attribute_browser_context(
         extension_attribution,
         tab_attribution: None,
         overall_confidence,
-        overall_score: best_total_score,
+        overall_score: best_total_score.min(100),
+    }
+}
+
+/// 聚合多活动的评分为单个 EvidenceScore
+///
+/// 各分项取 max（最强单维证据），total = min(time+domain+chain, 100)，
+/// 保持 EvidenceScore 单条不变式 `total = min(time_score + domain_score + chain_score, 100)`。
+fn aggregate_activity_score(activities: &[crate::history::RecentActivity]) -> EvidenceScore {
+    let time_score = activities
+        .iter()
+        .filter_map(|a| a.score.as_ref().map(|s| s.time_score))
+        .max()
+        .unwrap_or(0);
+    let domain_score = activities
+        .iter()
+        .filter_map(|a| a.score.as_ref().map(|s| s.domain_score))
+        .max()
+        .unwrap_or(0);
+    let chain_score = activities
+        .iter()
+        .filter_map(|a| a.score.as_ref().map(|s| s.chain_score))
+        .max()
+        .unwrap_or(0);
+    let total = (time_score + domain_score + chain_score).min(100);
+    EvidenceScore {
+        time_score,
+        domain_score,
+        chain_score,
+        total,
     }
 }
 
@@ -555,5 +560,112 @@ mod tests {
         assert_eq!(result.malicious_connection.domain, "evil.com");
         assert_eq!(result.malicious_connection.ip.as_deref(), Some("1.2.3.4"));
         assert_eq!(result.malicious_connection.process, "notepad.exe");
+    }
+
+    /// 构造测试用 RecentActivity（仅 score 与 url 有意义）
+    fn make_activity(score: Option<EvidenceScore>) -> RecentActivity {
+        RecentActivity {
+            url: "https://example.com".to_string(),
+            title: "Example".to_string(),
+            visit_time: "2024-06-15T12:00:00Z".to_string(),
+            tier: crate::history::TimeTier::Immediate,
+            time_distance_ms: 1000,
+            evidence_type: "history".to_string(),
+            score,
+        }
+    }
+
+    #[test]
+    fn aggregate_activity_score_empty_returns_zero() {
+        let score = aggregate_activity_score(&[]);
+        assert_eq!(score.time_score, 0);
+        assert_eq!(score.domain_score, 0);
+        assert_eq!(score.chain_score, 0);
+        assert_eq!(score.total, 0);
+    }
+
+    #[test]
+    fn aggregate_activity_score_single_preserves_score() {
+        let original = EvidenceScore {
+            time_score: 50,
+            domain_score: 30,
+            chain_score: 20,
+            total: 100,
+        };
+        let activities = vec![make_activity(Some(original.clone()))];
+        let aggregated = aggregate_activity_score(&activities);
+        assert_eq!(aggregated.time_score, original.time_score);
+        assert_eq!(aggregated.domain_score, original.domain_score);
+        assert_eq!(aggregated.chain_score, original.chain_score);
+        assert_eq!(aggregated.total, original.total);
+    }
+
+    #[test]
+    fn aggregate_activity_score_multi_takes_max_per_dim() {
+        let activities = vec![
+            make_activity(Some(EvidenceScore {
+                time_score: 50,
+                domain_score: 10,
+                chain_score: 5,
+                total: 65,
+            })),
+            make_activity(Some(EvidenceScore {
+                time_score: 20,
+                domain_score: 30,
+                chain_score: 15,
+                total: 65,
+            })),
+            make_activity(Some(EvidenceScore {
+                time_score: 5,
+                domain_score: 5,
+                chain_score: 20,
+                total: 30,
+            })),
+        ];
+        let aggregated = aggregate_activity_score(&activities);
+        assert_eq!(aggregated.time_score, 50);
+        assert_eq!(aggregated.domain_score, 30);
+        assert_eq!(aggregated.chain_score, 20);
+    }
+
+    #[test]
+    fn aggregate_activity_score_total_capped_at_100() {
+        // 各分项 max 之和 = 50 + 50 + 50 = 150,应封顶 100
+        let activities = vec![make_activity(Some(EvidenceScore {
+            time_score: 50,
+            domain_score: 50,
+            chain_score: 50,
+            total: 100,
+        }))];
+        let aggregated = aggregate_activity_score(&activities);
+        assert_eq!(aggregated.total, 100);
+    }
+
+    #[test]
+    fn aggregate_activity_score_preserves_invariant() {
+        let activities = vec![
+            make_activity(Some(EvidenceScore {
+                time_score: 40,
+                domain_score: 25,
+                chain_score: 10,
+                total: 75,
+            })),
+            make_activity(Some(EvidenceScore {
+                time_score: 10,
+                domain_score: 35,
+                chain_score: 30,
+                total: 75,
+            })),
+            // 无 score 的活动应被忽略
+            make_activity(None),
+        ];
+        let aggregated = aggregate_activity_score(&activities);
+        let expected_total = (aggregated.time_score + aggregated.domain_score + aggregated.chain_score).min(100);
+        assert_eq!(aggregated.total, expected_total);
+        // 各分项应为 max:time=40, domain=35, chain=30,和=105 → 封顶 100
+        assert_eq!(aggregated.time_score, 40);
+        assert_eq!(aggregated.domain_score, 35);
+        assert_eq!(aggregated.chain_score, 30);
+        assert_eq!(aggregated.total, 100);
     }
 }
