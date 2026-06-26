@@ -69,7 +69,7 @@ pub fn recover_tabs(profile: &BrowserProfile) -> SessionRecoveryResult {
 /// 查找 Session/Tabs 文件
 ///
 /// 优先检查 `<Profile>/Sessions/` 目录下最新的 `Tabs_<id>` 文件，
-/// 如果不存在则依次检查 Current Tabs、Current Session、Last Session。
+/// 如果不存在则依次检查 Current Tabs、Current Session、Last Tabs、Last Session。
 fn find_session_files(profile_path: &std::path::Path) -> Option<std::path::PathBuf> {
     let sessions_dir = profile_path.join("Sessions");
 
@@ -80,8 +80,9 @@ fn find_session_files(profile_path: &std::path::Path) -> Option<std::path::PathB
         }
     }
 
-    // Fallback: 旧版路径
-    for name in &["Current Tabs", "Current Session", "Last Session"] {
+    // Fallback: 旧版路径（按优先级排序）
+    // Last Tabs 排在 Last Session 前，更可能包含标签页 URL
+    for name in &["Current Tabs", "Current Session", "Last Tabs", "Last Session"] {
         let legacy = profile_path.join(name);
         if legacy.is_file() {
             return Some(legacy);
@@ -633,6 +634,37 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let result = find_session_files(temp_dir.path());
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_session_files_fallback_includes_last_tabs() {
+        // 验证 fallback 列表包含 "Last Tabs"
+        let temp_dir = tempfile::tempdir().unwrap();
+        let profile_path = temp_dir.path();
+
+        // 不创建 Sessions 子目录，让 fallback 触发
+        // 只创建 Last Tabs 文件
+        let last_tabs = profile_path.join("Last Tabs");
+        std::fs::write(&last_tabs, b"fake snss content").unwrap();
+
+        let result = find_session_files(profile_path);
+        assert!(result.is_some(), "应能找到 Last Tabs 文件");
+        let found_path = result.unwrap();
+        assert_eq!(found_path.file_name().unwrap().to_str().unwrap(), "Last Tabs");
+    }
+
+    #[test]
+    fn find_session_files_fallback_priority_current_tabs_first() {
+        // 验证 Current Tabs 优先于 Last Tabs
+        let temp_dir = tempfile::tempdir().unwrap();
+        let profile_path = temp_dir.path();
+
+        std::fs::write(profile_path.join("Current Tabs"), b"content1").unwrap();
+        std::fs::write(profile_path.join("Last Tabs"), b"content2").unwrap();
+
+        let result = find_session_files(profile_path);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().file_name().unwrap().to_str().unwrap(), "Current Tabs");
     }
 
     #[test]
