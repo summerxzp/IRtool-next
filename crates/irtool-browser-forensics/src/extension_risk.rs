@@ -24,6 +24,58 @@ pub struct IocEntry {
     pub description: String,
 }
 
+/// 扩展权限风险权重表（可配置，参考设计方案）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionWeights {
+    pub all_urls: u32,             // <all_urls>，最危险
+    pub web_request: u32,          // webRequest
+    pub web_request_blocking: u32, // webRequestBlocking
+    pub cookies: u32,              // cookies
+    pub tabs: u32,                 // tabs
+    pub scripting: u32,            // scripting
+    pub content_scripts: u32,      // 声明 content_scripts
+    pub native_messaging: u32,     // nativeMessaging
+    pub file_system: u32,          // fileSystem
+}
+
+impl Default for PermissionWeights {
+    fn default() -> Self {
+        Self {
+            all_urls: 40,
+            web_request: 20,
+            web_request_blocking: 20,
+            cookies: 15,
+            tabs: 10,
+            scripting: 15,
+            content_scripts: 10,
+            native_messaging: 15,
+            file_system: 15,
+        }
+    }
+}
+
+/// 扩展风险等级
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+}
+
+impl RiskLevel {
+    /// 根据数值评分推断风险等级
+    /// - >= 70: High
+    /// - >= 40: Medium
+    /// - 其他: Low
+    pub fn from_score(score: u32) -> Self {
+        match score {
+            s if s >= 70 => RiskLevel::High,
+            s if s >= 40 => RiskLevel::Medium,
+            _ => RiskLevel::Low,
+        }
+    }
+}
+
 /// 官方商店域名
 const OFFICIAL_STORE_DOMAINS: &[&str] = &["google.com", "microsoft.com"];
 
@@ -78,6 +130,53 @@ pub fn compute_risk_flags(ext: &ExtensionInfo) -> Vec<String> {
     }
 
     flags
+}
+
+/// 计算扩展的数值风险评分（0-100）
+///
+/// 遍历 permissions + host_permissions + content_scripts 声明，
+/// 按权重表累加，封顶 100。IOC 命中直接 100。
+pub fn compute_risk_score(ext: &ExtensionInfo) -> u32 {
+    compute_risk_score_with_weights(ext, &PermissionWeights::default())
+}
+
+/// 用自定义权重计算风险评分
+pub fn compute_risk_score_with_weights(ext: &ExtensionInfo, weights: &PermissionWeights) -> u32 {
+    // IOC 命中直接满分
+    if !ext.ioc_matches.is_empty() {
+        return 100;
+    }
+
+    let mut score: u32 = 0;
+
+    // 检查 permissions 数组
+    for perm in &ext.permissions {
+        match perm.as_str() {
+            "<all_urls>" => score += weights.all_urls,
+            "webRequest" => score += weights.web_request,
+            "webRequestBlocking" => score += weights.web_request_blocking,
+            "cookies" => score += weights.cookies,
+            "tabs" => score += weights.tabs,
+            "scripting" => score += weights.scripting,
+            "nativeMessaging" => score += weights.native_messaging,
+            "fileSystem" | "fileSystem.write" => score += weights.file_system,
+            _ => {}
+        }
+    }
+
+    // 检查 host_permissions（Manifest V3）
+    for host in &ext.host_permissions {
+        if host == "<all_urls>" {
+            score += weights.all_urls;
+        }
+    }
+
+    // content_scripts 声明加分
+    if ext.has_content_scripts {
+        score += weights.content_scripts;
+    }
+
+    score.min(100)
 }
 
 /// IOC 精确匹配
@@ -179,6 +278,8 @@ mod tests {
             risk_flags: vec![],
             ioc_matches: vec![],
             path: PathBuf::from("/tmp/test"),
+            risk_score: 0,
+            risk_level: RiskLevel::Low,
         };
         overrides(&mut ext);
         ext
@@ -329,5 +430,144 @@ mod tests {
         });
         let flags = compute_risk_flags(&ext);
         assert!(flags.contains(&"high_privilege_combo".to_string()));
+    }
+
+    // === P0.6 数值风险评分测试 ===
+
+    #[test]
+    fn compute_risk_score_all_urls_only() {
+        // 仅 <all_urls> 权限 → score=40, level=Medium（40 >= 40 阈值）
+        let ext = make_ext(|e| {
+            e.permissions = vec!["<all_urls>".to_string()];
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 40);
+        assert_eq!(RiskLevel::from_score(score), RiskLevel::Medium);
+    }
+
+    #[test]
+    fn compute_risk_score_high_privilege_combo() {
+        // webRequest(20) + tabs(10) + cookies(15) + <all_urls>(40) = 85, level=High
+        let ext = make_ext(|e| {
+            e.permissions = vec![
+                "webRequest".to_string(),
+                "tabs".to_string(),
+                "cookies".to_string(),
+                "<all_urls>".to_string(),
+            ];
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 85);
+        assert_eq!(RiskLevel::from_score(score), RiskLevel::High);
+    }
+
+    #[test]
+    fn compute_risk_score_no_permissions() {
+        // 无权限 → score=0, level=Low
+        let ext = make_ext(|_| {});
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 0);
+        assert_eq!(RiskLevel::from_score(score), RiskLevel::Low);
+    }
+
+    #[test]
+    fn compute_risk_score_ioc_match_forces_100() {
+        // IOC 命中直接 100 分
+        let ext = make_ext(|e| {
+            e.ioc_matches = vec![IocMatch {
+                ioc_type: "extension_id".to_string(),
+                value: "testid".to_string(),
+                severity: "high".to_string(),
+            }];
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 100);
+        assert_eq!(RiskLevel::from_score(score), RiskLevel::High);
+    }
+
+    #[test]
+    fn compute_risk_score_capped_at_100() {
+        // 多权限累加超过 100 → 封顶 100
+        // <all_urls>(40) + webRequest(20) + webRequestBlocking(20) + cookies(15) + tabs(10) + scripting(15) = 120
+        let ext = make_ext(|e| {
+            e.permissions = vec![
+                "<all_urls>".to_string(),
+                "webRequest".to_string(),
+                "webRequestBlocking".to_string(),
+                "cookies".to_string(),
+                "tabs".to_string(),
+                "scripting".to_string(),
+            ];
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 100);
+        assert_eq!(RiskLevel::from_score(score), RiskLevel::High);
+    }
+
+    #[test]
+    fn compute_risk_score_content_scripts_adds_10() {
+        // has_content_scripts 加 10 分
+        let ext = make_ext(|e| {
+            e.has_content_scripts = true;
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 10);
+    }
+
+    #[test]
+    fn risk_level_thresholds() {
+        // 边界测试：39=Low, 40=Medium, 69=Medium, 70=High
+        assert_eq!(RiskLevel::from_score(0), RiskLevel::Low);
+        assert_eq!(RiskLevel::from_score(39), RiskLevel::Low);
+        assert_eq!(RiskLevel::from_score(40), RiskLevel::Medium);
+        assert_eq!(RiskLevel::from_score(69), RiskLevel::Medium);
+        assert_eq!(RiskLevel::from_score(70), RiskLevel::High);
+        assert_eq!(RiskLevel::from_score(100), RiskLevel::High);
+    }
+
+    #[test]
+    fn permission_weights_default_values() {
+        // 验证默认权重值
+        let w = PermissionWeights::default();
+        assert_eq!(w.all_urls, 40);
+        assert_eq!(w.web_request, 20);
+        assert_eq!(w.web_request_blocking, 20);
+        assert_eq!(w.cookies, 15);
+        assert_eq!(w.tabs, 10);
+        assert_eq!(w.scripting, 15);
+        assert_eq!(w.content_scripts, 10);
+        assert_eq!(w.native_messaging, 15);
+        assert_eq!(w.file_system, 15);
+    }
+
+    #[test]
+    fn compute_risk_score_host_permissions_all_urls() {
+        // <all_urls> 在 host_permissions（MV3）也加分
+        let ext = make_ext(|e| {
+            e.host_permissions = vec!["<all_urls>".to_string()];
+        });
+        let score = compute_risk_score(&ext);
+        assert_eq!(score, 40);
+    }
+
+    #[test]
+    fn compute_risk_score_with_custom_weights() {
+        // 自定义权重计算
+        let ext = make_ext(|e| {
+            e.permissions = vec!["tabs".to_string()];
+        });
+        let weights = PermissionWeights {
+            all_urls: 40,
+            web_request: 20,
+            web_request_blocking: 20,
+            cookies: 15,
+            tabs: 50, // 自定义高权重
+            scripting: 15,
+            content_scripts: 10,
+            native_messaging: 15,
+            file_system: 15,
+        };
+        let score = compute_risk_score_with_weights(&ext, &weights);
+        assert_eq!(score, 50);
     }
 }

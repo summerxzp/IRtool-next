@@ -40,6 +40,8 @@ pub struct ExtensionInfo {
     pub risk_flags: Vec<String>,
     pub ioc_matches: Vec<crate::extension_risk::IocMatch>,
     pub path: PathBuf,
+    pub risk_score: u32,
+    pub risk_level: crate::extension_risk::RiskLevel,
 }
 
 /// manifest.json 的关键字段（非完整反序列化）
@@ -177,11 +179,17 @@ pub fn scan_extensions(profile: &BrowserProfile) -> ExtensionInventory {
             risk_flags: vec![],
             ioc_matches: vec![],
             path: version_dir,
+            risk_score: 0,
+            risk_level: crate::extension_risk::RiskLevel::Low,
         };
 
         // 风险标注 + IOC 匹配
         ext_info.risk_flags = compute_risk_flags(&ext_info);
         ext_info.ioc_matches = match_ioc(&ext_info);
+
+        // 数值风险评分（依赖 ioc_matches 已填充）
+        ext_info.risk_score = crate::extension_risk::compute_risk_score(&ext_info);
+        ext_info.risk_level = crate::extension_risk::RiskLevel::from_score(ext_info.risk_score);
 
         inventory.extensions.push(ext_info);
     }

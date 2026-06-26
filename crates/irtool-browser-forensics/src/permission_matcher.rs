@@ -271,6 +271,8 @@ mod tests {
             risk_flags: vec![],
             ioc_matches: vec![],
             path: PathBuf::from("/tmp/test"),
+            risk_score: 0,
+            risk_level: crate::extension_risk::RiskLevel::Low,
         };
         overrides(&mut ext);
         ext
