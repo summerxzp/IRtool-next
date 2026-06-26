@@ -41,6 +41,12 @@ pub struct DownloadInfo {
     pub interrupt_reason: Option<String>,
     /// 证据类型
     pub evidence_type: String,
+    /// 完整重定向链（按 chain_index ASC 排序）
+    pub url_chain: Vec<String>,
+    /// 发起下载的标签页 URL（新版 schema 字段）
+    pub tab_url: Option<String>,
+    /// 标签页 referrer（新版 schema 字段）
+    pub tab_referrer_url: Option<String>,
 }
 
 /// Chrome 对下载文件的安全判定值
@@ -122,14 +128,29 @@ pub fn extract_filename(path: &str) -> String {
 /// URL 信息改存于 downloads_url_chains 表（通过 chain_id = downloads.id 关联）。
 /// 老版本和测试 fixture 仍保留 url 列，需兼容两种 schema。
 fn downloads_has_url_column(conn: &Connection) -> bool {
+    downloads_has_column(conn, "url")
+}
+
+/// 检测 downloads 表是否包含指定列。
+fn downloads_has_column(conn: &Connection, column: &str) -> bool {
     let Ok(mut stmt) = conn.prepare("PRAGMA table_info(downloads)") else {
         return false;
     };
     let rows = stmt.query_map([], |row| row.get::<_, String>(1));
     match rows {
-        Ok(names) => names.filter_map(|r| r.ok()).any(|n| n == "url"),
+        Ok(names) => names.filter_map(|r| r.ok()).any(|n| n == column),
         Err(_) => false,
     }
+}
+
+/// 检测 downloads 表是否包含 tab_url 列（新版 Chromium schema）。
+fn downloads_has_tab_url_column(conn: &Connection) -> bool {
+    downloads_has_column(conn, "tab_url")
+}
+
+/// 检测 downloads 表是否包含 tab_referrer_url 列（新版 Chromium schema）。
+fn downloads_has_tab_referrer_url_column(conn: &Connection) -> bool {
+    downloads_has_column(conn, "tab_referrer_url")
 }
 
 /// 构建 downloads 查询 SQL。
@@ -138,8 +159,13 @@ fn downloads_has_url_column(conn: &Connection) -> bool {
 /// `has_url=false`：用子查询从 downloads_url_chains 取最终 URL
 ///   （取 url_index 最大的那条，即重定向后的最终地址）。
 ///
+/// `has_tab_url`/`has_tab_referrer_url`：新版 Chromium schema 在 downloads 表
+///   新增 tab_url/tab_referrer_url 列；老 schema 用 NULL 保持兼容。
+///
+/// 始终 SELECT d.id 以便后续读取完整 url_chain。
+///
 /// `where_clause` 为空表示全量扫描；非空时需使用 `d.` 前缀引用别名。
-fn build_downloads_sql(has_url: bool, where_clause: &str) -> String {
+fn build_downloads_sql(has_url: bool, has_tab_url: bool, has_tab_referrer_url: bool, where_clause: &str) -> String {
     let url_expr = if has_url {
         "d.url".to_string()
     } else {
@@ -150,6 +176,16 @@ fn build_downloads_sql(has_url: bool, where_clause: &str) -> String {
          ORDER BY u.chain_index DESC LIMIT 1) AS url"
             .to_string()
     };
+    let tab_url_expr = if has_tab_url {
+        "d.tab_url".to_string()
+    } else {
+        "NULL AS tab_url".to_string()
+    };
+    let tab_referrer_url_expr = if has_tab_referrer_url {
+        "d.tab_referrer_url".to_string()
+    } else {
+        "NULL AS tab_referrer_url".to_string()
+    };
     // 始终使用别名 d，以便 WHERE 子句统一使用 d. 前缀
     let from = "downloads d";
     let where_ = if where_clause.is_empty() {
@@ -158,17 +194,40 @@ fn build_downloads_sql(has_url: bool, where_clause: &str) -> String {
         format!(" WHERE {}", where_clause)
     };
     format!(
-        "SELECT target_path, {}, referrer, start_time, end_time, \
-         total_bytes, danger_type, interrupt_reason, opened \
+        "SELECT d.id, target_path, {}, referrer, start_time, end_time, \
+         total_bytes, danger_type, interrupt_reason, opened, {}, {} \
          FROM {}{}",
-        url_expr, from, where_
+        url_expr, tab_url_expr, tab_referrer_url_expr, from, where_
     )
+}
+
+/// 读取指定 download id 的完整 URL 重定向链（按 chain_index ASC 排序）。
+///
+/// 老版 schema 无 downloads_url_chains 表时返回空 Vec。
+fn read_url_chain_for_download(conn: &Connection, download_id: i64) -> Vec<String> {
+    let mut chain = Vec::new();
+    let sql = "SELECT url FROM downloads_url_chains WHERE id = ? ORDER BY chain_index ASC";
+    let Ok(mut stmt) = conn.prepare(sql) else {
+        return chain;
+    };
+    let rows = stmt.query_map([download_id], |row| {
+        let url: String = row.get(0)?;
+        Ok(url)
+    });
+    if let Ok(row_iter) = rows {
+        for url in row_iter.flatten() {
+            chain.push(url);
+        }
+    }
+    chain
 }
 
 /// 从 Connection 读取 downloads 表
 fn read_downloads_from_conn(conn: &Connection) -> Vec<DownloadInfo> {
     let has_url = downloads_has_url_column(conn);
-    let sql = build_downloads_sql(has_url, "");
+    let has_tab_url = downloads_has_tab_url_column(conn);
+    let has_tab_referrer_url = downloads_has_tab_referrer_url_column(conn);
+    let sql = build_downloads_sql(has_url, has_tab_url, has_tab_referrer_url, "");
     let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
         Err(e) => {
@@ -179,35 +238,57 @@ fn read_downloads_from_conn(conn: &Connection) -> Vec<DownloadInfo> {
 
     let rows = stmt.query_map([], |row| {
         Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, Option<String>>(1)?,
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
             row.get::<_, Option<String>>(2)?,
-            row.get::<_, Option<i64>>(3)?,
+            row.get::<_, Option<String>>(3)?,
             row.get::<_, Option<i64>>(4)?,
             row.get::<_, Option<i64>>(5)?,
-            row.get::<_, i64>(6)?,
-            row.get::<_, Option<i64>>(7)?,
-            row.get::<_, i64>(8)?,
+            row.get::<_, Option<i64>>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, Option<i64>>(8)?,
+            row.get::<_, i64>(9)?,
+            row.get::<_, Option<String>>(10)?,
+            row.get::<_, Option<String>>(11)?,
         ))
     });
 
-    match rows {
-        Ok(mapped_rows) => mapped_rows
-            .filter_map(|row_result| match row_result {
-                Ok((
-                    target_path,
-                    url,
-                    referrer,
-                    start_time,
-                    end_time,
-                    total_bytes,
-                    danger_type,
-                    interrupt_reason,
-                    opened,
-                )) => Some(DownloadInfo {
+    // 先收集原始行数据，避免在 stmt 借用 conn 期间嵌套查询 url_chain
+    let raw_rows: Vec<_> = match rows {
+        Ok(mapped_rows) => mapped_rows.filter_map(|r| r.ok()).collect(),
+        Err(e) => {
+            warn!("failed to execute downloads query: {}", e);
+            return vec![];
+        }
+    };
+
+    raw_rows
+        .into_iter()
+        .map(
+            |(
+                id,
+                target_path,
+                url,
+                referrer,
+                start_time,
+                end_time,
+                total_bytes,
+                danger_type,
+                interrupt_reason,
+                opened,
+                tab_url,
+                tab_referrer_url,
+            )| {
+                let download_url = url.unwrap_or_default();
+                // 读取完整重定向链；老 schema 无 downloads_url_chains 表时回退到 [download_url]
+                let mut url_chain = read_url_chain_for_download(conn, id);
+                if url_chain.is_empty() {
+                    url_chain = vec![download_url.clone()];
+                }
+                DownloadInfo {
                     filename: extract_filename(&target_path),
                     local_path: target_path,
-                    download_url: url.unwrap_or_default(),
+                    download_url,
                     referrer,
                     start_time: start_time
                         .and_then(webkit_timestamp::from_webkit_micros)
@@ -220,18 +301,13 @@ fn read_downloads_from_conn(conn: &Connection) -> Vec<DownloadInfo> {
                     opened: opened != 0,
                     interrupt_reason: interrupt_reason_to_string(interrupt_reason),
                     evidence_type: "download".to_string(),
-                }),
-                Err(e) => {
-                    warn!("failed to read download row: {}", e);
-                    None
+                    url_chain,
+                    tab_url,
+                    tab_referrer_url,
                 }
-            })
-            .collect(),
-        Err(e) => {
-            warn!("failed to execute downloads query: {}", e);
-            vec![]
-        }
-    }
+            },
+        )
+        .collect()
 }
 
 /// 扫描指定 Profile 的下载记录
@@ -283,8 +359,15 @@ pub fn scan_downloads_in_time_window(
     let end_webkit = webkit_timestamp::to_webkit_micros(&end);
 
     let has_url = downloads_has_url_column(&conn);
+    let has_tab_url = downloads_has_tab_url_column(&conn);
+    let has_tab_referrer_url = downloads_has_tab_referrer_url_column(&conn);
     // 注意：WHERE 子句使用 d. 前缀以兼容带别名的 SQL
-    let sql = build_downloads_sql(has_url, "d.start_time BETWEEN ? AND ?");
+    let sql = build_downloads_sql(
+        has_url,
+        has_tab_url,
+        has_tab_referrer_url,
+        "d.start_time BETWEEN ? AND ?",
+    );
     let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
         Err(e) => {
@@ -299,35 +382,60 @@ pub fn scan_downloads_in_time_window(
 
     let rows = stmt.query_map(rusqlite::params![start_webkit, end_webkit], |row| {
         Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, Option<String>>(1)?,
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
             row.get::<_, Option<String>>(2)?,
-            row.get::<_, Option<i64>>(3)?,
+            row.get::<_, Option<String>>(3)?,
             row.get::<_, Option<i64>>(4)?,
             row.get::<_, Option<i64>>(5)?,
-            row.get::<_, i64>(6)?,
-            row.get::<_, Option<i64>>(7)?,
-            row.get::<_, i64>(8)?,
+            row.get::<_, Option<i64>>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, Option<i64>>(8)?,
+            row.get::<_, i64>(9)?,
+            row.get::<_, Option<String>>(10)?,
+            row.get::<_, Option<String>>(11)?,
         ))
     });
 
-    let downloads = match rows {
-        Ok(mapped_rows) => mapped_rows
-            .filter_map(|row_result| match row_result {
-                Ok((
-                    target_path,
-                    url,
-                    referrer,
-                    start_time,
-                    end_time,
-                    total_bytes,
-                    danger_type,
-                    interrupt_reason,
-                    opened,
-                )) => Some(DownloadInfo {
+    // 先收集原始行数据，避免在 stmt 借用 conn 期间嵌套查询 url_chain
+    let raw_rows: Vec<_> = match rows {
+        Ok(mapped_rows) => mapped_rows.filter_map(|r| r.ok()).collect(),
+        Err(e) => {
+            warn!("failed to execute downloads time window query: {}", e);
+            return DownloadAttribution {
+                browser: profile.browser,
+                profile: profile.name.clone(),
+                downloads: vec![],
+            };
+        }
+    };
+
+    let downloads = raw_rows
+        .into_iter()
+        .map(
+            |(
+                id,
+                target_path,
+                url,
+                referrer,
+                start_time,
+                end_time,
+                total_bytes,
+                danger_type,
+                interrupt_reason,
+                opened,
+                tab_url,
+                tab_referrer_url,
+            )| {
+                let download_url = url.unwrap_or_default();
+                let mut url_chain = read_url_chain_for_download(&conn, id);
+                if url_chain.is_empty() {
+                    url_chain = vec![download_url.clone()];
+                }
+                DownloadInfo {
                     filename: extract_filename(&target_path),
                     local_path: target_path,
-                    download_url: url.unwrap_or_default(),
+                    download_url,
                     referrer,
                     start_time: start_time
                         .and_then(webkit_timestamp::from_webkit_micros)
@@ -340,18 +448,13 @@ pub fn scan_downloads_in_time_window(
                     opened: opened != 0,
                     interrupt_reason: interrupt_reason_to_string(interrupt_reason),
                     evidence_type: "download".to_string(),
-                }),
-                Err(e) => {
-                    warn!("failed to read download row: {}", e);
-                    None
+                    url_chain,
+                    tab_url,
+                    tab_referrer_url,
                 }
-            })
-            .collect(),
-        Err(e) => {
-            warn!("failed to execute downloads time window query: {}", e);
-            vec![]
-        }
-    };
+            },
+        )
+        .collect();
 
     DownloadAttribution {
         browser: profile.browser,
@@ -723,5 +826,143 @@ mod tests {
         assert_eq!(d.download_url, "https://final.example.com/file.pdf");
         assert_eq!(d.referrer, Some("https://example.com/docs".to_string()));
         assert!(d.opened);
+        // url_chain 应包含完整跳转链（chain_index 0 和 1）
+        assert_eq!(d.url_chain.len(), 2);
+        assert_eq!(d.url_chain[0], "https://redirect.example.com/file.pdf");
+        assert_eq!(d.url_chain[1], "https://final.example.com/file.pdf");
+    }
+
+    /// 创建包含 downloads_url_chains 表的测试数据库（新版 schema，无 url 列）
+    fn create_test_url_chains_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE downloads (\
+             id INTEGER PRIMARY KEY, \
+             target_path TEXT, \
+             referrer TEXT, \
+             start_time INTEGER, \
+             end_time INTEGER, \
+             total_bytes INTEGER, \
+             danger_type INTEGER, \
+             interrupt_reason INTEGER, \
+             opened INTEGER\
+             );\
+             CREATE TABLE downloads_url_chains (\
+             id INTEGER NOT NULL, \
+             chain_index INTEGER NOT NULL, \
+             url TEXT NOT NULL, \
+             PRIMARY KEY (id, chain_index)\
+             );",
+        )
+        .unwrap();
+
+        let base_dt = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+        let base_webkit = webkit_timestamp::to_webkit_micros(&base_dt);
+
+        // 下载 1：3 段重定向链（chain_index 0/1/2）
+        conn.execute(
+            "INSERT INTO downloads (id, target_path, referrer, start_time, end_time, total_bytes, danger_type, interrupt_reason, opened) \
+             VALUES (1, 'C:\\Users\\test\\Downloads\\file.zip', NULL, ?1, ?2, 1024, 0, NULL, 0)",
+            rusqlite::params![base_webkit, base_webkit + 1_000_000],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 0, 'https://start.example.com/file.zip')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 1, 'https://redirect.example.com/file.zip')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 2, 'https://final.example.com/file.zip')",
+            [],
+        ).unwrap();
+
+        conn
+    }
+
+    #[test]
+    fn read_url_chain_returns_complete_chain() {
+        let conn = create_test_url_chains_db();
+        let chain = read_url_chain_for_download(&conn, 1);
+        assert_eq!(chain.len(), 3);
+        // 按 chain_index ASC 排序
+        assert_eq!(chain[0], "https://start.example.com/file.zip");
+        assert_eq!(chain[1], "https://redirect.example.com/file.zip");
+        assert_eq!(chain[2], "https://final.example.com/file.zip");
+    }
+
+    #[test]
+    fn read_url_chain_empty_for_missing_id() {
+        let conn = create_test_url_chains_db();
+        // 不存在的 download id 返回空 vec
+        let chain = read_url_chain_for_download(&conn, 999);
+        assert!(chain.is_empty());
+    }
+
+    /// 创建包含 tab_url/tab_referrer_url 列的测试数据库（新版 schema）
+    fn create_test_downloads_db_with_tab_columns() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE downloads (\
+             id INTEGER PRIMARY KEY, \
+             target_path TEXT, \
+             referrer TEXT, \
+             start_time INTEGER, \
+             end_time INTEGER, \
+             total_bytes INTEGER, \
+             danger_type INTEGER, \
+             interrupt_reason INTEGER, \
+             opened INTEGER, \
+             tab_url TEXT, \
+             tab_referrer_url TEXT\
+             );\
+             CREATE TABLE downloads_url_chains (\
+             id INTEGER NOT NULL, \
+             chain_index INTEGER NOT NULL, \
+             url TEXT NOT NULL, \
+             PRIMARY KEY (id, chain_index)\
+             );",
+        )
+        .unwrap();
+
+        let base_dt = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+        let base_webkit = webkit_timestamp::to_webkit_micros(&base_dt);
+
+        conn.execute(
+            "INSERT INTO downloads (id, target_path, referrer, start_time, end_time, total_bytes, danger_type, interrupt_reason, opened, tab_url, tab_referrer_url) \
+             VALUES (1, 'C:\\Users\\test\\Downloads\\doc.pdf', NULL, ?1, ?2, 1024, 0, NULL, 0, 'https://tab.example.com/page', 'https://ref.example.com/prev')",
+            rusqlite::params![base_webkit, base_webkit + 1_000_000],
+        ).unwrap();
+        // 单段链（无重定向）
+        conn.execute(
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 0, 'https://example.com/doc.pdf')",
+            [],
+        )
+        .unwrap();
+
+        conn
+    }
+
+    #[test]
+    fn download_info_has_tab_url_when_column_exists() {
+        let conn = create_test_downloads_db_with_tab_columns();
+        let downloads = read_downloads_from_conn(&conn);
+        assert_eq!(downloads.len(), 1);
+        let d = &downloads[0];
+        assert_eq!(d.tab_url, Some("https://tab.example.com/page".to_string()));
+        assert_eq!(d.tab_referrer_url, Some("https://ref.example.com/prev".to_string()));
+    }
+
+    #[test]
+    fn download_info_tab_url_none_when_column_missing() {
+        // 老版 schema（create_test_downloads_db 无 tab_url/tab_referrer_url 列）
+        let conn = create_test_downloads_db();
+        let downloads = read_downloads_from_conn(&conn);
+        assert_eq!(downloads.len(), 3);
+        for d in &downloads {
+            assert!(d.tab_url.is_none(), "tab_url 应为 None（老 schema）");
+            assert!(d.tab_referrer_url.is_none(), "tab_referrer_url 应为 None（老 schema）");
+        }
     }
 }
