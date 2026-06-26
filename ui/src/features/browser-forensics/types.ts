@@ -1,5 +1,8 @@
 // P0.7: 从 bindings re-export EvidenceObject 及相关新类型
 // 注意：本地仍保留 BrowserContext / BrowserContextDetail 等旧定义（DomainAttribution 路径可能仍在用）
+// NavChainNode 需本地引用（HistoryAttribution / BrowserContextDetail），故先 import 再 re-export
+import type { NavChainNode } from "@/lib/bindings";
+export type { NavChainNode };
 export type {
   EvidenceObject,
   AttributionLevel,
@@ -118,12 +121,6 @@ export interface HistoryList {
   browser: BrowserKind;
   profile: string;
   entries: HistoryEntry[];
-}
-
-export interface NavChainNode {
-  url: string;
-  title: string | null;
-  transition: string | null;
 }
 
 export interface BrowserContext {

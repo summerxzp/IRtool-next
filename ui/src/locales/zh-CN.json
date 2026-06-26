@@ -578,7 +578,13 @@
         "domain": "域名分",
         "chain": "链路分",
         "total": "总分"
-      }
+      },
+      "no-title": "(无标题)",
+      "url-chain": "链路",
+      "matched-patterns": "匹配",
+      "col-domain": "域名",
+      "col-ip": "IP",
+      "sensitive-perms": "⚠ 敏感权限: webRequest + <all_urls>"
     }
   },
   "settings": {

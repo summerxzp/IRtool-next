@@ -577,7 +577,13 @@
         "domain": "Domain",
         "chain": "Chain",
         "total": "Total"
-      }
+      },
+      "no-title": "(no title)",
+      "url-chain": "Chain",
+      "matched-patterns": "Match",
+      "col-domain": "Domain",
+      "col-ip": "IP",
+      "sensitive-perms": "⚠ Sensitive: webRequest + <all_urls>"
     }
   },
   "settings": {

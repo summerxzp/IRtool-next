@@ -207,7 +207,7 @@ function CollapsibleSection({ title, defaultOpen = true, children }: { title: st
         className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-fg-primary hover:bg-bg-elev-1 transition-colors rounded-lg"
         onClick={() => setOpen(!open)}
       >
-        <span>{title}</span>
+        <span className="select-none">{title}</span>
         <span className={`transform transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
       {open && <div className="px-3 pb-3 space-y-3">{children}</div>}
@@ -220,7 +220,7 @@ function CollapsibleSection({ title, defaultOpen = true, children }: { title: st
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-muted-foreground shrink-0">{label}:</span>
+      <span className="text-muted-foreground shrink-0 select-none">{label}:</span>
       <span className="text-fg-primary font-mono truncate">{value}</span>
     </div>
   );
@@ -309,8 +309,8 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <InfoRow label="Domain" value={conn.domain} />
-          <InfoRow label="IP" value={conn.ip ?? "-"} />
+          <InfoRow label={t("browser-forensics.context.col-domain", { defaultValue: "域名" })} value={conn.domain} />
+          <InfoRow label={t("browser-forensics.context.col-ip", { defaultValue: "IP" })} value={conn.ip ?? "-"} />
           <InfoRow label={t("browser-forensics.context.process-name", { defaultValue: "进程名" })} value={conn.process} />
           <InfoRow label={t("browser-forensics.context.pid", { defaultValue: "PID" })} value={String(conn.pid)} />
           <InfoRow label={t("browser-forensics.col.browser-profile", { defaultValue: "浏览器 / 配置文件" })} value={`${conn.browser} / ${conn.profile}`} />
@@ -355,7 +355,7 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
                         </div>
                         <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
                           <span>{formatTimestamp(item.activity.visit_time)}</span>
-                          <span className="text-code">
+                          <span className="text-code select-none">
                             {t("browser-forensics.context.score.total", { defaultValue: "总分" })}: {item.score.total}
                           </span>
                         </div>
@@ -409,7 +409,7 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
                     ))}
                   </div>
                   <div className="text-xs text-fg-primary font-medium truncate" title={node.title ?? undefined}>
-                    {node.title || "(no title)"}
+                    {node.title || t("browser-forensics.context.no-title", { defaultValue: "(无标题)" })}
                   </div>
                   <div className="text-[10px] text-muted-foreground truncate font-mono" title={node.url}>
                     {node.url}
@@ -452,7 +452,7 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
                   </div>
                   {d.url_chain && d.url_chain.length > 1 && (
                     <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                      <span className="select-none">Chain: </span>
+                      <span className="select-none">{t("browser-forensics.context.url-chain", { defaultValue: "链路" })}: </span>
                       <span className="font-mono">{d.url_chain.join(" → ")}</span>
                     </div>
                   )}
@@ -489,12 +489,12 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
                       <div className="text-[10px] text-muted-foreground font-mono truncate">{ext.id}</div>
                       {ext.matched_patterns.length > 0 && (
                         <div className="mt-0.5 text-[10px] text-code">
-                          Match: {ext.matched_patterns.join(", ")}
+                          {t("browser-forensics.context.matched-patterns", { defaultValue: "匹配" })}: {ext.matched_patterns.join(", ")}
                         </div>
                       )}
                       {ext.has_sensitive_permissions && (
                         <div className="mt-0.5 text-[10px] text-danger">
-                          ⚠ Sensitive: webRequest + &lt;all_urls&gt;
+                          {t("browser-forensics.context.sensitive-perms", { defaultValue: "⚠ 敏感权限: webRequest + <all_urls>" })}
                         </div>
                       )}
                       <RiskBadge flags={ext.risk_flags} />
