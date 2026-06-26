@@ -246,7 +246,7 @@ function ConnectionInfoCard({ connection }: { connection: BrowserContext["malici
         <InfoRow label="IP" value={connection.ip ?? "-"} />
         <InfoRow label={t("browser-forensics.context.process-name", { defaultValue: "进程名" })} value={connection.process} />
         <InfoRow label={t("browser-forensics.context.pid", { defaultValue: "PID" })} value={String(connection.pid)} />
-        <InfoRow label={t("browser-forensics.col.evidence-type", { defaultValue: "证据类型" })} value={`${connection.browser} / ${connection.profile}`} />
+        <InfoRow label={t("browser-forensics.col.browser-profile", { defaultValue: "浏览器 / 配置文件" })} value={`${connection.browser} / ${connection.profile}`} />
         <InfoRow label={t("browser-forensics.context.connection", { defaultValue: "连接" })} value={formatTimestamp(connection.timestamp)} />
       </div>
     </div>

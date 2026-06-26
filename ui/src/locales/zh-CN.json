@@ -501,7 +501,7 @@
       "visit-time": "访问时间",
       "title": "标题",
       "tier": "时间层",
-      "evidence-type": "证据类型",
+      "browser-profile": "浏览器 / 配置文件",
       "visit-count": "访问次数",
       "active": "活跃",
       "tab-index": "序号"
