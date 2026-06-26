@@ -143,9 +143,11 @@ fn build_downloads_sql(has_url: bool, where_clause: &str) -> String {
     let url_expr = if has_url {
         "d.url".to_string()
     } else {
+        // 新版 Chromium schema：URL 在 downloads_url_chains 表中
+        // 列名：id（对应 downloads.id）、chain_index（URL 在链中的序号）、url
         "(SELECT u.url FROM downloads_url_chains u \
-         WHERE u.chain_id = d.id \
-         ORDER BY u.url_index DESC LIMIT 1) AS url"
+         WHERE u.id = d.id \
+         ORDER BY u.chain_index DESC LIMIT 1) AS url"
             .to_string()
     };
     // 始终使用别名 d，以便 WHERE 子句统一使用 d. 前缀
@@ -178,7 +180,7 @@ fn read_downloads_from_conn(conn: &Connection) -> Vec<DownloadInfo> {
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(1)?,
             row.get::<_, Option<String>>(2)?,
             row.get::<_, Option<i64>>(3)?,
             row.get::<_, Option<i64>>(4)?,
@@ -205,7 +207,7 @@ fn read_downloads_from_conn(conn: &Connection) -> Vec<DownloadInfo> {
                 )) => Some(DownloadInfo {
                     filename: extract_filename(&target_path),
                     local_path: target_path,
-                    download_url: url,
+                    download_url: url.unwrap_or_default(),
                     referrer,
                     start_time: start_time
                         .and_then(webkit_timestamp::from_webkit_micros)
@@ -298,7 +300,7 @@ pub fn scan_downloads_in_time_window(
     let rows = stmt.query_map(rusqlite::params![start_webkit, end_webkit], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(1)?,
             row.get::<_, Option<String>>(2)?,
             row.get::<_, Option<i64>>(3)?,
             row.get::<_, Option<i64>>(4)?,
@@ -325,7 +327,7 @@ pub fn scan_downloads_in_time_window(
                 )) => Some(DownloadInfo {
                     filename: extract_filename(&target_path),
                     local_path: target_path,
-                    download_url: url,
+                    download_url: url.unwrap_or_default(),
                     referrer,
                     start_time: start_time
                         .and_then(webkit_timestamp::from_webkit_micros)
@@ -684,10 +686,10 @@ mod tests {
              opened INTEGER\
              );\
              CREATE TABLE downloads_url_chains (\
-             id INTEGER PRIMARY KEY, \
-             chain_id INTEGER NOT NULL, \
-             url_index INTEGER NOT NULL, \
-             url TEXT NOT NULL\
+             id INTEGER NOT NULL, \
+             chain_index INTEGER NOT NULL, \
+             url TEXT NOT NULL, \
+             PRIMARY KEY (id, chain_index)\
              );",
         )
         .unwrap();
@@ -695,18 +697,18 @@ mod tests {
         let base_dt = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
         let base_webkit = webkit_timestamp::to_webkit_micros(&base_dt);
 
-        // 下载 1：带重定向链（index 0 是原始 URL，index 1 是最终 URL）
+        // 下载 1：带重定向链（chain_index 0 是原始 URL，chain_index 1 是最终 URL）
         conn.execute(
             "INSERT INTO downloads (id, target_path, referrer, start_time, end_time, total_bytes, danger_type, interrupt_reason, opened) \
              VALUES (1, 'C:\\Users\\test\\Downloads\\file.pdf', 'https://example.com/docs', ?1, ?2, 1024, 0, NULL, 1)",
             rusqlite::params![base_webkit, base_webkit + 1_000_000],
         ).unwrap();
         conn.execute(
-            "INSERT INTO downloads_url_chains (chain_id, url_index, url) VALUES (1, 0, 'https://redirect.example.com/file.pdf')",
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 0, 'https://redirect.example.com/file.pdf')",
             [],
         ).unwrap();
         conn.execute(
-            "INSERT INTO downloads_url_chains (chain_id, url_index, url) VALUES (1, 1, 'https://final.example.com/file.pdf')",
+            "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (1, 1, 'https://final.example.com/file.pdf')",
             [],
         ).unwrap();
 

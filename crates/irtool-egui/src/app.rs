@@ -242,6 +242,15 @@ impl IrtoolApp {
                     payload.ip,
                 );
             }
+            AppEvent::ExtensionAttribution(payload) => {
+                tracing::info!(
+                    "extension attribution: {} {} → {} (ext={:?})",
+                    payload.method,
+                    payload.url,
+                    payload.attribution_status,
+                    payload.extension_name,
+                );
+            }
             AppEvent::AutorunsProgress(p) => {
                 self.autoruns.handle_scan_progress(p);
             }

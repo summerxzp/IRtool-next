@@ -148,8 +148,9 @@ pub struct HistoryList {
 
 /// 扫描指定 Profile 的最近历史记录
 ///
-/// 返回最近的 N 条历史记录（不限时间窗口），供 UI 表格展示使用。
-pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
+/// `limit` 限制返回条数，`since` 可选指定只返回此 WebKit 时间戳之后的记录。
+/// 返回最近的 N 条历史记录，供 UI 表格展示使用。
+pub fn scan_history(profile: &BrowserProfile, limit: i64, since: Option<i64>) -> HistoryList {
     let db_path = profile.path.join("History");
 
     let conn = match open_browser_db(&db_path) {
@@ -164,11 +165,14 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
         }
     };
 
+    // 使用统一 SQL，since 为 None 时用 0 作为下界（WebKit epoch 1601-01-01 之前不存在数据）
+    let since_ts = since.unwrap_or(0);
     let sql = "SELECT u.url, u.title, v.visit_time, u.visit_count \
          FROM visits v \
          JOIN urls u ON v.url = u.id \
+         WHERE v.visit_time >= ? \
          ORDER BY v.visit_time DESC \
-         LIMIT ?".to_string();
+         LIMIT ?";
 
     let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
@@ -182,7 +186,7 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
         }
     };
 
-    let rows = stmt.query_map([limit], |row| {
+    let rows_result = stmt.query_map(rusqlite::params![since_ts, limit], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
@@ -191,7 +195,7 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64) -> HistoryList {
         ))
     });
 
-    let entries = match rows {
+    let entries: Vec<HistoryEntry> = match rows_result {
         Ok(mapped_rows) => mapped_rows
             .filter_map(|r| {
                 r.ok().map(|(url, title, visit_time, visit_count)| HistoryEntry {

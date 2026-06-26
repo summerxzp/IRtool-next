@@ -818,7 +818,7 @@ impl BrowserForensicsPageState {
                                     .color(theme::FG_SECONDARY)
                                     .size(11.0),
                             );
-                            ui.label(egui::RichText::new(&m.description).color(theme::FG_TERTIARY).size(10.0));
+                            ui.label(egui::RichText::new(&m.value).color(theme::FG_TERTIARY).size(10.0));
                         });
                     }
                 }

@@ -13,6 +13,7 @@ use tracing::{error, info};
 
 use crate::context::AppContext;
 use crate::dto::browser_forensics::BrowserMaliciousConnectionPayload;
+use irtool_browser_forensics::browser_kind_from_process_name;
 use crate::dto::network::{NetworkEnrichmentPayload, NetworkPollingControl, NetworkSnapshotPayload};
 use crate::event_bus::AppEvent;
 
@@ -311,9 +312,9 @@ async fn run_polling_loop(
                                 for alert in &alerts {
                                     event_bus.publish(AppEvent::MonitorAlert(alert.clone()));
 
-                                    // 检查是否为浏览器进程的恶意连接
-                                    let proc_name = conn.process_name.as_deref().unwrap_or("").to_lowercase();
-                                    if proc_name.contains("chrome.exe") || proc_name.contains("msedge.exe") {
+                                    // 检查是否为浏览器进程的恶意连接（覆盖 Chrome/Edge）
+                                    let proc_name = conn.process_name.as_deref().unwrap_or("");
+                                    if browser_kind_from_process_name(proc_name).is_some() {
                                         let payload = BrowserMaliciousConnectionPayload {
                                             domain: conn.remote.addr.clone(),
                                             ip: conn.remote.addr.clone(),

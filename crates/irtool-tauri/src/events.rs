@@ -15,6 +15,7 @@ const EVT_TASK_FAILED: &str = "evt_task_failed";
 const EVT_SYSMON_EVENT: &str = "evt_sysmon_event";
 const EVT_MONITOR_ALERT: &str = "evt_monitor_alert";
 const EVT_BROWSER_MALICIOUS_CONNECTION: &str = "evt_browser_malicious_connection";
+const EVT_EXTENSION_ATTRIBUTION: &str = "evt_extension_attribution";
 const EVT_PCAP_EVENT: &str = "evt_pcap_event";
 const EVT_CLOSE_REQUESTED: &str = "evt_close_requested";
 const EVT_TOOLS_DOWNLOAD_PROGRESS: &str = "evt_tools_download_progress";
@@ -93,6 +94,9 @@ fn dispatch_event(app: &tauri::AppHandle, event: AppEvent) {
         }
         AppEvent::BrowserMaliciousConnection(p) => {
             let _ = app.emit(EVT_BROWSER_MALICIOUS_CONNECTION, &p);
+        }
+        AppEvent::ExtensionAttribution(p) => {
+            let _ = app.emit(EVT_EXTENSION_ATTRIBUTION, &p);
         }
         AppEvent::PcapEvent(e) => {
             let _ = app.emit(EVT_PCAP_EVENT, &e);

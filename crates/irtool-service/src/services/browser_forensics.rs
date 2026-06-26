@@ -87,7 +87,7 @@ impl<'a> BrowserForensicsService<'a> {
     }
 
     /// 扫描历史记录
-    pub async fn scan_history(&self, browser: BrowserKind, profile_name: &str) -> Result<HistoryList, IrError> {
+    pub async fn scan_history(&self, browser: BrowserKind, profile_name: &str, since: Option<i64>) -> Result<HistoryList, IrError> {
         let profile_name = profile_name.to_string();
         tokio::task::spawn_blocking(move || {
             let profiles = enumerate_profiles(browser);
@@ -95,7 +95,7 @@ impl<'a> BrowserForensicsService<'a> {
                 .into_iter()
                 .find(|p| p.name == profile_name)
                 .ok_or_else(|| IrError::Internal(format!("profile not found: {}", profile_name)))?;
-            Ok(irtool_browser_forensics::scan_history(&profile, 500))
+            Ok(irtool_browser_forensics::scan_history(&profile, 500, since))
         })
         .await
         .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
@@ -174,24 +174,39 @@ fn native_queue_path() -> PathBuf {
 
 /// 读取 Native Messaging 队列文件中的消息并清空队列。
 ///
-/// 返回从队列文件中解析出的所有消息。
-/// 读取后队列文件会被清空（写空字符串），防止重复消费。
+/// 使用原子 rename 策略避免并发丢失：将队列文件 rename 为 .processing 后缀，
+/// 读取并解析完成后再删除 .processing 文件。Host 端继续写入新的队列文件。
 pub fn read_native_messaging_queue() -> Vec<NativeQueueMessage> {
     let queue_path = native_queue_path();
     if !queue_path.exists() {
         return vec![];
     }
 
-    let content = match std::fs::read_to_string(&queue_path) {
+    // 原子 rename：queue → queue.processing，Host 端会创建新的 queue 文件
+    let processing_path = queue_path.with_extension("jsonl.processing");
+    if let Err(e) = std::fs::rename(&queue_path, &processing_path) {
+        // rename 失败可能是因为 Host 端刚删除/重建了文件，回退到直接读取
+        tracing::debug!("rename queue failed, falling back to direct read: {}", e);
+        return read_queue_file(&queue_path);
+    }
+
+    let messages = read_queue_file(&processing_path);
+
+    // 处理完成后删除 .processing 文件
+    let _ = std::fs::remove_file(&processing_path);
+
+    messages
+}
+
+/// 从指定路径读取队列文件并解析
+fn read_queue_file(path: &std::path::Path) -> Vec<NativeQueueMessage> {
+    let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("failed to read native messaging queue: {}", e);
+            tracing::warn!("failed to read queue file {}: {}", path.display(), e);
             return vec![];
         }
     };
-
-    // 清空队列文件（先读后清，避免竞态丢失消息）
-    let _ = std::fs::write(&queue_path, "");
 
     content
         .lines()
@@ -214,12 +229,12 @@ pub fn read_native_messaging_queue() -> Vec<NativeQueueMessage> {
 /// 从 Native Messaging 队列读取消息并发布到 EventBus。
 ///
 /// 当前处理以下消息类型：
-/// - `network_batch` → 提取 events 数组中的每条请求，发布为日志
+/// - `network_batch` → 提取 events 数组中的每条请求，发布为 `ExtensionAttribution` 事件
 /// - `extension_list` → 记录扩展清单更新
 /// - `heartbeat` → 忽略
 ///
 /// 返回本次处理的消息数量。
-pub fn publish_native_events(_event_bus: &crate::event_bus::EventBus) -> usize {
+pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
     let messages = read_native_messaging_queue();
     if messages.is_empty() {
         return 0;
@@ -240,7 +255,21 @@ pub fn publish_native_events(_event_bus: &crate::event_bus::EventBus) -> usize {
                                 req.url,
                                 req.attribution.status,
                             );
-                            // 目前只记录日志，后续可扩展为发布具体事件
+
+                            // 发布扩展归因事件到 EventBus
+                            event_bus.publish(crate::event_bus::AppEvent::ExtensionAttribution(
+                                ExtensionAttributionPayload {
+                                    timestamp: req.timestamp,
+                                    request_id: req.request_id,
+                                    url: req.url,
+                                    method: req.method,
+                                    initiator: req.initiator,
+                                    attribution_status: req.attribution.status,
+                                    extension_id: req.attribution.extension_id,
+                                    extension_name: req.attribution.extension_name,
+                                },
+                            ));
+
                             event_count += 1;
                         }
                     }
@@ -284,8 +313,12 @@ pub fn publish_native_events(_event_bus: &crate::event_bus::EventBus) -> usize {
                 event_count += count;
             }
             "heartbeat" => {
-                // 心跳消息仅用于保活，无需处理
-                tracing::trace!("native heartbeat ignored");
+                // 心跳消息 → 扩展在线，确保 config 文件存在供 NMH 检测
+                tracing::trace!("native heartbeat, ensuring config file exists");
+                // 确保 NMH host 有 config.json 可检测（内容为空表示不过滤）
+                if !native_config_path().exists() {
+                    send_config(&[]);
+                }
             }
             other => {
                 tracing::debug!("native unhandled message type: {}", other);
@@ -294,4 +327,37 @@ pub fn publish_native_events(_event_bus: &crate::event_bus::EventBus) -> usize {
     }
 
     event_count
+}
+
+// ── Config 下行通道 ────────────────────────────────────────
+
+/// Native Messaging config 文件路径
+fn native_config_path() -> PathBuf {
+    std::env::temp_dir().join("irtool").join("config.json")
+}
+
+/// 向 Helper Extension 下发配置（下行通道）。
+///
+/// 写入 `%TEMP%\irtool\config.json`，NMH host 进程在事件循环中检测到此文件
+/// 变化后，会通过 stdout 向扩展转发 `{"type":"config","filterDomains":[...]}` 消息。
+///
+/// 传递空切片可清除过滤规则（取消域名过滤）。
+pub fn send_config(filter_domains: &[String]) {
+    let config_path = native_config_path();
+    if let Some(parent) = config_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let content = serde_json::json!({
+        "filterDomains": filter_domains,
+    });
+
+    match std::fs::write(&config_path, serde_json::to_string_pretty(&content).unwrap()) {
+        Ok(_) => tracing::info!(
+            "config written to {:?} ({} domains)",
+            config_path,
+            filter_domains.len()
+        ),
+        Err(e) => tracing::error!("failed to write config {:?}: {}", config_path, e),
+    }
 }

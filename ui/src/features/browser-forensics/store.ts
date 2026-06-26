@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type {
   BrowserKind, BrowserProfile, ExtensionInfo, DownloadInfo, RecoveredTab,
-  HistoryEntry, BrowserContext,
+  HistoryEntry, HistoryAttribution, BrowserContext, ExtensionAttributionPayload, DomainAttribution,
 } from "./types";
 
 export type ForensicsTab = "extensions" | "history" | "downloads" | "tabs" | "context";
@@ -31,15 +31,16 @@ interface BrowserForensicsState {
   history: HistoryEntry[];
   setHistory: (h: HistoryEntry[]) => void;
 
+  historySince: string; // "1h" | "24h" | "7d" | "all"
+  setHistorySince: (s: string) => void;
+
   // Context Attribution state
   contextResult: BrowserContext | null;
   setContextResult: (c: BrowserContext | null) => void;
 
-  contextInputDomain: string;
-  setContextInputDomain: (d: string) => void;
-
-  contextInputPid: string;
-  setContextInputPid: (p: string) => void;
+  // Domain Attribution state
+  domainAttribution: DomainAttribution[] | null;
+  setDomainAttribution: (d: DomainAttribution[] | null) => void;
 
   contextLoading: boolean;
   setContextLoading: (v: boolean) => void;
@@ -55,6 +56,15 @@ interface BrowserForensicsState {
 
   search: string;
   setSearch: (s: string) => void;
+
+  // History Attribution state
+  historyAttribution: HistoryAttribution | null;
+  setHistoryAttribution: (h: HistoryAttribution | null) => void;
+
+  // 实时扩展归因事件（来自 Helper Extension）
+  extensionAttributions: ExtensionAttributionPayload[];
+  addExtensionAttribution: (e: ExtensionAttributionPayload) => void;
+  clearExtensionAttributions: () => void;
 }
 
 export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) => ({
@@ -82,14 +92,14 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
   history: [],
   setHistory: (history) => set({ history }),
 
+  historySince: "all",
+  setHistorySince: (historySince) => set({ historySince }),
+
   contextResult: null,
   setContextResult: (contextResult) => set({ contextResult }),
 
-  contextInputDomain: "",
-  setContextInputDomain: (contextInputDomain) => set({ contextInputDomain }),
-
-  contextInputPid: "",
-  setContextInputPid: (contextInputPid) => set({ contextInputPid }),
+  domainAttribution: null,
+  setDomainAttribution: (domainAttribution) => set({ domainAttribution }),
 
   contextLoading: false,
   setContextLoading: (contextLoading) => set({ contextLoading }),
@@ -105,4 +115,14 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
 
   search: "",
   setSearch: (search) => set({ search }),
+
+  extensionAttributions: [],
+  addExtensionAttribution: (e) =>
+    set((state) => ({
+      extensionAttributions: [...state.extensionAttributions, e].slice(-200),
+    })),
+  clearExtensionAttributions: () => set({ extensionAttributions: [] }),
+
+  historyAttribution: null,
+  setHistoryAttribution: (historyAttribution) => set({ historyAttribution }),
 }));

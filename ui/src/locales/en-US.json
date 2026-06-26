@@ -479,6 +479,12 @@
     "search": "Search",
     "enabled": "Enabled",
     "disabled": "Disabled",
+    "attribution-anchor-time": "Anchor Time",
+    "attribution-now": "Set to Now",
+    "attribution-analyze": "Attribution Analysis",
+    "tier-immediate": "Immediate",
+    "tier-nearby": "Nearby",
+    "tier-recent": "Recent",
     "col": {
       "name": "Name",
       "version": "Version",
@@ -490,6 +496,7 @@
       "danger-type": "Danger",
       "start-time": "Start Time",
       "size": "Size",
+      "referrer": "Referrer",
       "opened": "Opened",
       "visit-time": "Visit Time",
       "title": "Title",
@@ -538,7 +545,19 @@
       "no-navigation-chain": "No navigation chain found",
       "no-recent-activity": "No recent activity",
       "no-matching-extensions": "No matching extensions",
-      "no-recovered-tabs": "No recovered tabs"
+      "no-recovered-tabs": "No recovered tabs",
+      "connection-attribution": "Connection Attribution",
+      "connection-info": "Connection Info",
+      "extension-events": "Extension Attribution Events",
+      "extension-events-empty": "No extension attribution events",
+      "extension-events-count": "{{count}} events",
+      "event-timestamp": "Time",
+      "event-method": "Method",
+      "event-status": "Status",
+      "event-matched": "Matched",
+      "event-unmatched": "Unmatched",
+      "event-extension": "Extension",
+      "event-initiator": "Initiator"
     }
   },
   "settings": {

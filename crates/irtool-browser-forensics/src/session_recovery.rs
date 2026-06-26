@@ -130,11 +130,25 @@ fn parse_snss_tabs(data: &[u8], browser: BrowserKind, profile: &str) -> SessionR
     }
 
     if data[0..4] != SNSS_MAGIC {
+        // 检测是否为 DPAPI 加密的 Session 文件
+        // DPAPI 加密数据以 0x01 0x00 0x00 0x00 开头，后跟版本号 0x07D0 (2000)
+        let is_likely_dpapi = data.len() >= 8
+            && data[0] == 0x01
+            && data[1] == 0x00
+            && data[2] == 0x00
+            && data[3] == 0x00
+            && data[4] == 0xD0
+            && data[5] == 0x07;
+        let error_msg = if is_likely_dpapi {
+            "Session file appears to be DPAPI-encrypted; decryption is not supported, ensure browser sync encryption is disabled"
+        } else {
+            "invalid SNSS magic"
+        };
         return SessionRecoveryResult {
             browser,
             profile: profile.to_string(),
             tabs: vec![],
-            parse_errors: vec!["invalid SNSS magic".to_string()],
+            parse_errors: vec![error_msg.to_string()],
         };
     }
 

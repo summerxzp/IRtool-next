@@ -171,3 +171,26 @@ export interface BrowserMaliciousConnectionPayload {
   cmdline: string | null;
   alert_id: string;
 }
+
+/// 后端推送的扩展归因网络请求事件负载
+export interface ExtensionAttributionPayload {
+  timestamp: number;
+  request_id: string;
+  url: string;
+  method: string;
+  initiator: string | null;
+  attribution_status: string;
+  extension_id: string | null;
+  extension_name: string | null;
+}
+
+/// 基于域名的归因结果
+export interface DomainAttribution {
+  target: string;
+  browser: BrowserKind;
+  profile: string;
+  matching_extensions: MatchedExtension[];
+  related_history: HistoryEntry[];
+  related_downloads: DownloadInfo[];
+  related_tabs: CurrentTab[];
+}

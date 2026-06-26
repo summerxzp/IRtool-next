@@ -9,13 +9,15 @@ pub mod extension_attribution;
 pub mod extension_inventory;
 pub mod extension_risk;
 pub mod history;
+pub mod install_helper;
 pub mod permission_matcher;
 pub mod profile;
 pub mod session_recovery;
 pub mod sqlite;
 
 pub use context_attribution::{
-    attribute_browser_context, BrowserContext, BrowserContextDetail, CurrentTab, MaliciousConnection,
+    attribute_browser_context, attribute_by_domain, BrowserContext, BrowserContextDetail,
+    CurrentTab, DomainAttribution, MaliciousConnection,
 };
 pub use core::*;
 pub use download::{scan_downloads, scan_downloads_in_time_window, DangerType, DownloadAttribution, DownloadInfo};

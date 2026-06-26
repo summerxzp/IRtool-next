@@ -118,6 +118,21 @@ export function useDownloadColumns(): ColumnDef<DownloadInfo, unknown>[] {
         ),
       },
       {
+        id: "referrer",
+        accessorFn: (r) => r.referrer ?? "",
+        header: t("browser-forensics.col.referrer"),
+        size: 300,
+        cell: ({ row }) => {
+          const val = row.original.referrer;
+          if (!val) {
+            return <span className="text-fg-tertiary text-xs">—</span>;
+          }
+          return (
+            <span className="font-mono text-xs text-fg-secondary truncate">{val}</span>
+          );
+        },
+      },
+      {
         id: "danger_type",
         accessorFn: (r) => r.danger_type,
         header: t("browser-forensics.col.danger-type"),

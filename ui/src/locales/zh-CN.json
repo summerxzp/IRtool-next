@@ -479,6 +479,12 @@
     "search": "搜索",
     "enabled": "已启用",
     "disabled": "已禁用",
+    "attribution-anchor-time": "锚点时间",
+    "attribution-now": "设为当前时间",
+    "attribution-analyze": "归因分析",
+    "tier-immediate": "紧邻",
+    "tier-nearby": "附近",
+    "tier-recent": "近期",
     "col": {
       "name": "名称",
       "version": "版本",
@@ -490,6 +496,7 @@
       "danger-type": "危险类型",
       "start-time": "开始时间",
       "size": "大小",
+      "referrer": "来源页面",
       "opened": "已打开",
       "visit-time": "访问时间",
       "title": "标题",
@@ -520,7 +527,8 @@
       "has-background": "后台脚本",
       "preferences-tampered": "配置篡改",
       "permissions": "权限",
-      "host-permissions": "主机权限"
+      "host-permissions": "主机权限",
+      "ioc-matches": "IOC 匹配"
     },
     "context": {
       "domain-placeholder": "域名（如 evil.com）",
@@ -538,7 +546,19 @@
       "no-navigation-chain": "未找到导航链",
       "no-recent-activity": "无最近活动",
       "no-matching-extensions": "无匹配扩展",
-      "no-recovered-tabs": "无恢复标签页"
+      "no-recovered-tabs": "无恢复标签页",
+      "connection-attribution": "恶意连接归因",
+      "connection-info": "连接信息",
+      "extension-events": "实时扩展归因事件",
+      "extension-events-empty": "暂无扩展归因事件",
+      "extension-events-count": "共 {{count}} 条",
+      "event-timestamp": "时间",
+      "event-method": "方法",
+      "event-status": "状态",
+      "event-matched": "已匹配",
+      "event-unmatched": "未匹配",
+      "event-extension": "扩展",
+      "event-initiator": "发起者"
     }
   },
   "settings": {

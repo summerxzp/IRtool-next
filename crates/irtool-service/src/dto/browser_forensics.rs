@@ -55,6 +55,19 @@ pub struct BrowserMaliciousConnectionPayload {
     pub alert_id: String,
 }
 
+/// Helper Extension 上报的归因网络请求事件（发布到 EventBus）
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExtensionAttributionPayload {
+    pub timestamp: u64,
+    pub request_id: String,
+    pub url: String,
+    pub method: String,
+    pub initiator: Option<String>,
+    pub attribution_status: String,
+    pub extension_id: Option<String>,
+    pub extension_name: Option<String>,
+}
+
 /// 扫描请求参数
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct BrowserForensicsScanRequest {

@@ -113,6 +113,7 @@ pub async fn cmd_browser_forensics_scan_history(
     browser: BrowserKind,
     profile_name: String,
     limit: Option<i64>,
+    since: Option<i64>,
 ) -> Result<HistoryList, IrError> {
     let limit = limit.unwrap_or(500);
     tokio::task::spawn_blocking(move || {
@@ -121,7 +122,7 @@ pub async fn cmd_browser_forensics_scan_history(
             .into_iter()
             .find(|p| p.name == profile_name)
             .ok_or_else(|| IrError::Internal(format!("profile not found: {}", profile_name)))?;
-        Ok(irtool_browser_forensics::scan_history(&profile, limit))
+        Ok(irtool_browser_forensics::scan_history(&profile, limit, since))
     })
     .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
@@ -175,4 +176,51 @@ pub async fn cmd_browser_forensics_attribute_extension(
     })
     .await
     .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+}
+
+/// 注册 Helper Extension 的 Native Messaging Host
+///
+/// 写入 Native Messaging Host JSON 配置文件并注册到浏览器注册表。
+/// 支持 Chrome / Edge。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_install_native_messaging_host(
+    browser: BrowserKind,
+) -> Result<String, IrError> {
+    tokio::task::spawn_blocking(move || {
+        irtool_browser_forensics::install_helper::install_native_messaging_host(browser)
+            .map_err(|e| IrError::Internal(format!("failed to install native messaging host: {}", e)))
+    })
+    .await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+}
+
+/// 基于域名/IP 的归因：查找所有与目标相关的浏览器痕迹
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_attribute_by_domain(
+    _ctx: State<'_, AppContext>,
+    target: String,
+    browser: BrowserKind,
+) -> Result<Vec<DomainAttribution>, IrError> {
+    tokio::task::spawn_blocking(move || {
+        Ok(attribute_by_domain(&target, browser))
+    })
+    .await
+    .map_err(|e| IrError::Internal(format!("join error: {}", e)))?
+}
+
+/// 向 Helper Extension 下发域名过滤规则（config 下行通道）。
+///
+/// 写入 `%TEMP%\irtool\config.json`，NMH host 检测到文件变更后
+/// 通过 stdout 向扩展转发 `{"type":"config","filterDomains":[...]}`。
+///
+/// 传递空数组可清除过滤规则。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_send_config(
+    filter_domains: Vec<String>,
+) -> Result<(), IrError> {
+    irtool_service::services::browser_forensics::send_config(&filter_domains);
+    Ok(())
 }

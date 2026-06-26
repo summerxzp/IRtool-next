@@ -299,6 +299,9 @@ pub fn run() {
         cmd_browser_forensics_scan_history,
         cmd_browser_forensics_context_attribution,
         cmd_browser_forensics_attribute_extension,
+        cmd_browser_forensics_install_native_messaging_host,
+        cmd_browser_forensics_attribute_by_domain,
+        cmd_browser_forensics_send_config,
     ]);
 
     #[cfg(debug_assertions)]

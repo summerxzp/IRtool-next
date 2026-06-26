@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useCallback, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
 import { ScanLine } from "lucide-react";
@@ -10,10 +10,11 @@ import * as api from "../api";
 import { ExtensionTable } from "../components/ExtensionTable";
 import { ExtensionDetail } from "../components/ExtensionDetail";
 import { HistoryTable } from "../components/HistoryTable";
+import { AttributionHistoryView } from "../components/AttributionHistoryView";
 import { DownloadTable } from "../components/DownloadTable";
 import { TabTable } from "../components/TabTable";
 import { ContextAttributionPanel } from "../components/ContextAttributionPanel";
-import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload } from "../types";
+import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload, ExtensionAttributionPayload } from "../types";
 
 const BROWSERS: { kind: BrowserKind; label: string }[] = [
   { kind: "chrome", label: "Chrome" },
@@ -49,6 +50,7 @@ export function BrowserForensicsPage() {
   const setTabs = useBrowserForensicsStore((s) => s.setTabs);
   const history = useBrowserForensicsStore((s) => s.history);
   const setHistory = useBrowserForensicsStore((s) => s.setHistory);
+  const setHistorySince = useBrowserForensicsStore((s) => s.setHistorySince);
   const loading = useBrowserForensicsStore((s) => s.loading);
   const setLoading = useBrowserForensicsStore((s) => s.setLoading);
   const error = useBrowserForensicsStore((s) => s.error);
@@ -57,8 +59,28 @@ export function BrowserForensicsPage() {
   const setSelectedExtensionId = useBrowserForensicsStore((s) => s.setSelectedExtensionId);
   const search = useBrowserForensicsStore((s) => s.search);
   const setSearch = useBrowserForensicsStore((s) => s.setSearch);
-  const setContextInputDomain = useBrowserForensicsStore((s) => s.setContextInputDomain);
-  const setContextInputPid = useBrowserForensicsStore((s) => s.setContextInputPid);
+  const setDomainAttribution = useBrowserForensicsStore((s) => s.setDomainAttribution);
+  const setContextResult = useBrowserForensicsStore((s) => s.setContextResult);
+  const setContextLoading = useBrowserForensicsStore((s) => s.setContextLoading);
+
+  // History Attribution state
+  const historyAttribution = useBrowserForensicsStore((s) => s.historyAttribution);
+  const setHistoryAttribution = useBrowserForensicsStore((s) => s.setHistoryAttribution);
+  const [anchorTime, setAnchorTime] = useState(() => new Date().toISOString());
+  const [attributionLoading, setAttributionLoading] = useState(false);
+
+  const runAttribution = useCallback(async () => {
+    if (!selectedProfile) return;
+    setAttributionLoading(true);
+    try {
+      const result = await api.getHistory(selectedBrowser, selectedProfile, anchorTime);
+      setHistoryAttribution(result);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAttributionLoading(false);
+    }
+  }, [selectedBrowser, selectedProfile, anchorTime, setHistoryAttribution, setError]);
 
   // Load profiles on mount (auto — no privacy concern, just file listing)
   useEffect(() => {
@@ -72,18 +94,36 @@ export function BrowserForensicsPage() {
     }
   }, [profiles, selectedProfile, setSelectedProfile]);
 
-  // ── 监听后端推送的浏览器恶意连接事件 ──────────────────
+  // ── 监听后端推送的浏览器恶意连接事件，自动触发上下文归因 ──
   useEffect(() => {
     const unlistenPromise = listen<BrowserMaliciousConnectionPayload>(
       "evt_browser_malicious_connection",
       (event) => {
-        const { domain, pid } = event.payload;
+        const { domain, ip, process_name, pid, cmdline } = event.payload;
         console.info("[browser-forensics] malicious connection detected:", event.payload);
 
-        // 预填 Context Attribution 查询参数并自动切换到 context 面板
-        setContextInputDomain(domain);
-        setContextInputPid(String(pid));
+        // 自动切换到 context 面板
         setActiveTab("context");
+        setContextLoading(true);
+
+        // 主要归因：使用完整的浏览器上下文归因（含导航链、分层活动、扩展匹配等）
+        api.attributeBrowserContext(domain, ip || null, process_name, pid, cmdline ?? undefined)
+          .then((result) => {
+            if (result) setContextResult(result);
+            setContextLoading(false);
+          })
+          .catch(() => {
+            setContextResult(null);
+            setContextLoading(false);
+          });
+
+        // 补充归因：域名归因（保持向后兼容）
+        const browser: BrowserKind = process_name?.includes("edge") ? "edge" : "chrome";
+        api.attributeByDomain(domain, browser).then((result) => {
+          setDomainAttribution(result);
+        }).catch(() => {
+          // ignore supplemental error
+        });
       },
     );
     return () => {
@@ -91,6 +131,23 @@ export function BrowserForensicsPage() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── 监听 Helper Extension 上报的扩展归因事件 ──────────
+  const addExtensionAttribution = useBrowserForensicsStore((s) => s.addExtensionAttribution);
+  useEffect(() => {
+    const unlistenPromise = listen<ExtensionAttributionPayload>(
+      "evt_extension_attribution",
+      (event) => {
+        addExtensionAttribution(event.payload);
+      },
+    );
+    return () => {
+      unlistenPromise.then((fn) => fn());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const historySince = useBrowserForensicsStore((s) => s.historySince);
 
   // ── 扫描：按需触发，替代自动加载 ──────────────────────
   const reqIdRef = useRef(0);
@@ -103,10 +160,25 @@ export function BrowserForensicsPage() {
     setTabs([]);
     setHistory([]);
     setSelectedExtensionId(null);
+    setHistoryAttribution(null);
     setLoading(true);
     setError(null);
 
     const isCurrent = () => reqId === reqIdRef.current;
+
+    // 将 historySince 转换为 WebKit 微秒时间戳
+    const sinceWebKit = (() => {
+      const now = Date.now(); // Unix ms
+      let sinceMs: number | undefined;
+      switch (historySince) {
+        case "1h": sinceMs = now - 3600000; break;
+        case "24h": sinceMs = now - 86400000; break;
+        case "7d": sinceMs = now - 604800000; break;
+        default: return undefined; // "all"
+      }
+      // WebKit epoch = 1601-01-01, Unix epoch = 1970-01-01, diff = 11644473600 seconds
+      return Math.floor((sinceMs + 11644473600000) * 1000); // ms → WebKit micros
+    })();
 
     const fetches: Promise<void>[] = [];
 
@@ -126,7 +198,7 @@ export function BrowserForensicsPage() {
       }).catch((e) => { if (isCurrent()) setError(String(e)); }),
     );
     fetches.push(
-      api.scanHistory(selectedBrowser, selectedProfile).then((h) => {
+      api.scanHistory(selectedBrowser, selectedProfile, sinceWebKit).then((h) => {
         if (isCurrent()) setHistory(h);
       }).catch((e) => { if (isCurrent()) setError(String(e)); }),
     );
@@ -134,7 +206,7 @@ export function BrowserForensicsPage() {
     Promise.all(fetches).finally(() => {
       if (isCurrent()) setLoading(false);
     });
-  }, [selectedBrowser, selectedProfile]);
+  }, [selectedBrowser, selectedProfile, historySince]);
 
   const selectedExtension = useMemo(
     () => extensions.find((e) => e.id === selectedExtensionId) ?? null,
@@ -156,6 +228,7 @@ export function BrowserForensicsPage() {
     setTabs([]);
     setHistory([]);
     setSelectedExtensionId(null);
+    setHistoryAttribution(null);
     setError(null);
   }, [selectedBrowser, profiles]);
 
@@ -167,6 +240,7 @@ export function BrowserForensicsPage() {
     setTabs([]);
     setHistory([]);
     setSelectedExtensionId(null);
+    setHistoryAttribution(null);
     setError(null);
   }, []);
 
@@ -217,6 +291,50 @@ export function BrowserForensicsPage() {
           <ScanLine className="h-3.5 w-3.5" />
           {loading ? t("common.scanning", { defaultValue: "扫描中..." }) : t("browser-forensics.scan", { defaultValue: "扫描" })}
         </Button>
+
+        {/* History time range filter */}
+        {activeTab === "history" && (
+          <>
+            <select
+              className="h-8 rounded-md border border-border bg-bg-elev-1 px-2 text-sm text-fg-primary"
+              value={historySince}
+              onChange={(e) => setHistorySince(e.target.value)}
+            >
+              <option value="all">{t("browser-forensics.history-range-all", { defaultValue: "全部" })}</option>
+              <option value="1h">{t("browser-forensics.history-range-1h", { defaultValue: "最近 1 小时" })}</option>
+              <option value="24h">{t("browser-forensics.history-range-24h", { defaultValue: "最近 24 小时" })}</option>
+              <option value="7d">{t("browser-forensics.history-range-7d", { defaultValue: "最近 7 天" })}</option>
+            </select>
+
+            <span className="mx-1 text-border">|</span>
+
+            {/* Attribution anchor time input */}
+            <Input
+              className="w-52 h-8 text-xs font-mono"
+              value={anchorTime}
+              onChange={(e) => setAnchorTime(e.target.value)}
+              placeholder={t("browser-forensics.attribution-anchor-time", { defaultValue: "锚点时间 (ISO 8601)" })}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="text-xs"
+              onClick={() => setAnchorTime(new Date().toISOString())}
+            >
+              {t("browser-forensics.attribution-now", { defaultValue: "设为当前时间" })}
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={attributionLoading || !selectedProfile}
+              onClick={runAttribution}
+            >
+              {attributionLoading
+                ? t("common.scanning", { defaultValue: "分析中..." })
+                : t("browser-forensics.attribution-analyze", { defaultValue: "归因分析" })}
+            </Button>
+          </>
+        )}
 
         <span className="mx-1 text-border">|</span>
 
@@ -281,7 +399,19 @@ export function BrowserForensicsPage() {
             )}
           </Group>
         ) : activeTab === "history" ? (
-          <HistoryTable data={history} search={search} />
+          <div className="h-full flex flex-col">
+            <div className="flex-1 min-h-0">
+              <HistoryTable data={history} search={search} />
+            </div>
+            {(historyAttribution || attributionLoading) && (
+              <>
+                <div className="border-t border-border" />
+                <div className="max-h-[45%] min-h-0 overflow-y-auto">
+                  <AttributionHistoryView attribution={historyAttribution} loading={attributionLoading} />
+                </div>
+              </>
+            )}
+          </div>
         ) : activeTab === "downloads" ? (
           <DownloadTable data={downloads} search={search} />
         ) : activeTab === "context" ? (

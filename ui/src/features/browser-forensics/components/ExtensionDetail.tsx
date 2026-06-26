@@ -67,6 +67,19 @@ export function ExtensionDetail({ item, onClose }: Props) {
         </div>
       )}
 
+      {item.ioc_matches.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs text-fg-tertiary">{t("browser-forensics.detail.ioc-matches")}</div>
+          {item.ioc_matches.map((m, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs">
+              <Badge variant="danger">{m.severity}</Badge>
+              <span className="text-fg-tertiary">{m.ioc_type}:</span>
+              <span className="font-mono break-all">{m.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-2 text-xs">
         <DetailRow label={t("browser-forensics.detail.description")} value={item.description} />
         <DetailRow label={t("browser-forensics.detail.install-time")} value={formatTimestamp(item.install_time)} />

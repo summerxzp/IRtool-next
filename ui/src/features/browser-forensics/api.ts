@@ -1,5 +1,5 @@
 import { commands } from "@/lib/bindings";
-import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, BrowserContext, HistoryEntry, ExtensionAttribution } from "./types";
+import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, BrowserContext, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
 
 export async function listProfiles(onError?: (msg: string) => void): Promise<BrowserProfile[]> {
   try {
@@ -69,10 +69,11 @@ export async function recoverTabs(browser: BrowserKind, profile: string, onError
 export async function scanHistory(
   browser: BrowserKind,
   profileName: string,
+  since?: number,
   onError?: (msg: string) => void,
 ): Promise<HistoryEntry[]> {
   try {
-    const result = await (commands as any).cmdBrowserForensicsScanHistory(browser, profileName);
+    const result = await (commands as any).cmdBrowserForensicsScanHistory(browser, profileName, undefined, since ?? null);
     if (result.status === "error") throw new Error(result.error);
     return result.data.entries;
   } catch (e) {
@@ -154,5 +155,22 @@ export async function attributeExtension(
     console.error(msg);
     onError?.(msg);
     return null;
+  }
+}
+
+export async function attributeByDomain(
+  target: string,
+  browser: BrowserKind,
+  onError?: (msg: string) => void,
+): Promise<DomainAttribution[]> {
+  try {
+    const result = await (commands as any).cmdBrowserForensicsAttributeByDomain(target, browser);
+    if (result.status === "error") throw new Error(result.error);
+    return result.data;
+  } catch (e) {
+    const msg = `Failed to attribute by domain: ${e}`;
+    console.error(msg);
+    onError?.(msg);
+    return [];
   }
 }

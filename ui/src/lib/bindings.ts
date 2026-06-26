@@ -630,17 +630,66 @@ async cmdBrowserForensicsAttributeHistory(browser: BrowserKind, profileName: str
     else return { status: "error", error: e  as any };
 }
 },
-async cmdBrowserForensicsScanHistory(browser: BrowserKind, profileName: string) : Promise<Result<HistoryList, IrError>> {
+async cmdBrowserForensicsScanHistory(browser: BrowserKind, profileName: string, limit: number | null, since: number | null) : Promise<Result<HistoryList, IrError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_history", { browser, profileName }) };
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_scan_history", { browser, profileName, limit, since }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async cmdBrowserForensicsContextAttribution(domain: string, ip: string | null, processName: string, pid: number, timestamp: string) : Promise<Result<BrowserContext, IrError>> {
+async cmdBrowserForensicsContextAttribution(domain: string, ip: string | null, processName: string, pid: number, timestamp: string, cmdline: string | null) : Promise<Result<BrowserContext, IrError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_context_attribution", { domain, ip, processName, pid, timestamp }) };
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_context_attribution", { domain, ip, processName, pid, timestamp, cmdline }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cmdBrowserForensicsAttributeExtension(processName: string, pid: number, domain: string, cmdline: string | null) : Promise<Result<ExtensionAttribution, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_attribute_extension", { processName, pid, domain, cmdline }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 注册 Helper Extension 的 Native Messaging Host
+ * 
+ * 写入 Native Messaging Host JSON 配置文件并注册到浏览器注册表。
+ * 支持 Chrome / Edge。
+ */
+async cmdBrowserForensicsInstallNativeMessagingHost(browser: BrowserKind) : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_install_native_messaging_host", { browser }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 基于域名/IP 的归因：查找所有与目标相关的浏览器痕迹
+ */
+async cmdBrowserForensicsAttributeByDomain(target: string, browser: BrowserKind) : Promise<Result<DomainAttribution[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_attribute_by_domain", { target, browser }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 向 Helper Extension 下发域名过滤规则（config 下行通道）。
+ * 
+ * 写入 `%TEMP%\irtool\config.json`，NMH host 检测到文件变更后
+ * 通过 stdout 向扩展转发 `{"type":"config","filterDomains":[...]}`。
+ * 
+ * 传递空数组可清除过滤规则。
+ */
+async cmdBrowserForensicsSendConfig(filterDomains: string[]) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_send_config", { filterDomains }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -700,7 +749,7 @@ matching_extensions: MatchedExtension[] }
 /**
  * Chromium 系浏览器类型
  */
-export type BrowserKind = "chrome" | "edge"
+export type BrowserKind = "chrome" | "edge" | "brave" | "vivaldi"
 /**
  * 浏览器 Profile 信息
  */
@@ -709,6 +758,10 @@ export type BrowserProfile = { browser: BrowserKind;
  * Profile 目录名（如 "Default", "Profile 1"）
  */
 name: string; 
+/**
+ * Profile 显示名（来自 Local State 文件，可能为 None）
+ */
+display_name: string | null; 
 /**
  * Profile 目录完整路径
  */
@@ -724,6 +777,38 @@ export type CurrentTab = { url: string; title: string; active: boolean; evidence
  */
 export type DangerType = "NOT_DANGEROUS" | "DANGEROUS_URL" | "DANGEROUS_CONTENT" | "DANGEROUS_HOST" | "UNCOMMON_URL" | "POTENTIALLY_UNWANTED" | "ALLOWLISTED_BY_POLICY" | "UNKNOWN"
 export type DeleteResult = { success: boolean; message: string }
+/**
+ * 基于域名的归因结果
+ */
+export type DomainAttribution = { 
+/**
+ * 目标域名/IP
+ */
+target: string; 
+/**
+ * 浏览器类型
+ */
+browser: BrowserKind; 
+/**
+ * Profile 名
+ */
+profile: string; 
+/**
+ * 匹配的扩展（权限覆盖目标域名）
+ */
+matching_extensions: MatchedExtension[]; 
+/**
+ * 访问过目标域名的浏览记录
+ */
+related_history: HistoryEntry[]; 
+/**
+ * 从目标域名下载的文件
+ */
+related_downloads: DownloadInfo[]; 
+/**
+ * 包含目标域名的当前标签页
+ */
+related_tabs: CurrentTab[] }
 /**
  * 下载溯源结果
  */
@@ -790,6 +875,34 @@ export type EventPage = { items: MonitorEvent[]; total: number; limit: number; o
 export type EventQuery = { source: string | null; event_type: string | null; process_name: string | null; key_field: string | null; is_external: boolean | null; search_text: string | null; limit: number; offset: number }
 export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
 /**
+ * 扩展归因 Layer 1 结果
+ */
+export type ExtensionAttribution = { 
+/**
+ * 归因标签
+ */
+label: string; 
+/**
+ * 浏览器类型
+ */
+browser: BrowserKind; 
+/**
+ * Profile 名
+ */
+profile: string; 
+/**
+ * 进程 PID
+ */
+pid: number; 
+/**
+ * 目标域名
+ */
+domain: string; 
+/**
+ * 候选扩展列表（权限匹配结果）
+ */
+candidate_extensions: MatchedExtension[] }
+/**
  * 单个扩展的完整信息
  */
 export type ExtensionInfo = { id: string; name: string; version: string; description: string | null; enabled: boolean; install_time: string | null; install_source: string | null; update_url: string | null; was_installed_by_default: boolean | null; permissions: string[]; host_permissions: string[]; has_content_scripts: boolean; has_background: boolean; preferences_tampered: boolean; risk_flags: string[]; ioc_matches: IocMatch[]; path: string }
@@ -803,13 +916,17 @@ export type Family = "v4" | "v6"
  */
 export type HistoryAttribution = { browser: BrowserKind; profile: string; recent_browser_activity: RecentActivity[]; navigation_chain: NavChainNode[] }
 /**
+ * 历史记录条目（用于 scan_history 返回）
+ */
+export type HistoryEntry = { url: string; title: string; visit_time: string; visit_count: number }
+/**
  * History 列表结果
  */
-export type HistoryList = { browser: BrowserKind; profile: string; entries: RecentActivity[] }
+export type HistoryList = { browser: BrowserKind; profile: string; entries: HistoryEntry[] }
 /**
  * IOC 匹配结果
  */
-export type IocMatch = { ioc_type: string; value: string; description: string }
+export type IocMatch = { ioc_type: string; value: string; severity: string }
 export type IrError = { kind: "io"; message: string } | { kind: "permission_denied" } | { kind: "external_tool"; message: { tool: string; code: number } } | { kind: "parse"; message: string } | { kind: "network"; message: string } | { kind: "cancelled" } | { kind: "feature_disabled"; message: string } | { kind: "internal"; message: string }
 /**
  * 恶意连接信息

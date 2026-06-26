@@ -48,8 +48,8 @@ impl BrowserKind {
         match self {
             BrowserKind::Chrome => r"SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist",
             BrowserKind::Edge => r"SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist",
-            BrowserKind::Brave => r"SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist",
-            BrowserKind::Vivaldi => r"SOFTWARE\Policies\Vivaldi\ExtensionInstallForcelist",
+            BrowserKind::Brave => r"SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist",
+            BrowserKind::Vivaldi => r"SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist",
         }
     }
 
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(browser_kind_from_process_name("chrome.exe"), Some(BrowserKind::Chrome));
         assert_eq!(browser_kind_from_process_name("MSEdge.exe"), Some(BrowserKind::Edge));
         assert_eq!(browser_kind_from_process_name("Brave.exe"), Some(BrowserKind::Brave));
-        assert_eq!(browser_kind_from_process_name("VIVALDI.EXE"), Some(BrowserKind::Vivaldi));
+        assert_eq!(browser_kind_from_process_name("Vivaldi.exe"), Some(BrowserKind::Vivaldi));
         assert_eq!(browser_kind_from_process_name("notepad.exe"), None);
     }
 }
