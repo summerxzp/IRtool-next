@@ -1,8 +1,8 @@
 // P0.7: 从 bindings re-export EvidenceObject 及相关新类型
 // 注意：本地仍保留 BrowserContext / BrowserContextDetail 等旧定义（DomainAttribution 路径可能仍在用）
-// NavChainNode 需本地引用（HistoryAttribution / BrowserContextDetail），故先 import 再 re-export
-import type { NavChainNode } from "@/lib/bindings";
-export type { NavChainNode };
+// NavChainNode / RecentActivity 需本地引用（HistoryAttribution / BrowserContextDetail），故先 import 再 re-export
+import type { NavChainNode, RecentActivity } from "@/lib/bindings";
+export type { NavChainNode, RecentActivity };
 export type {
   EvidenceObject,
   AttributionLevel,
@@ -93,15 +93,6 @@ export interface SessionRecoveryResult {
 }
 
 export type TimeTier = "immediate" | "nearby" | "recent";
-
-export interface RecentActivity {
-  url: string;
-  title: string;
-  visit_time: string;
-  tier: TimeTier;
-  time_distance_ms: number;
-  evidence_type: string;
-}
 
 export interface HistoryAttribution {
   browser: BrowserKind;

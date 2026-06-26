@@ -67,11 +67,16 @@ function ActivityCard({ activity }: { activity: RecentActivity }) {
         <div className="text-[10px] text-muted-foreground truncate font-mono" title={activity.url}>
           {activity.url}
         </div>
-        <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
+        <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
           <span>{formatTimestamp(activity.visit_time)}</span>
-          <span>
+          <span className="select-none">
             {t("browser-forensics.col.tier", { defaultValue: "时间层" })}: {formatTimeDistance(activity.time_distance_ms)}
           </span>
+          {activity.score && (
+            <span className="text-code select-none">
+              {t("browser-forensics.context.score.total", { defaultValue: "总分" })}: {activity.score.total}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -159,13 +164,24 @@ function NavChainTimeline({ nodes }: { nodes: NavChainNode[] }) {
           <div className="ml-3 space-y-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               {node.transition && <TransitionBadge transition={node.transition} />}
+              {node.qualifiers.map((q) => (
+                <span key={q} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent/15 text-accent border border-accent/40">
+                  {q}
+                </span>
+              ))}
             </div>
             <div className="text-xs text-fg-primary font-medium truncate" title={node.title ?? undefined}>
-              {node.title || "(no title)"}
+              {node.title || t("browser-forensics.context.no-title", { defaultValue: "(无标题)" })}
             </div>
             <div className="text-[10px] text-muted-foreground truncate font-mono" title={node.url}>
               {node.url}
             </div>
+            {node.referrer && (
+              <div className="text-[10px] text-muted-foreground truncate">
+                <span className="select-none">{t("browser-forensics.context.referrer", { defaultValue: "来源" })}: </span>
+                <span className="font-mono" title={node.referrer}>{node.referrer}</span>
+              </div>
+            )}
           </div>
         </div>
       ))}
