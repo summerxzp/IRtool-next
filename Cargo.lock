@@ -2750,6 +2750,7 @@ dependencies = [
  "irtool-core",
  "irtool-egui",
  "irtool-monitor",
+ "irtool-native-messaging",
  "irtool-net-monitor",
  "irtool-pcap",
  "irtool-process",
