@@ -557,7 +557,27 @@
       "event-matched": "Matched",
       "event-unmatched": "Unmatched",
       "event-extension": "Extension",
-      "event-initiator": "Initiator"
+      "event-initiator": "Initiator",
+      "overall-confidence": "Overall Confidence",
+      "overall-score": "Overall Score",
+      "history-correlation": "History Correlation",
+      "no-history-correlation": "No history correlation",
+      "no-related-downloads": "No related downloads",
+      "qualifiers": "Qualifiers",
+      "referrer": "Referrer",
+      "tab-attribution": "Tab Attribution",
+      "no-tab-attribution": "No tab attribution (enabled in P2)",
+      "confidence": {
+        "confirmed": "Confirmed",
+        "probable": "Probable",
+        "possible": "Possible"
+      },
+      "score": {
+        "time": "Time",
+        "domain": "Domain",
+        "chain": "Chain",
+        "total": "Total"
+      }
     }
   },
   "settings": {

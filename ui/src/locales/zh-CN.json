@@ -558,7 +558,27 @@
       "event-matched": "已匹配",
       "event-unmatched": "未匹配",
       "event-extension": "扩展",
-      "event-initiator": "发起者"
+      "event-initiator": "发起者",
+      "overall-confidence": "综合置信度",
+      "overall-score": "综合评分",
+      "history-correlation": "历史关联",
+      "no-history-correlation": "无历史关联",
+      "no-related-downloads": "无相关下载",
+      "qualifiers": "限定符",
+      "referrer": "来源",
+      "tab-attribution": "标签页归因",
+      "no-tab-attribution": "无标签页归因（P2 阶段启用）",
+      "confidence": {
+        "confirmed": "已确认",
+        "probable": "较可能",
+        "possible": "可能"
+      },
+      "score": {
+        "time": "时间分",
+        "domain": "域名分",
+        "chain": "链路分",
+        "total": "总分"
+      }
     }
   },
   "settings": {

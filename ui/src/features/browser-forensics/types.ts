@@ -1,3 +1,15 @@
+// P0.7: 从 bindings re-export EvidenceObject 及相关新类型
+// 注意：本地仍保留 BrowserContext / BrowserContextDetail 等旧定义（DomainAttribution 路径可能仍在用）
+export type {
+  EvidenceObject,
+  AttributionLevel,
+  EvidenceScore,
+  HistoryCorrelation,
+  ScoredActivity,
+  ExtensionAttributionSummary,
+  TabAttribution,
+} from "@/lib/bindings";
+
 export type BrowserKind = "chrome" | "edge";
 
 export interface BrowserProfile {

@@ -7,18 +7,10 @@ import { useBrowserForensicsStore } from "../store";
 import * as api from "../api";
 import type {
   DomainAttribution, BrowserKind, MatchedExtension, CurrentTab,
-  HistoryEntry, DownloadInfo, BrowserContext, RecentActivity,
-  NavChainNode,
+  HistoryEntry, DownloadInfo,
+  EvidenceObject, AttributionLevel, EvidenceScore,
 } from "../types";
 import { formatTimestamp } from "../utils";
-
-// ── 颜色常量 ──────────────────────────────────────────────────────
-
-const TIER_COLORS: Record<string, string> = {
-  immediate: "#ef4444",
-  nearby: "#eab308",
-  recent: "#6b7280",
-};
 
 // ── 工具函数 ───────────────────────────────────────────────────────
 
@@ -234,283 +226,289 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ConnectionInfoCard({ connection }: { connection: BrowserContext["malicious_connection"] }) {
-  const { t } = useTranslation();
-  return (
-    <div className="rounded-lg border border-border bg-bg-elev-1 p-3 space-y-1.5">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {t("browser-forensics.context.connection-info", { defaultValue: "连接信息" })}
-      </h4>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <InfoRow label="Domain" value={connection.domain} />
-        <InfoRow label="IP" value={connection.ip ?? "-"} />
-        <InfoRow label={t("browser-forensics.context.process-name", { defaultValue: "进程名" })} value={connection.process} />
-        <InfoRow label={t("browser-forensics.context.pid", { defaultValue: "PID" })} value={String(connection.pid)} />
-        <InfoRow label={t("browser-forensics.col.browser-profile", { defaultValue: "浏览器 / 配置文件" })} value={`${connection.browser} / ${connection.profile}`} />
-        <InfoRow label={t("browser-forensics.context.connection", { defaultValue: "连接" })} value={formatTimestamp(connection.timestamp)} />
-      </div>
-    </div>
-  );
-}
+// ── Section A: EvidenceObjectView (P0.7b) ────────────────────────
 
-function TierBadge({ tier }: { tier: string }) {
-  const color = TIER_COLORS[tier] ?? "#6b7280";
+function ConfidenceBadge({ level }: { level: AttributionLevel }) {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
-    immediate: t("browser-forensics.tier-immediate", { defaultValue: "紧邻" }),
-    nearby: t("browser-forensics.tier-nearby", { defaultValue: "附近" }),
-    recent: t("browser-forensics.tier-recent", { defaultValue: "近期" }),
+  const styles: Record<AttributionLevel, string> = {
+    confirmed: "bg-success/15 text-success border-success/40",
+    probable: "bg-warning/15 text-warning border-warning/40",
+    possible: "bg-muted/30 text-muted-foreground border-border",
+  };
+  const labels: Record<AttributionLevel, string> = {
+    confirmed: t("browser-forensics.context.confidence.confirmed", { defaultValue: "已确认" }),
+    probable: t("browser-forensics.context.confidence.probable", { defaultValue: "较可能" }),
+    possible: t("browser-forensics.context.confidence.possible", { defaultValue: "可能" }),
   };
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
-      style={{
-        backgroundColor: `${color}20`,
-        color,
-        border: `1px solid ${color}40`,
-      }}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${styles[level]}`}
     >
-      {labels[tier] ?? tier}
+      {labels[level]}
     </span>
   );
 }
 
-function ActivityCard({ activity }: { activity: RecentActivity }) {
+function ScoreBreakdown({ score }: { score: EvidenceScore }) {
+  const { t } = useTranslation();
+  const items: Array<{ label: string; value: number; bold?: boolean }> = [
+    { label: t("browser-forensics.context.score.time", { defaultValue: "时间分" }), value: score.time_score },
+    { label: t("browser-forensics.context.score.domain", { defaultValue: "域名分" }), value: score.domain_score },
+    { label: t("browser-forensics.context.score.chain", { defaultValue: "链路分" }), value: score.chain_score },
+    { label: t("browser-forensics.context.score.total", { defaultValue: "总分" }), value: score.total, bold: true },
+  ];
   return (
-    <div className="flex items-start gap-2 p-2 rounded bg-bg-elev-1 border border-border text-xs">
-      <TierBadge tier={activity.tier} />
-      <div className="min-w-0 flex-1">
-        <div className="text-fg-primary truncate font-medium" title={activity.title}>
-          {activity.title || activity.url}
+    <div className="grid grid-cols-4 gap-2 text-xs">
+      {items.map((it) => (
+        <div key={it.label}>
+          <div className="text-[10px] text-muted-foreground select-none">{it.label}</div>
+          <div className={`font-mono text-fg-primary ${it.bold ? "font-semibold" : ""}`}>{it.value}</div>
         </div>
-        <div className="text-[10px] text-muted-foreground truncate font-mono" title={activity.url}>
-          {activity.url}
-        </div>
-        <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
-          <span>{formatTimestamp(activity.visit_time)}</span>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
 
-function TierGroup({ tier, activities }: { tier: string; activities: RecentActivity[] }) {
-  const color = TIER_COLORS[tier] ?? "#6b7280";
+function EvidenceObjectView({ result }: { result: EvidenceObject }) {
   const { t } = useTranslation();
-  const labels: Record<string, string> = {
+  const {
+    malicious_connection: conn,
+    history_correlation: hc,
+    navigation_chain: navChain,
+    downloads,
+    extension_attribution: extAttr,
+    overall_confidence: overallConf,
+    overall_score: overallScore,
+  } = result;
+
+  const tierColors: Record<string, string> = {
+    immediate: "#ef4444",
+    nearby: "#eab308",
+    recent: "#6b7280",
+  };
+  const tierLabels: Record<string, string> = {
     immediate: t("browser-forensics.tier-immediate", { defaultValue: "紧邻" }),
     nearby: t("browser-forensics.tier-nearby", { defaultValue: "附近" }),
     recent: t("browser-forensics.tier-recent", { defaultValue: "近期" }),
   };
-  if (activities.length === 0) return null;
-
-  return (
-    <div
-      className="rounded-lg border p-3 space-y-2"
-      style={{
-        borderColor: `${color}30`,
-        backgroundColor: `${color}08`,
-      }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }} />
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
-          {labels[tier] ?? tier}
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        {activities.map((activity, idx) => (
-          <ActivityCard key={`${activity.url}-${activity.visit_time}-${idx}`} activity={activity} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function NavChainTimeline({ nodes }: { nodes: NavChainNode[] }) {
-  const { t } = useTranslation();
-  if (nodes.length === 0) {
-    return (
-      <div className="text-xs text-muted-foreground italic py-4 text-center">
-        {t("browser-forensics.context.no-navigation-chain", { defaultValue: "未找到导航链" })}
-      </div>
-    );
-  }
-  return (
-    <div className="relative pl-6 space-y-0">
-      {nodes.map((node, idx) => (
-        <div key={idx} className="relative pb-4 last:pb-0">
-          {idx < nodes.length - 1 && (
-            <div className="absolute left-[7px] top-3 bottom-0 w-0.5 bg-border" />
-          )}
-          <div className="absolute left-0 top-1.5 w-[15px] flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full border-2 border-accent bg-bg-base" />
-          </div>
-          <div className="ml-3 space-y-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {node.transition && (
-                <span
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
-                  style={{
-                    backgroundColor: `#6b728020`,
-                    color: "#6b7280",
-                    border: "1px solid #6b728040",
-                  }}
-                >
-                  {node.transition}
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-fg-primary font-medium truncate" title={node.title ?? undefined}>
-              {node.title || "(no title)"}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate font-mono" title={node.url}>
-              {node.url}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function BrowserCurrentTabsView({ tabs }: { tabs: CurrentTab[] }) {
-  const { t } = useTranslation();
-  if (tabs.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-recovered-tabs", { defaultValue: "无恢复标签页" })}</div>;
-  }
-  return (
-    <div className="space-y-0.5 max-h-32 overflow-y-auto">
-      {tabs.map((tab, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs p-1 rounded hover:bg-bg-elev-1">
-          {tab.active && <span className="text-success shrink-0 text-[10px]">●</span>}
-          <div className="min-w-0 flex-1 truncate" title={tab.url}>{tab.title || tab.url}</div>
-          <span className="text-[10px] text-muted-foreground">{tab.evidence_type}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function BrowserRelatedDownloadsView({ downloads }: { downloads: DownloadInfo[] }) {
-  if (downloads.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">无相关下载记录</div>;
-  }
-  return (
-    <div className="space-y-0.5 max-h-32 overflow-y-auto">
-      {downloads.map((d, i) => (
-        <div key={i} className="flex items-start gap-2 text-xs p-1 rounded hover:bg-bg-elev-1">
-          <div className="min-w-0 flex-1">
-            <div className="text-fg-primary truncate">{d.filename}</div>
-            <div className="text-[10px] text-muted-foreground truncate">{d.download_url}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function BrowserMatchingExtensionsView({ extensions: exts }: { extensions: MatchedExtension[] }) {
-  const { t } = useTranslation();
-  if (exts.length === 0) {
-    return <div className="text-xs text-muted-foreground italic">{t("browser-forensics.context.no-matching-extensions", { defaultValue: "无匹配扩展" })}</div>;
-  }
-  return (
-    <div className="space-y-1">
-      {exts.map((ext) => (
-        <div key={ext.id} className="flex items-start gap-2 p-1.5 rounded bg-bg-elev-1 text-xs">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-fg-primary truncate">{ext.name}</span>
-              <span className="text-muted-foreground shrink-0">v{ext.version}</span>
-            </div>
-            <div className="text-[10px] text-muted-foreground font-mono truncate">{ext.id}</div>
-            {ext.matched_patterns.length > 0 && (
-              <div className="mt-0.5 text-[10px] text-code">Match: {ext.matched_patterns.join(", ")}</div>
-            )}
-            {ext.has_sensitive_permissions && (
-              <div className="mt-0.5 text-[10px] text-danger">⚠ Sensitive: webRequest + &lt;all_urls&gt;</div>
-            )}
-            <RiskBadge flags={ext.risk_flags} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Section A: Connection Attribution Card ───────────────────────
-
-function ConnectionAttributionCard({ result }: { result: BrowserContext }) {
-  const { t } = useTranslation();
-  const { malicious_connection, context } = result;
-
-  // 按 tier 分组
-  const grouped: Record<string, RecentActivity[]> = {};
-  for (const activity of context.recent_browser_activity) {
-    const tier = activity.tier;
-    if (!grouped[tier]) grouped[tier] = [];
-    grouped[tier].push(activity);
-  }
-  const tierOrder = ["immediate", "nearby", "recent"];
 
   return (
     <div className="px-3 pt-3">
+      {/* 顶部：连接信息 + 综合置信度/评分 */}
+      <div className="rounded-lg border border-border bg-bg-elev-1 p-3 space-y-1.5 mb-2">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+            {t("browser-forensics.context.connection-info", { defaultValue: "连接信息" })}
+          </h4>
+          <div className="flex items-center gap-2">
+            <ConfidenceBadge level={overallConf} />
+            <span className="text-xs text-muted-foreground select-none">
+              {t("browser-forensics.context.overall-score", { defaultValue: "综合评分" })}:
+            </span>
+            <span className="text-xs font-mono font-semibold text-fg-primary">{overallScore}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+          <InfoRow label="Domain" value={conn.domain} />
+          <InfoRow label="IP" value={conn.ip ?? "-"} />
+          <InfoRow label={t("browser-forensics.context.process-name", { defaultValue: "进程名" })} value={conn.process} />
+          <InfoRow label={t("browser-forensics.context.pid", { defaultValue: "PID" })} value={String(conn.pid)} />
+          <InfoRow label={t("browser-forensics.col.browser-profile", { defaultValue: "浏览器 / 配置文件" })} value={`${conn.browser} / ${conn.profile}`} />
+          <InfoRow label={t("browser-forensics.context.connection", { defaultValue: "连接" })} value={formatTimestamp(conn.timestamp)} />
+        </div>
+      </div>
+
+      {/* 历史关联 */}
       <CollapsibleSection
-        title={t("browser-forensics.context.connection-attribution", { defaultValue: "恶意连接归因" })}
+        title={t("browser-forensics.context.history-correlation", { defaultValue: "历史关联" })}
         defaultOpen
       >
-        {/* 连接信息 */}
-        <ConnectionInfoCard connection={malicious_connection} />
-
-        {/* 分层活动 */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            {t("browser-forensics.context.recent-activity", { defaultValue: "最近活动" })}
-          </h4>
+        {hc ? (
           <div className="space-y-2">
-            {tierOrder.map((tier) => (
-              <TierGroup key={tier} tier={tier} activities={grouped[tier] ?? []} />
+            <div className="flex items-center gap-2">
+              <ConfidenceBadge level={hc.confidence} />
+            </div>
+            <ScoreBreakdown score={hc.score} />
+            <div className="space-y-1.5">
+              {hc.recent_activity.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic py-2 text-center">
+                  {t("browser-forensics.context.no-recent-activity", { defaultValue: "无最近活动" })}
+                </div>
+              ) : (
+                hc.recent_activity.map((item, idx) => {
+                  const tier = item.activity.tier;
+                  const color = tierColors[tier] ?? "#6b7280";
+                  return (
+                    <div key={idx} className="flex items-start gap-2 p-2 rounded bg-bg-elev-1 border border-border text-xs">
+                      <span
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider shrink-0"
+                        style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}40` }}
+                      >
+                        {tierLabels[tier] ?? tier}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-fg-primary truncate font-medium" title={item.activity.title}>
+                          {item.activity.title || item.activity.url}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate font-mono" title={item.activity.url}>
+                          {item.activity.url}
+                        </div>
+                        <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
+                          <span>{formatTimestamp(item.activity.visit_time)}</span>
+                          <span className="text-code">
+                            {t("browser-forensics.context.score.total", { defaultValue: "总分" })}: {item.score.total}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground italic py-2 text-center">
+            {t("browser-forensics.context.no-history-correlation", { defaultValue: "无历史关联" })}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* 导航链 */}
+      <CollapsibleSection
+        title={t("browser-forensics.context.navigation-chain", { defaultValue: "导航链" })}
+        defaultOpen={false}
+      >
+        {navChain.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-4 text-center">
+            {t("browser-forensics.context.no-navigation-chain", { defaultValue: "未找到导航链" })}
+          </div>
+        ) : (
+          <div className="relative pl-6 space-y-0">
+            {navChain.map((node, idx) => (
+              <div key={idx} className="relative pb-4 last:pb-0">
+                {idx < navChain.length - 1 && (
+                  <div className="absolute left-[7px] top-3 bottom-0 w-0.5 bg-border" />
+                )}
+                <div className="absolute left-0 top-1.5 w-[15px] flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full border-2 border-accent bg-bg-base" />
+                </div>
+                <div className="ml-3 space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {node.transition && (
+                      <span
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
+                        style={{ backgroundColor: `#6b728020`, color: "#6b7280", border: "1px solid #6b728040" }}
+                      >
+                        {node.transition}
+                      </span>
+                    )}
+                    {node.qualifiers.map((q) => (
+                      <span key={q} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent/15 text-accent border border-accent/40">
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-xs text-fg-primary font-medium truncate" title={node.title ?? undefined}>
+                    {node.title || "(no title)"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate font-mono" title={node.url}>
+                    {node.url}
+                  </div>
+                  {node.referrer && (
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      <span className="select-none">{t("browser-forensics.context.referrer", { defaultValue: "来源" })}: </span>
+                      <span className="font-mono" title={node.referrer}>{node.referrer}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
-            {context.recent_browser_activity.length === 0 && (
-              <div className="text-xs text-muted-foreground italic py-2 text-center">
-                {t("browser-forensics.context.no-recent-activity", { defaultValue: "无最近活动" })}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* 相关下载 */}
+      <CollapsibleSection
+        title={t("browser-forensics.context.related-downloads", { defaultValue: "相关下载记录" })}
+        defaultOpen={false}
+      >
+        {downloads.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-2 text-center">
+            {t("browser-forensics.context.no-related-downloads", { defaultValue: "无相关下载" })}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {downloads.map((d, i) => (
+              <div key={i} className="flex items-start gap-2 p-1.5 rounded bg-bg-elev-1 text-xs">
+                <div className="min-w-0 flex-1">
+                  <div className="text-fg-primary truncate font-medium">{d.filename}</div>
+                  <div className="text-[10px] text-muted-foreground truncate font-mono">{d.download_url}</div>
+                  <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
+                    {d.start_time && <span>{formatTimestamp(d.start_time)}</span>}
+                    {d.total_bytes != null && <span>{(d.total_bytes / 1024).toFixed(1)}KB</span>}
+                    {d.danger_type !== "NOT_DANGEROUS" && (
+                      <span className="text-danger">{d.danger_type}</span>
+                    )}
+                  </div>
+                  {d.url_chain && d.url_chain.length > 1 && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                      <span className="select-none">Chain: </span>
+                      <span className="font-mono">{d.url_chain.join(" → ")}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* 扩展归因 */}
+      <CollapsibleSection
+        title={t("browser-forensics.context.matching-extensions", { defaultValue: "匹配扩展" })}
+        defaultOpen={false}
+      >
+        {extAttr ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ConfidenceBadge level={extAttr.confidence} />
+            </div>
+            {extAttr.matched.length === 0 ? (
+              <div className="text-xs text-muted-foreground italic">
+                {t("browser-forensics.context.no-matching-extensions", { defaultValue: "无匹配扩展" })}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {extAttr.matched.map((ext) => (
+                  <div key={ext.id} className="flex items-start gap-2 p-1.5 rounded bg-bg-elev-1 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-fg-primary truncate">{ext.name}</span>
+                        <span className="text-muted-foreground shrink-0">v{ext.version}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-mono truncate">{ext.id}</div>
+                      {ext.matched_patterns.length > 0 && (
+                        <div className="mt-0.5 text-[10px] text-code">
+                          Match: {ext.matched_patterns.join(", ")}
+                        </div>
+                      )}
+                      {ext.has_sensitive_permissions && (
+                        <div className="mt-0.5 text-[10px] text-danger">
+                          ⚠ Sensitive: webRequest + &lt;all_urls&gt;
+                        </div>
+                      )}
+                      <RiskBadge flags={ext.risk_flags} />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </div>
-
-        {/* 导航链 */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            {t("browser-forensics.context.navigation-chain", { defaultValue: "导航链" })}
-          </h4>
-          <NavChainTimeline nodes={context.navigation_chain} />
-        </div>
-
-        {/* 当前标签页 */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            {t("browser-forensics.context.current-tabs", { defaultValue: "当前标签页" })}
-          </h4>
-          <BrowserCurrentTabsView tabs={context.current_tabs} />
-        </div>
-
-        {/* 相关下载记录 */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            {t("browser-forensics.context.related-downloads", { defaultValue: "相关下载记录" })}
-          </h4>
-          <BrowserRelatedDownloadsView downloads={context.recent_downloads} />
-        </div>
-
-        {/* 匹配扩展 */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            {t("browser-forensics.context.matching-extensions", { defaultValue: "匹配扩展" })}
-          </h4>
-          <BrowserMatchingExtensionsView extensions={context.matching_extensions} />
-        </div>
+        ) : (
+          <div className="text-xs text-muted-foreground italic">
+            {t("browser-forensics.context.no-matching-extensions", { defaultValue: "无匹配扩展" })}
+          </div>
+        )}
       </CollapsibleSection>
     </div>
   );
@@ -623,8 +621,8 @@ export function ContextAttributionPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Section A: 连接归因（BrowserContext） */}
-      {contextResult && <ConnectionAttributionCard result={contextResult} />}
+      {/* Section A: 连接归因（EvidenceObject） */}
+      {contextResult && <EvidenceObjectView result={contextResult} />}
 
       {/* 输入区 */}
       <div className="px-3 py-2 border-b border-border flex items-center gap-2">

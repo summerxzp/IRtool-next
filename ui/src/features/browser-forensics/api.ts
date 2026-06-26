@@ -1,5 +1,5 @@
 import { commands } from "@/lib/bindings";
-import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, BrowserContext, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
+import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, EvidenceObject, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
 
 export async function listProfiles(onError?: (msg: string) => void): Promise<BrowserProfile[]> {
   try {
@@ -114,7 +114,7 @@ export async function attributeBrowserContext(
   cmdline?: string,
   timestamp?: string,
   onError?: (msg: string) => void,
-): Promise<BrowserContext | null> {
+): Promise<EvidenceObject | null> {
   try {
     const result = await (commands as any).cmdBrowserForensicsContextAttribution(
       domain,
