@@ -19,8 +19,6 @@ import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload, Ext
 const BROWSERS: { kind: BrowserKind; label: string }[] = [
   { kind: "chrome", label: "Chrome" },
   { kind: "edge", label: "Edge" },
-  { kind: "brave", label: "Brave" },
-  { kind: "vivaldi", label: "Vivaldi" },
 ];
 
 const TAB_KEYS: { key: ForensicsTab; i18nKey: string }[] = [

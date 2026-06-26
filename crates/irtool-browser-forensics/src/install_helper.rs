@@ -23,11 +23,6 @@ fn nm_host_json_path(browser: BrowserKind) -> PathBuf {
             .join("Microsoft")
             .join("Edge")
             .join("NativeMessagingHosts"),
-        BrowserKind::Brave => PathBuf::from(app_data)
-            .join("BraveSoftware")
-            .join("Brave-Browser")
-            .join("NativeMessagingHosts"),
-        BrowserKind::Vivaldi => PathBuf::from(app_data).join("Vivaldi").join("NativeMessagingHosts"),
     }
 }
 
@@ -36,8 +31,6 @@ fn nm_host_reg_path(browser: BrowserKind) -> String {
     match browser {
         BrowserKind::Chrome => r"SOFTWARE\Google\Chrome\NativeMessagingHosts".to_string(),
         BrowserKind::Edge => r"SOFTWARE\Microsoft\Edge\NativeMessagingHosts".to_string(),
-        BrowserKind::Brave => r"SOFTWARE\BraveSoftware\Brave-Browser\NativeMessagingHosts".to_string(),
-        BrowserKind::Vivaldi => r"SOFTWARE\Vivaldi\NativeMessagingHosts".to_string(),
     }
 }
 
@@ -111,16 +104,12 @@ mod tests {
         // 验证路径生成不 panic
         let _ = nm_host_json_path(BrowserKind::Chrome);
         let _ = nm_host_json_path(BrowserKind::Edge);
-        let _ = nm_host_json_path(BrowserKind::Brave);
-        let _ = nm_host_json_path(BrowserKind::Vivaldi);
     }
 
     #[test]
     fn nm_host_reg_path_format() {
         assert!(nm_host_reg_path(BrowserKind::Chrome).contains("Google"));
         assert!(nm_host_reg_path(BrowserKind::Edge).contains("Microsoft"));
-        assert!(nm_host_reg_path(BrowserKind::Brave).contains("BraveSoftware"));
-        assert!(nm_host_reg_path(BrowserKind::Vivaldi).contains("Vivaldi"));
     }
 
     #[test]

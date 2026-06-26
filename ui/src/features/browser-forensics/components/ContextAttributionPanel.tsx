@@ -642,8 +642,6 @@ export function ContextAttributionPanel() {
           <SelectContent>
             <SelectItem value="chrome">Chrome</SelectItem>
             <SelectItem value="edge">Edge</SelectItem>
-            <SelectItem value="brave">Brave</SelectItem>
-            <SelectItem value="vivaldi">Vivaldi</SelectItem>
           </SelectContent>
         </Select>
         <Button size="sm" onClick={handleAnalyze} disabled={contextLoading || !inputTarget.trim()}>

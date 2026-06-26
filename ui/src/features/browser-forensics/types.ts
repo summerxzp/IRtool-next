@@ -1,4 +1,4 @@
-export type BrowserKind = "chrome" | "edge" | "brave" | "vivaldi";
+export type BrowserKind = "chrome" | "edge";
 
 export interface BrowserProfile {
   browser: BrowserKind;
