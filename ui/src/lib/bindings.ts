@@ -638,7 +638,7 @@ async cmdBrowserForensicsScanHistory(browser: BrowserKind, profileName: string, 
     else return { status: "error", error: e  as any };
 }
 },
-async cmdBrowserForensicsContextAttribution(domain: string, ip: string | null, processName: string, pid: number, timestamp: string, cmdline: string | null) : Promise<Result<BrowserContext, IrError>> {
+async cmdBrowserForensicsContextAttribution(domain: string, ip: string | null, processName: string, pid: number, timestamp: string, cmdline: string | null) : Promise<Result<EvidenceObject, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_context_attribution", { domain, ip, processName, pid, timestamp, cmdline }) };
 } catch (e) {
@@ -719,6 +719,14 @@ export type AlertPopupParams = { rule_name: string; key_field: string; event_typ
 export type AppInfo = { name: string; version: string; is_admin: boolean }
 export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 /**
+ * 证据置信度等级
+ *
+ * - Confirmed: P1 Helper / P2 CDP 铁证
+ * - Probable: P0 高分关联（total >= 70）
+ * - Possible: P0 低分关联（total < 70）
+ */
+export type AttributionLevel = "confirmed" | "probable" | "possible"
+/**
  * Browser Context Attribution 综合输出
  */
 export type BrowserContext = { malicious_connection: MaliciousConnection; context: BrowserContextDetail }
@@ -749,7 +757,7 @@ matching_extensions: MatchedExtension[] }
 /**
  * Chromium 系浏览器类型
  */
-export type BrowserKind = "chrome" | "edge" | "brave" | "vivaldi"
+export type BrowserKind = "chrome" | "edge"
 /**
  * 浏览器 Profile 信息
  */
@@ -860,7 +868,19 @@ interrupt_reason: string | null;
 /**
  * 证据类型
  */
-evidence_type: string }
+evidence_type: string; 
+/**
+ * 完整重定向链（downloads_url_chains）
+ */
+url_chain: string[]; 
+/**
+ * 下载触发时的标签页 URL（新版 schema）
+ */
+tab_url: string | null; 
+/**
+ * 下载触发时的 referrer URL（新版 schema）
+ */
+tab_referrer_url: string | null }
 /**
  * Event configuration entry.
  */
@@ -874,6 +894,21 @@ export type EventPage = { items: MonitorEvent[]; total: number; limit: number; o
  */
 export type EventQuery = { source: string | null; event_type: string | null; process_name: string | null; key_field: string | null; is_external: boolean | null; search_text: string | null; limit: number; offset: number }
 export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
+/**
+ * 统一证据对象（设计方案目标 JSON 结构的 Rust 对应）
+ *
+ * `attribute_browser_context` 的返回值，组合 5 类子证据并通过 `overall_score`/`overall_confidence`
+ * 给出综合归因结论。P0 阶段 `alert_id`/`tab_attribution` 暂为 None。
+ */
+export type EvidenceObject = { domain: string; process: string; pid: number; alert_id: string | null; malicious_connection: MaliciousConnection; history_correlation: HistoryCorrelation | null; downloads: DownloadInfo[]; navigation_chain: NavChainNode[]; extension_attribution: ExtensionAttributionSummary | null; tab_attribution: TabAttribution | null; overall_confidence: AttributionLevel; overall_score: number }
+/**
+ * 证据评分（P0.2 填充评分逻辑，P0.1 仅定义结构）
+ */
+export type EvidenceScore = { time_score: number; domain_score: number; chain_score: number; 
+/**
+ * ≤ 100
+ */
+total: number }
 /**
  * 扩展归因 Layer 1 结果
  */
@@ -903,6 +938,10 @@ domain: string;
  */
 candidate_extensions: MatchedExtension[] }
 /**
+ * 扩展归因汇总（P0 阶段 Probable/Possible，P1 可达 Confirmed）
+ */
+export type ExtensionAttributionSummary = { confidence: AttributionLevel; matched: MatchedExtension[] }
+/**
  * 单个扩展的完整信息
  */
 export type ExtensionInfo = { id: string; name: string; version: string; description: string | null; enabled: boolean; install_time: string | null; install_source: string | null; update_url: string | null; was_installed_by_default: boolean | null; permissions: string[]; host_permissions: string[]; has_content_scripts: boolean; has_background: boolean; preferences_tampered: boolean; risk_flags: string[]; ioc_matches: IocMatch[]; path: string }
@@ -915,6 +954,10 @@ export type Family = "v4" | "v6"
  * History 关联结果
  */
 export type HistoryAttribution = { browser: BrowserKind; profile: string; recent_browser_activity: RecentActivity[]; navigation_chain: NavChainNode[] }
+/**
+ * 历史关联详情（含评分）
+ */
+export type HistoryCorrelation = { confidence: AttributionLevel; score: EvidenceScore; recent_activity: ScoredActivity[] }
 /**
  * 历史记录条目（用于 scan_history 返回）
  */
@@ -1055,7 +1098,7 @@ enabled: boolean }
 /**
  * Navigation Chain 节点
  */
-export type NavChainNode = { url: string; title: string | null; transition: string | null }
+export type NavChainNode = { url: string; title: string | null; transition: string | null; qualifiers: string[]; referrer: string | null }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; cmdline_status: CmdlineStatus; first_seen: number; last_seen: number; is_current: boolean }
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
@@ -1144,7 +1187,7 @@ export type Proto = "tcp" | "udp"
 /**
  * 近期浏览器活动记录
  */
-export type RecentActivity = { url: string; title: string; visit_time: string; tier: TimeTier; time_distance_ms: number; evidence_type: string }
+export type RecentActivity = { url: string; title: string; visit_time: string; tier: TimeTier; time_distance_ms: number; evidence_type: string; score: EvidenceScore | null }
 /**
  * 恢复的标签页
  */
@@ -1160,6 +1203,10 @@ export type RuntimeMode = "Foreground" | "Background"
  */
 export type RuntimeTelemetry = { mode: RuntimeMode; started_at: number | null; events_written: number; events_dropped: number; last_event_at: number | null; last_error: string | null }
 export type ScanOptions = { include_hash: boolean; category_filter: string[] | null }
+/**
+ * 评分后的历史活动条目
+ */
+export type ScoredActivity = { activity: RecentActivity; score: EvidenceScore }
 /**
  * Session Recovery 结果
  */
@@ -1177,6 +1224,10 @@ export type SysmonEventType = "process_create" | "file_create_time" | "network_c
  * Sysmon service status info.
  */
 export type SysmonStatus = { installed: boolean; running: boolean; service_name: string | null; sysmon_exe_exists: boolean; config_exists: boolean; sysmon_exe_path: string; config_path: string; started_by_irtool: boolean; config_managed_by_irtool: boolean }
+/**
+ * Tab 归因（P2 阶段填充，P0 为 None）
+ */
+export type TabAttribution = { confidence: AttributionLevel; url: string }
 /**
  * 时间窗层级
  */
