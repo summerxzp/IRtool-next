@@ -46,6 +46,10 @@ pub struct NavChainNode {
     pub url: String,
     pub title: Option<String>,
     pub transition: Option<String>,
+    /// 高位限定符字符串列表（如 "ClientRedirect"、"ServerRedirect"）
+    pub qualifiers: Vec<String>,
+    /// visits.referrer 的 visit id 字符串形式（P0.3 阶段不 JOIN urls 表）
+    pub referrer: Option<String>,
 }
 
 /// History 关联结果
@@ -75,17 +79,84 @@ pub fn transition_to_string(raw_transition: i64) -> String {
     .to_string()
 }
 
+/// Chromium transition 核心类型（低 5 位）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionCore {
+    Link,
+    Typed,
+    AutoBookmark,
+    FormSubmit,
+    Redirect,
+    Reload,
+    Unknown,
+}
+
+/// Chromium transition 高位限定符
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionQualifier {
+    ClientRedirect,
+    ServerRedirect,
+    ForwardBack,
+    FromApi,
+}
+
+/// 完整解析 transition 字段，返回 (core, qualifiers)
+///
+/// core 通过 `raw & 0x1F` 提取（低 5 位，与 `transition_to_string` 一致）。
+///
+/// 限定符位同时识别两组位定义：
+/// - 低位 `0x80 / 0x100 / 0x200 / 0x400`：与本 crate 现有 `transition_with_qualifier_bits`
+///   测试注释一致（"0x80 = CLIENT_REDIRECT 限定符"）。
+/// - 高位 `0x00400000 / 0x00200000 / 0x00080000 / 0x00040000`：参考 Chromium
+///   `page_transition_types.h` 的 CHAIN_START/CHAIN_END 等高位限定符。
+pub fn parse_transition_full(raw: u32) -> (TransitionCore, Vec<TransitionQualifier>) {
+    let core = match raw & 0x1F {
+        0 => TransitionCore::Link,
+        1 => TransitionCore::Typed,
+        2 => TransitionCore::AutoBookmark,
+        3 => TransitionCore::FormSubmit,
+        4 => TransitionCore::Redirect,
+        5 => TransitionCore::Reload,
+        _ => TransitionCore::Unknown,
+    };
+    let mut qualifiers = Vec::new();
+    if raw & (0x00400000 | 0x00000080) != 0 {
+        qualifiers.push(TransitionQualifier::ClientRedirect);
+    }
+    if raw & (0x00200000 | 0x00000100) != 0 {
+        qualifiers.push(TransitionQualifier::ServerRedirect);
+    }
+    if raw & (0x00080000 | 0x00000200) != 0 {
+        qualifiers.push(TransitionQualifier::ForwardBack);
+    }
+    if raw & (0x00040000 | 0x00000400) != 0 {
+        qualifiers.push(TransitionQualifier::FromApi);
+    }
+    (core, qualifiers)
+}
+
 /// 通过 `from_visit` 递归回溯跳转链
 ///
-/// 递归深度限制为 10 层，防止无限循环。
+/// 递归深度限制为 20 层，并加 500ms 超时保护，防止异常长链阻塞。
 pub fn build_navigation_chain(conn: &Connection, visit_id: i64) -> Vec<NavChainNode> {
     let mut chain = Vec::new();
     let mut current_id = visit_id;
-    let max_depth = 10;
+    let max_depth = 20;
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_millis(500);
 
     for _ in 0..max_depth {
+        if start.elapsed() > timeout {
+            warn!(
+                "nav chain backtrace timed out after {}ms at visit_id={}",
+                start.elapsed().as_millis(),
+                current_id
+            );
+            break;
+        }
+
         let mut stmt = match conn.prepare(
-            "SELECT u.url, u.title, v.from_visit, v.transition \
+            "SELECT u.url, u.title, v.from_visit, v.transition, v.referrer \
              FROM visits v \
              JOIN urls u ON v.url = u.id \
              WHERE v.id = ?",
@@ -103,15 +174,20 @@ pub fn build_navigation_chain(conn: &Connection, visit_id: i64) -> Vec<NavChainN
                 row.get::<_, Option<String>>(1)?,
                 row.get::<_, i64>(2)?,
                 row.get::<_, i64>(3)?,
+                row.get::<_, Option<i64>>(4)?,
             ))
         });
 
         match result {
-            Ok((url, title, from_visit, transition)) => {
+            Ok((url, title, from_visit, transition, referrer)) => {
+                let (_, qualifiers) = parse_transition_full(transition as u32);
+                let qualifier_strs: Vec<String> = qualifiers.iter().map(|q| format!("{:?}", q)).collect();
                 chain.push(NavChainNode {
                     url,
                     title,
                     transition: Some(transition_to_string(transition)),
+                    qualifiers: qualifier_strs,
+                    referrer: referrer.map(|id| id.to_string()),
                 });
                 if from_visit == 0 {
                     break;
@@ -371,6 +447,74 @@ mod tests {
     }
 
     #[test]
+    fn parse_transition_full_extracts_qualifiers() {
+        // 0x80：低位 CLIENT_REDIRECT 限定符；低 5 位 = 0 → Link
+        let (core, quals) = parse_transition_full(0x80);
+        assert_eq!(core, TransitionCore::Link);
+        assert_eq!(quals, vec![TransitionQualifier::ClientRedirect]);
+
+        // 0x104：低位 SERVER_REDIRECT 限定符（0x100）；低 5 位 = 4 → Redirect
+        let (core, quals) = parse_transition_full(0x104);
+        assert_eq!(core, TransitionCore::Redirect);
+        assert_eq!(quals, vec![TransitionQualifier::ServerRedirect]);
+
+        // 0x200：低位 FORWARD_BACK 限定符；低 5 位 = 0 → Link
+        let (core, quals) = parse_transition_full(0x200);
+        assert_eq!(core, TransitionCore::Link);
+        assert_eq!(quals, vec![TransitionQualifier::ForwardBack]);
+
+        // 0x400：低位 FROM_API 限定符；低 5 位 = 0 → Link
+        let (core, quals) = parse_transition_full(0x400);
+        assert_eq!(core, TransitionCore::Link);
+        assert_eq!(quals, vec![TransitionQualifier::FromApi]);
+
+        // 0x00400000 | 0x00200000：高位 CLIENT_REDIRECT + SERVER_REDIRECT；低 5 位 = 0 → Link
+        let (core, quals) = parse_transition_full(0x00400000 | 0x00200000);
+        assert_eq!(core, TransitionCore::Link);
+        assert_eq!(
+            quals,
+            vec![TransitionQualifier::ClientRedirect, TransitionQualifier::ServerRedirect,]
+        );
+
+        // 0：纯 Link，无限定符
+        let (core, quals) = parse_transition_full(0);
+        assert_eq!(core, TransitionCore::Link);
+        assert!(quals.is_empty());
+    }
+
+    #[test]
+    fn nav_chain_node_has_referrer_and_qualifiers() {
+        let node = NavChainNode {
+            url: "https://example.com/page".to_string(),
+            title: Some("Example Page".to_string()),
+            transition: Some("LINK".to_string()),
+            qualifiers: vec!["ClientRedirect".to_string(), "ServerRedirect".to_string()],
+            referrer: Some("12345".to_string()),
+        };
+
+        assert_eq!(node.url, "https://example.com/page");
+        assert_eq!(node.title.as_deref(), Some("Example Page"));
+        assert_eq!(node.transition.as_deref(), Some("LINK"));
+        assert_eq!(node.qualifiers.len(), 2);
+        assert_eq!(node.qualifiers[0], "ClientRedirect");
+        assert_eq!(node.qualifiers[1], "ServerRedirect");
+        assert_eq!(node.referrer.as_deref(), Some("12345"));
+
+        // 验证 None 情形
+        let node_none = NavChainNode {
+            url: "https://example.com/none".to_string(),
+            title: None,
+            transition: None,
+            qualifiers: vec![],
+            referrer: None,
+        };
+        assert!(node_none.title.is_none());
+        assert!(node_none.transition.is_none());
+        assert!(node_none.qualifiers.is_empty());
+        assert!(node_none.referrer.is_none());
+    }
+
+    #[test]
     fn transition_unknown() {
         assert_eq!(transition_to_string(6), "UNKNOWN");
         assert_eq!(transition_to_string(31), "UNKNOWN");
@@ -415,8 +559,8 @@ mod tests {
         )
         .unwrap();
 
-        // 插入 15 条链式记录，超过 10 层限制
-        for i in 1..=15 {
+        // 插入 25 条链式记录，超过 20 层限制
+        for i in 1..=25 {
             conn.execute(
                 "INSERT INTO urls (id, url, title) VALUES (?1, ?2, ?3)",
                 rusqlite::params![i, format!("https://page{}.com", i), format!("Page {}", i)],
@@ -430,12 +574,12 @@ mod tests {
             .unwrap();
         }
 
-        let chain = build_navigation_chain(&conn, 15);
-        // 应该被限制在 10 层
-        assert_eq!(chain.len(), 10);
-        // 从 visit 15 开始回溯：15 -> 14 -> 13 -> ... -> 6
-        assert_eq!(chain[0].url, "https://page15.com");
-        assert_eq!(chain[9].url, "https://page6.com");
+        let chain = build_navigation_chain(&conn, 25);
+        // 应该被限制在 20 层
+        assert_eq!(chain.len(), 20);
+        // 从 visit 25 开始回溯：25 -> 24 -> ... -> 6
+        assert_eq!(chain[0].url, "https://page25.com");
+        assert_eq!(chain[19].url, "https://page6.com");
     }
 
     #[test]
