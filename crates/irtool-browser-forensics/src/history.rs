@@ -79,15 +79,20 @@ pub fn transition_to_string(raw_transition: i64) -> String {
     .to_string()
 }
 
-/// Chromium transition 核心类型（低 5 位）
+/// Chromium transition 核心类型（低 8 位，PAGE_TRANSITION_CORE_MASK = 0xFF）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransitionCore {
-    Link,
-    Typed,
-    AutoBookmark,
-    FormSubmit,
-    Redirect,
-    Reload,
+    Link,             // 0
+    Typed,            // 1
+    AutoBookmark,     // 2
+    AutoSubframe,     // 3
+    ManualSubframe,   // 4
+    Generated,        // 5
+    AutoToplevel,     // 6
+    FormSubmit,       // 7
+    Reload,           // 8
+    Keyword,          // 9
+    KeywordGenerated, // 10
     Unknown,
 }
 
@@ -102,34 +107,38 @@ pub enum TransitionQualifier {
 
 /// 完整解析 transition 字段，返回 (core, qualifiers)
 ///
-/// core 通过 `raw & 0x1F` 提取（低 5 位，与 `transition_to_string` 一致）。
-///
-/// 限定符位同时识别两组位定义：
-/// - 低位 `0x80 / 0x100 / 0x200 / 0x400`：与本 crate 现有 `transition_with_qualifier_bits`
-///   测试注释一致（"0x80 = CLIENT_REDIRECT 限定符"）。
-/// - 高位 `0x00400000 / 0x00200000 / 0x00080000 / 0x00040000`：参考 Chromium
-///   `page_transition_types.h` 的 CHAIN_START/CHAIN_END 等高位限定符。
+/// 位定义参考 Chromium ui/base/page_transition_types.h:
+/// - Core mask: 0xFF（低 8 位）
+/// - CLIENT_REDIRECT: 0x40000000
+/// - SERVER_REDIRECT: 0x80000000
+/// - FORWARD_BACK:    0x01000000
+/// - FROM_API:        0x08000000
 pub fn parse_transition_full(raw: u32) -> (TransitionCore, Vec<TransitionQualifier>) {
-    let core = match raw & 0x1F {
+    let core = match raw & 0xFF {
         0 => TransitionCore::Link,
         1 => TransitionCore::Typed,
         2 => TransitionCore::AutoBookmark,
-        3 => TransitionCore::FormSubmit,
-        4 => TransitionCore::Redirect,
-        5 => TransitionCore::Reload,
+        3 => TransitionCore::AutoSubframe,
+        4 => TransitionCore::ManualSubframe,
+        5 => TransitionCore::Generated,
+        6 => TransitionCore::AutoToplevel,
+        7 => TransitionCore::FormSubmit,
+        8 => TransitionCore::Reload,
+        9 => TransitionCore::Keyword,
+        10 => TransitionCore::KeywordGenerated,
         _ => TransitionCore::Unknown,
     };
     let mut qualifiers = Vec::new();
-    if raw & (0x00400000 | 0x00000080) != 0 {
+    if raw & 0x40000000 != 0 {
         qualifiers.push(TransitionQualifier::ClientRedirect);
     }
-    if raw & (0x00200000 | 0x00000100) != 0 {
+    if raw & 0x80000000 != 0 {
         qualifiers.push(TransitionQualifier::ServerRedirect);
     }
-    if raw & (0x00080000 | 0x00000200) != 0 {
+    if raw & 0x01000000 != 0 {
         qualifiers.push(TransitionQualifier::ForwardBack);
     }
-    if raw & (0x00040000 | 0x00000400) != 0 {
+    if raw & 0x08000000 != 0 {
         qualifiers.push(TransitionQualifier::FromApi);
     }
     (core, qualifiers)
@@ -448,38 +457,55 @@ mod tests {
 
     #[test]
     fn parse_transition_full_extracts_qualifiers() {
-        // 0x80：低位 CLIENT_REDIRECT 限定符；低 5 位 = 0 → Link
-        let (core, quals) = parse_transition_full(0x80);
+        // CLIENT_REDIRECT = 0x40000000
+        let (core, quals) = parse_transition_full(0x40000000);
         assert_eq!(core, TransitionCore::Link);
         assert_eq!(quals, vec![TransitionQualifier::ClientRedirect]);
 
-        // 0x104：低位 SERVER_REDIRECT 限定符（0x100）；低 5 位 = 4 → Redirect
-        let (core, quals) = parse_transition_full(0x104);
-        assert_eq!(core, TransitionCore::Redirect);
+        // SERVER_REDIRECT = 0x80000000 (注意: 作为 i32 是负数，但 u32 正常)
+        let (core, quals) = parse_transition_full(0x80000000);
+        assert_eq!(core, TransitionCore::Link);
         assert_eq!(quals, vec![TransitionQualifier::ServerRedirect]);
 
-        // 0x200：低位 FORWARD_BACK 限定符；低 5 位 = 0 → Link
-        let (core, quals) = parse_transition_full(0x200);
+        // FORWARD_BACK = 0x01000000
+        let (core, quals) = parse_transition_full(0x01000000);
         assert_eq!(core, TransitionCore::Link);
         assert_eq!(quals, vec![TransitionQualifier::ForwardBack]);
 
-        // 0x400：低位 FROM_API 限定符；低 5 位 = 0 → Link
-        let (core, quals) = parse_transition_full(0x400);
+        // FROM_API = 0x08000000
+        let (core, quals) = parse_transition_full(0x08000000);
         assert_eq!(core, TransitionCore::Link);
         assert_eq!(quals, vec![TransitionQualifier::FromApi]);
 
-        // 0x00400000 | 0x00200000：高位 CLIENT_REDIRECT + SERVER_REDIRECT；低 5 位 = 0 → Link
-        let (core, quals) = parse_transition_full(0x00400000 | 0x00200000);
+        // 组合: CLIENT_REDIRECT + SERVER_REDIRECT
+        let (core, quals) = parse_transition_full(0x40000000 | 0x80000000);
         assert_eq!(core, TransitionCore::Link);
         assert_eq!(
             quals,
-            vec![TransitionQualifier::ClientRedirect, TransitionQualifier::ServerRedirect,]
+            vec![TransitionQualifier::ClientRedirect, TransitionQualifier::ServerRedirect]
         );
 
-        // 0：纯 Link，无限定符
+        // 零: 无限定符，core=Link
         let (core, quals) = parse_transition_full(0);
         assert_eq!(core, TransitionCore::Link);
         assert!(quals.is_empty());
+
+        // 核心类型 + 限定符组合: FORM_SUBMIT (7) + CLIENT_REDIRECT
+        let (core, quals) = parse_transition_full(7 | 0x40000000);
+        assert_eq!(core, TransitionCore::FormSubmit);
+        assert_eq!(quals, vec![TransitionQualifier::ClientRedirect]);
+
+        // 核心类型 RELOAD (8)
+        let (core, _) = parse_transition_full(8);
+        assert_eq!(core, TransitionCore::Reload);
+
+        // 核心类型 KEYWORD (9)
+        let (core, _) = parse_transition_full(9);
+        assert_eq!(core, TransitionCore::Keyword);
+
+        // 未知核心类型 (11)
+        let (core, _) = parse_transition_full(11);
+        assert_eq!(core, TransitionCore::Unknown);
     }
 
     #[test]
