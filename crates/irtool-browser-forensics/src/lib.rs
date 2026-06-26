@@ -5,6 +5,7 @@
 pub mod context_attribution;
 pub mod core;
 pub mod download;
+pub mod evidence;
 pub mod extension_attribution;
 pub mod extension_inventory;
 pub mod extension_risk;
@@ -22,6 +23,7 @@ pub use context_attribution::{
 };
 pub use core::*;
 pub use download::{scan_downloads, scan_downloads_in_time_window, DangerType, DownloadAttribution, DownloadInfo};
+pub use evidence::{AttributionLevel, BrowserEvent, BrowserSourceType, EvidenceScore, ScoreWeights};
 pub use extension_attribution::{attribute_extension, ExtensionAttribution};
 pub use extension_inventory::{scan_extensions, scan_extensions_cached, ExtensionInfo, ExtensionInventory};
 pub use extension_risk::IocMatch;
