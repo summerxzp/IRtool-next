@@ -127,22 +127,23 @@ pub fn attribute_browser_context(
     }
 
     // 对每个 Profile 执行关联，合并结果
-    // 优先使用有 History 命中的 Profile
+    // 优先使用 total_score 最高的 Profile（基于 RecentActivity 评分汇总）
     let mut best_context: Option<BrowserContextDetail> = None;
     let mut best_profile_name = String::new();
-    let mut best_activity_count = 0usize;
+    let mut best_total_score = 0u32;
 
     for profile in &target_profiles {
         let ctx = build_context_for_profile(domain, profile, timestamp);
 
-        // 选择活动记录最多的 Profile 作为最佳匹配
-        let activity_count = ctx.recent_browser_activity.len()
-            + ctx.navigation_chain.len()
-            + ctx.recent_downloads.len()
-            + ctx.matching_extensions.len();
+        // 汇总 RecentActivity 的 score.total 作为 Profile 评分
+        let total_score: u32 = ctx
+            .recent_browser_activity
+            .iter()
+            .filter_map(|a| a.score.as_ref().map(|s| s.total))
+            .sum();
 
-        if activity_count > best_activity_count || best_context.is_none() {
-            best_activity_count = activity_count;
+        if total_score > best_total_score || best_context.is_none() {
+            best_total_score = total_score;
             best_context = Some(ctx);
             best_profile_name = profile.name.clone();
         }
@@ -171,7 +172,7 @@ fn build_context_for_profile(
     timestamp: chrono::DateTime<chrono::Utc>,
 ) -> BrowserContextDetail {
     // 3. History 关联
-    let history = attribute_history(profile, timestamp);
+    let history = attribute_history(profile, timestamp, domain);
 
     // 4. Download 关联：±30s 时间窗口
     let download_start = timestamp - chrono::Duration::seconds(30);

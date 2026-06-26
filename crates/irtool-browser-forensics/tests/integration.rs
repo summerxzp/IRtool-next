@@ -89,7 +89,7 @@ fn local_chrome_history_scan() {
     // 使用当前时间作为锚点，±30s 窗口内可能有记录
     let now = chrono::Utc::now();
     for profile in &profiles {
-        let result = attribute_history(profile, now);
+        let result = attribute_history(profile, now, "");
         eprintln!(
             "[Chrome/{}] History: {} recent activities, {} nav chain nodes",
             profile.name,

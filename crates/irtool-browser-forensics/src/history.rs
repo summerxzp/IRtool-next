@@ -1,8 +1,10 @@
 //! History 分层时间窗关联 + Navigation Chain 重建
 
 use crate::core::webkit_timestamp;
+use crate::evidence::{EvidenceScore, ScoreWeights};
 use crate::profile::BrowserProfile;
 use crate::sqlite::open_browser_db;
+use crate::url_utils::domain_matches_url;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -29,6 +31,7 @@ pub struct RecentActivity {
     pub tier: TimeTier,
     pub time_distance_ms: i64,
     pub evidence_type: String,
+    pub score: Option<crate::evidence::EvidenceScore>,
 }
 
 /// 历史记录条目（用于 scan_history 返回）
@@ -223,6 +226,75 @@ const TIER_WINDOWS: &[(TimeTier, i64)] = &[
 /// 每层最大返回条数
 const TIER_LIMIT: i64 = 5;
 
+/// 为单个 history 条目计算评分
+///
+/// - `time_score`: 根据 tier 给分（Immediate/Nearby/Recent）
+/// - `domain_score`: 精确域名匹配给 `domain_exact`，否则 0
+/// - `chain_score`: 在导航链中给 `chain_continuous` + 链长加分（封顶 5 层）
+/// - `total`: 三项之和，封顶 100
+pub fn score_history_entry(
+    entry: &RecentActivity,
+    target_domain: &str,
+    in_chain: bool,
+    chain_depth: usize,
+    weights: &ScoreWeights,
+) -> EvidenceScore {
+    let time_score = match entry.tier {
+        TimeTier::Immediate => weights.time_immediate,
+        TimeTier::Nearby => weights.time_nearby,
+        TimeTier::Recent => weights.time_recent,
+    };
+    let domain_score = if domain_matches_url(target_domain, &entry.url) {
+        weights.domain_exact
+    } else {
+        0
+    };
+    let chain_score = if in_chain {
+        weights.chain_continuous + (chain_depth.min(5) as u32 * weights.chain_length_bonus)
+    } else {
+        0
+    };
+    let total = (time_score + domain_score + chain_score).min(100);
+    EvidenceScore {
+        time_score,
+        domain_score,
+        chain_score,
+        total,
+    }
+}
+
+/// 从 `visit_id` 回溯，构建链中所有 visit_id → 深度 的映射
+///
+/// 与 `build_navigation_chain` 使用相同的回溯逻辑（`from_visit`），但保留 visit_id 信息，
+/// 用于 `score_history_entry` 中判断 `in_chain` 和 `chain_depth`。
+fn collect_chain_visit_depth(conn: &Connection, visit_id: i64) -> std::collections::HashMap<i64, usize> {
+    let mut map = std::collections::HashMap::new();
+    let mut current_id = visit_id;
+    let max_depth = 20;
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_millis(500);
+
+    for depth in 0..max_depth {
+        if start.elapsed() > timeout {
+            break;
+        }
+        map.insert(current_id, depth);
+        let from_visit: Option<i64> = match conn.query_row(
+            "SELECT from_visit FROM visits WHERE id = ?",
+            rusqlite::params![current_id],
+            |row| row.get(0),
+        ) {
+            Ok(v) => Some(v),
+            Err(_) => break,
+        };
+        match from_visit {
+            Some(0) | None => break,
+            Some(v) => current_id = v,
+        }
+    }
+    map
+}
+
 /// History 列表结果
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct HistoryList {
@@ -307,7 +379,14 @@ pub fn scan_history(profile: &BrowserProfile, limit: i64, since: Option<i64>) ->
 }
 
 /// 对指定 Profile 执行 History 时间窗关联
-pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime<chrono::Utc>) -> HistoryAttribution {
+///
+/// `target_domain` 用于回填每个 `RecentActivity` 的 `score` 字段（domain_score 项），
+/// 通常传入恶意连接的域名；为空字符串时 domain_score 恒为 0。
+pub fn attribute_history(
+    profile: &BrowserProfile,
+    target_time: chrono::DateTime<chrono::Utc>,
+    target_domain: &str,
+) -> HistoryAttribution {
     let db_path = profile.path.join("History");
 
     let conn = match open_browser_db(&db_path) {
@@ -325,7 +404,8 @@ pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime
 
     let target_webkit = webkit_timestamp::to_webkit_micros(&target_time);
 
-    let mut all_activities = Vec::new();
+    // 收集 (visit_id, RecentActivity) 配对，构造时先填 score: None，后续回填
+    let mut activities_with_visit_id: Vec<(i64, RecentActivity)> = Vec::new();
     let mut best_visit_id: Option<i64> = None;
 
     for (tier, window_micros) in TIER_WINDOWS {
@@ -367,16 +447,20 @@ pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime
                             let distance_micros = (visit_time - target_webkit).abs();
                             let distance_ms = distance_micros / 1_000;
 
-                            all_activities.push(RecentActivity {
-                                url,
-                                title,
-                                visit_time: webkit_timestamp::from_webkit_micros(visit_time)
-                                    .map(|dt| dt.to_rfc3339())
-                                    .unwrap_or_default(),
-                                tier: *tier,
-                                time_distance_ms: distance_ms,
-                                evidence_type: "recent-visit".to_string(),
-                            });
+                            activities_with_visit_id.push((
+                                visit_id,
+                                RecentActivity {
+                                    url,
+                                    title,
+                                    visit_time: webkit_timestamp::from_webkit_micros(visit_time)
+                                        .map(|dt| dt.to_rfc3339())
+                                        .unwrap_or_default(),
+                                    tier: *tier,
+                                    time_distance_ms: distance_ms,
+                                    evidence_type: "recent-visit".to_string(),
+                                    score: None,
+                                },
+                            ));
 
                             // 取最近的 visit_id 作为 navigation chain 起点
                             // 优先从 Tier 1 (Immediate) 取第一条（order by abs 保证最近）；
@@ -403,10 +487,36 @@ pub fn attribute_history(profile: &BrowserProfile, target_time: chrono::DateTime
         None => vec![],
     };
 
+    // 构建 visit_id → chain_depth 映射，用于回填 score 时判断 in_chain / chain_depth
+    let chain_visit_depth = match best_visit_id {
+        Some(vid) => collect_chain_visit_depth(&conn, vid),
+        None => std::collections::HashMap::new(),
+    };
+
+    // 回填 score 字段
+    let weights = ScoreWeights::default();
+    let recent_browser_activity = activities_with_visit_id
+        .into_iter()
+        .map(|(visit_id, mut activity)| {
+            let (in_chain, chain_depth) = chain_visit_depth
+                .get(&visit_id)
+                .map(|d| (true, *d))
+                .unwrap_or((false, 0));
+            activity.score = Some(score_history_entry(
+                &activity,
+                target_domain,
+                in_chain,
+                chain_depth,
+                &weights,
+            ));
+            activity
+        })
+        .collect();
+
     HistoryAttribution {
         browser: profile.browser,
         profile: profile.name.clone(),
-        recent_browser_activity: all_activities,
+        recent_browser_activity,
         navigation_chain,
     }
 }
@@ -857,7 +967,7 @@ mod tests {
         };
 
         let target_time = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
-        let result = attribute_history(&profile, target_time);
+        let result = attribute_history(&profile, target_time, "example.com");
 
         assert_eq!(result.browser, crate::core::BrowserKind::Chrome);
         assert_eq!(result.profile, "TestProfile");
@@ -934,7 +1044,7 @@ mod tests {
         };
 
         let target_time = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
-        let result = attribute_history(&profile, target_time);
+        let result = attribute_history(&profile, target_time, "immediate.com");
 
         // 验证各记录的 tier 归属
         let imm = result
@@ -962,6 +1072,165 @@ mod tests {
         assert_eq!(imm.unwrap().time_distance_ms, 2000);
         assert_eq!(near.unwrap().time_distance_ms, 10000);
         assert_eq!(rec.unwrap().time_distance_ms, 20000);
+
+        // 清理
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    // ── P0.2 评分测试 ──────────────────────────────────────────
+
+    fn make_test_activity(url: &str, tier: TimeTier, distance_ms: i64) -> RecentActivity {
+        RecentActivity {
+            url: url.to_string(),
+            title: "Test".to_string(),
+            visit_time: "2024-06-15T12:00:00Z".to_string(),
+            tier,
+            time_distance_ms: distance_ms,
+            evidence_type: "recent-visit".to_string(),
+            score: None,
+        }
+    }
+
+    #[test]
+    fn score_history_entry_immediate_domain_match() {
+        // Immediate tier + 域名精确匹配 + 不在链中
+        let entry = make_test_activity("https://evil.com/path", TimeTier::Immediate, 1000);
+        let weights = ScoreWeights::default();
+        let score = score_history_entry(&entry, "evil.com", false, 0, &weights);
+
+        // time_score = 50 (Immediate)
+        // domain_score = 30 (domain_exact)
+        // chain_score = 0 (not in chain)
+        // total = 80
+        assert_eq!(score.time_score, 50);
+        assert_eq!(score.domain_score, 30);
+        assert_eq!(score.chain_score, 0);
+        assert_eq!(score.total, 80);
+        assert_eq!(score.level(), crate::evidence::AttributionLevel::Probable);
+    }
+
+    #[test]
+    fn score_history_entry_nearby_no_domain() {
+        // Nearby tier + 无域名匹配 + 不在链中
+        let entry = make_test_activity("https://other.com/path", TimeTier::Nearby, 10000);
+        let weights = ScoreWeights::default();
+        let score = score_history_entry(&entry, "evil.com", false, 0, &weights);
+
+        // time_score = 30 (Nearby)
+        // domain_score = 0
+        // chain_score = 0
+        // total = 30
+        assert_eq!(score.time_score, 30);
+        assert_eq!(score.domain_score, 0);
+        assert_eq!(score.chain_score, 0);
+        assert_eq!(score.total, 30);
+        assert_eq!(score.level(), crate::evidence::AttributionLevel::Possible);
+    }
+
+    #[test]
+    fn score_history_entry_in_chain() {
+        // Nearby tier + 无域名匹配 + 在链中（depth=1）
+        let entry = make_test_activity("https://other.com", TimeTier::Nearby, 10000);
+        let weights = ScoreWeights::default();
+        let score = score_history_entry(&entry, "evil.com", true, 1, &weights);
+
+        // time_score = 30
+        // domain_score = 0
+        // chain_score = 20 (chain_continuous) + 1*5 (chain_length_bonus) = 25
+        // total = 55
+        assert_eq!(score.time_score, 30);
+        assert_eq!(score.domain_score, 0);
+        assert_eq!(score.chain_score, 25);
+        assert_eq!(score.total, 55);
+    }
+
+    #[test]
+    fn score_history_entry_chain_depth_capped_at_5() {
+        // depth = 10 应被封顶到 5；与 depth = 5 结果应一致
+        let entry = make_test_activity("https://other.com", TimeTier::Nearby, 10000);
+        let weights = ScoreWeights::default();
+        let score_depth10 = score_history_entry(&entry, "evil.com", true, 10, &weights);
+        let score_depth5 = score_history_entry(&entry, "evil.com", true, 5, &weights);
+
+        // chain_score = 20 + min(10, 5)*5 = 20 + 25 = 45
+        // chain_score = 20 + min(5, 5)*5  = 20 + 25 = 45
+        assert_eq!(score_depth10.chain_score, 45);
+        assert_eq!(score_depth5.chain_score, 45);
+        assert_eq!(score_depth10.total, score_depth5.total);
+        assert_eq!(score_depth10.total, 75);
+    }
+
+    #[test]
+    fn score_history_entry_total_capped_at_100() {
+        // Immediate + domain_match + in_chain depth=5
+        // 50 + 30 + 45 = 125 → 应封顶到 100
+        let entry = make_test_activity("https://evil.com", TimeTier::Immediate, 0);
+        let weights = ScoreWeights::default();
+        let score = score_history_entry(&entry, "evil.com", true, 5, &weights);
+
+        assert_eq!(score.time_score, 50);
+        assert_eq!(score.domain_score, 30);
+        assert_eq!(score.chain_score, 45);
+        assert_eq!(score.total, 100);
+        assert!(score.total <= 100);
+    }
+
+    #[test]
+    fn attribute_history_fills_score_field() {
+        // 验证 attribute_history 返回的 RecentActivity 有 score 字段被填充
+        let temp_dir = std::env::temp_dir().join("irtool-history-test-score-fill");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::write(temp_dir.join("Preferences"), "{}").unwrap();
+
+        let db_path = temp_dir.join("History");
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT, title TEXT, \
+                 visit_count INTEGER, last_visit_time INTEGER); \
+                 CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER, \
+                 from_visit INTEGER, transition INTEGER, referrer INTEGER);",
+            )
+            .unwrap();
+
+            let base_dt = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+            let base_webkit = webkit_timestamp::to_webkit_micros(&base_dt);
+
+            conn.execute(
+                "INSERT INTO urls (id, url, title, visit_count, last_visit_time) VALUES (1, 'https://evil.com/payload', 'Evil', 1, ?1)",
+                rusqlite::params![base_webkit],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO visits (id, url, visit_time, from_visit, transition) VALUES (1, 1, ?1, 0, 1)",
+                rusqlite::params![base_webkit],
+            )
+            .unwrap();
+        }
+
+        let profile = BrowserProfile {
+            browser: crate::core::BrowserKind::Chrome,
+            name: "ScoreTest".to_string(),
+            display_name: None,
+            path: temp_dir.clone(),
+        };
+
+        let target_time = chrono::Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+        let result = attribute_history(&profile, target_time, "evil.com");
+
+        assert!(!result.recent_browser_activity.is_empty());
+        let activity = &result.recent_browser_activity[0];
+        let score = activity
+            .score
+            .as_ref()
+            .expect("score should be filled by attribute_history");
+
+        // Immediate + domain_exact + in_chain (depth=0，best_visit_id 即为链起点)
+        // time_score = 50, domain_score = 30, chain_score = 20 + 0*5 = 20
+        // total = 100
+        assert_eq!(score.time_score, 50);
+        assert_eq!(score.domain_score, 30);
+        assert_eq!(score.chain_score, 20);
+        assert_eq!(score.total, 100);
 
         // 清理
         let _ = std::fs::remove_dir_all(&temp_dir);
