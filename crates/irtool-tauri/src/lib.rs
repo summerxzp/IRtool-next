@@ -339,6 +339,21 @@ pub fn run() {
             // Start default network polling
             NetworkService { ctx: &app_ctx }.start_default_polling(tauri::async_runtime::handle().inner().clone());
 
+            // Start native messaging attribution queue poller (阶段0.4)
+            // Consumes attr-queue.jsonl written by Helper Extension via NMH and
+            // publishes ExtensionAttribution events to the EventBus.
+            let nmh_event_bus = app_ctx.event_bus.clone();
+            tauri::async_runtime::handle().inner().clone().spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+                loop {
+                    interval.tick().await;
+                    let count = irtool_service::services::browser_forensics::publish_native_events(&nmh_event_bus);
+                    if count > 0 {
+                        tracing::debug!("published {} native attribution events", count);
+                    }
+                }
+            });
+
             // Create system tray
             crate::tray::create_tray(app.handle())?;
 
