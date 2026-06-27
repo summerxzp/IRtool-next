@@ -157,10 +157,19 @@ pub fn write_message_to_stdout(json_str: &str) -> Result<(), NativeMessagingErro
 ///
 /// config.json 格式：
 /// ```json
-/// { "filterDomains": ["evil.com", "*.bad.net"] }
+/// { "filterDomains": ["evil.com", "*.bad.net"], "reconnectSignal": 1719500000000 }
 /// ```
-/// 空数组或缺失字段表示清除过滤。
-fn build_config_message(content: &str) -> Result<String, NativeMessagingError> {
+/// 空数组或缺失 filterDomains 字段表示清除过滤。
+/// reconnectSignal 字段（任意非零值）表示重连信号，扩展收到后立即重连。
+///
+/// `include_reconnect_signal` 控制是否透传 reconnectSignal：
+/// - 启动时传 false：避免 NMH 重启后读到旧的 reconnectSignal 触发死循环
+///   （扩展重连 → NMH 重启 → 又透传 → 又重连）
+/// - 运行期间 mtime 变化时传 true：用户点击"重新连接"才能立即触发
+fn build_config_message(
+    content: &str,
+    include_reconnect_signal: bool,
+) -> Result<String, NativeMessagingError> {
     let content = content.trim();
     if content.is_empty() {
         // 空内容 → 清除过滤
@@ -175,24 +184,35 @@ fn build_config_message(content: &str) -> Result<String, NativeMessagingError> {
     let config: serde_json::Value = serde_json::from_str(content)
         .map_err(|e| NativeMessagingError::InvalidMessage(format!("config parse error: {}", e)))?;
 
+    // 提取 filterDomains
     let filter_domains: Vec<String> = config
         .get("filterDomains")
         .and_then(|v| v.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
-    let msg = if filter_domains.is_empty() {
-        // 空数组 → 清除过滤（扩展端 applyConfig 处理 filterDomains=null 场景）
-        serde_json::json!({
-            "type": "config",
-            "filterDomains": null,
-        })
+    // 提取 reconnectSignal（仅在运行期间透传，启动时跳过避免死循环）
+    let reconnect_signal = if include_reconnect_signal {
+        config.get("reconnectSignal").cloned()
     } else {
-        serde_json::json!({
-            "type": "config",
-            "filterDomains": filter_domains,
-        })
+        None
     };
+
+    let mut msg = serde_json::json!({
+        "type": "config",
+    });
+
+    if filter_domains.is_empty() {
+        // 空数组 → 清除过滤（扩展端 applyConfig 处理 filterDomains=null 场景）
+        msg["filterDomains"] = serde_json::Value::Null;
+    } else {
+        msg["filterDomains"] = serde_json::json!(filter_domains);
+    }
+
+    // 透传 reconnectSignal（如果有且允许）
+    if let Some(signal) = reconnect_signal {
+        msg["reconnectSignal"] = signal;
+    }
 
     serde_json::to_string(&msg)
         .map_err(|e| NativeMessagingError::InvalidMessage(format!("config serialize error: {}", e)))
@@ -202,9 +222,13 @@ fn build_config_message(content: &str) -> Result<String, NativeMessagingError> {
 ///
 /// 读取 `{config_dir}/config.json`，如果 mtime 有变化，
 /// 构造 `{"type":"config","filterDomains":[...]}` 消息写入 stdout。
+///
+/// `include_reconnect_signal`：启动检查时传 false（避免 NMH 重启触发死循环），
+/// 运行期间检查传 true（用户点击重连时透传 reconnectSignal）。
 fn check_and_forward_config(
     config_dir: &Path,
     last_mtime: &mut Option<std::time::SystemTime>,
+    include_reconnect_signal: bool,
 ) -> Result<(), NativeMessagingError> {
     let config_path = config_dir.join("config.json");
     if !config_path.exists() {
@@ -225,9 +249,12 @@ fn check_and_forward_config(
         return Ok(());
     }
 
-    let json_str = build_config_message(&content)?;
+    let json_str = build_config_message(&content, include_reconnect_signal)?;
 
-    info!("config changed, forwarding to extension: {:?}", config_path);
+    info!(
+        "config changed, forwarding to extension (include_reconnect_signal={}): {:?}",
+        include_reconnect_signal, config_path
+    );
     write_message_to_stdout(&json_str)?;
     *last_mtime = mtime;
 
@@ -248,7 +275,10 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
     let mut last_config_mtime: Option<std::time::SystemTime> = None;
 
     // 启动时先检查一次 config（可能在启动前就已写入）
-    if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime) {
+    // 启动检查不透传 reconnectSignal：避免 NMH 重启后读到旧信号触发
+    // "扩展重连 → NMH 重启 → 又透传 → 又重连" 死循环。
+    // 只透传 filterDomains，让扩展恢复过滤状态。
+    if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime, false) {
         error!("failed to check config on startup: {:?}", e);
     }
 
@@ -263,7 +293,8 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
                 }
 
                 // 每次收到消息后检查 config 变更
-                if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime) {
+                // 运行期间透传 reconnectSignal：用户点击"重新连接"才能立即触发
+                if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime, true) {
                     error!("failed to check/forward config: {:?}", e);
                 }
             }
@@ -425,7 +456,7 @@ mod tests {
     #[test]
     fn test_build_config_message_with_domains() {
         let content = r#"{"filterDomains":["evil.com","*.bad.net"]}"#;
-        let result = build_config_message(content).unwrap();
+        let result = build_config_message(content, true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert_eq!(parsed["filterDomains"][0], "evil.com");
@@ -435,7 +466,7 @@ mod tests {
     #[test]
     fn test_build_config_message_empty_array_clears() {
         let content = r#"{"filterDomains":[]}"#;
-        let result = build_config_message(content).unwrap();
+        let result = build_config_message(content, true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert!(parsed["filterDomains"].is_null());
@@ -444,7 +475,7 @@ mod tests {
     #[test]
     fn test_build_config_message_no_filter_key_clears() {
         let content = r#"{"someOtherKey":"value"}"#;
-        let result = build_config_message(content).unwrap();
+        let result = build_config_message(content, true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert!(parsed["filterDomains"].is_null());
@@ -452,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_build_config_message_empty_content_clears() {
-        let result = build_config_message("").unwrap();
+        let result = build_config_message("", true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert!(parsed["filterDomains"].is_null());
@@ -460,10 +491,39 @@ mod tests {
 
     #[test]
     fn test_build_config_message_whitespace_only_clears() {
-        let result = build_config_message("  \n  ").unwrap();
+        let result = build_config_message("  \n  ", true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert!(parsed["filterDomains"].is_null());
+    }
+
+    /// 启动时不透传 reconnectSignal（避免 NMH 重启触发死循环）
+    #[test]
+    fn test_build_config_message_startup_skips_reconnect_signal() {
+        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000}"#;
+        let result = build_config_message(content, false).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["type"], "config");
+        assert_eq!(parsed["filterDomains"][0], "evil.com");
+        // 关键：reconnectSignal 不应出现在启动时的消息中
+        assert!(
+            parsed.get("reconnectSignal").is_none(),
+            "reconnectSignal should NOT be included on startup check"
+        );
+    }
+
+    /// 运行期间透传 reconnectSignal
+    #[test]
+    fn test_build_config_message_runtime_includes_reconnect_signal() {
+        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000}"#;
+        let result = build_config_message(content, true).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["type"], "config");
+        assert_eq!(parsed["filterDomains"][0], "evil.com");
+        assert_eq!(
+            parsed.get("reconnectSignal").and_then(|v| v.as_u64()),
+            Some(1719500000000)
+        );
     }
 
     #[test]
@@ -471,7 +531,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut last_mtime = None;
         // 没有 config 文件，应静默返回
-        assert!(check_and_forward_config(dir.path(), &mut last_mtime).is_ok());
+        assert!(check_and_forward_config(dir.path(), &mut last_mtime, true).is_ok());
         assert!(last_mtime.is_none());
     }
 
@@ -482,7 +542,7 @@ mod tests {
         std::fs::write(&config_path, "").unwrap();
         let mut last_mtime = None;
         // 空文件应静默返回且不更新 mtime（下次继续检查）
-        assert!(check_and_forward_config(dir.path(), &mut last_mtime).is_ok());
+        assert!(check_and_forward_config(dir.path(), &mut last_mtime, true).is_ok());
         assert!(last_mtime.is_none());
     }
 
@@ -493,7 +553,7 @@ mod tests {
         std::fs::write(&config_path, r#"{"filterDomains":["evil.com"]}"#).unwrap();
         let mut last_mtime = std::fs::metadata(&config_path).ok().and_then(|m| m.modified().ok());
         // mtime 相同，不应转发
-        assert!(check_and_forward_config(dir.path(), &mut last_mtime).is_ok());
+        assert!(check_and_forward_config(dir.path(), &mut last_mtime, true).is_ok());
         // mtime 仍为原值
         assert!(last_mtime.is_some());
     }
