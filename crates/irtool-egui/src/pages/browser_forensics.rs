@@ -1345,7 +1345,7 @@ impl BrowserForensicsPageState {
         rt.spawn_blocking(move || {
             // Use current time as target for recent history
             let target_time = chrono::Utc::now();
-            let attribution = irtool_browser_forensics::attribute_history(&profile, target_time);
+            let attribution = irtool_browser_forensics::attribute_history(&profile, target_time, "");
             let _ = tx.send(BrowserForensicsData::History(attribution));
         });
     }
