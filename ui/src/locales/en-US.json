@@ -104,7 +104,9 @@
     "empty": "No data",
     "retry": "Retry",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "add": "Add",
+    "clear": "Clear"
   },
   "database-search": {
     "export-csv": "Export CSV"
@@ -584,6 +586,58 @@
       "col-domain": "Domain",
       "col-ip": "IP",
       "sensitive-perms": "⚠ Sensitive: webRequest + <all_urls>"
+    },
+    "watch": {
+      "label": "Watch Targets",
+      "placeholder": "domain/IP",
+      "send": "Send to Extension",
+      "clear": "Clear",
+      "send-success": "Sent to Helper Extension",
+      "clear-success": "Filter cleared"
+    },
+    "events": {
+      "title": "Extension Events",
+      "search": "Search URL/extension",
+      "empty": "Waiting for Helper Extension events",
+      "no-match": "No matching events"
+    },
+    "install-helper": {
+      "button": "Install Helper Extension",
+      "title": "Install Helper Extension Guide",
+      "step-browser": "1. Select Browser",
+      "step-nmh": "2. Install Native Messaging Host",
+      "step-nmh-btn": "Install NMH",
+      "step-nmh-success": "NMH installed successfully",
+      "step-nmh-fail": "NMH installation failed",
+      "step-nmh-id-invalid": "Extension ID must be 32 lowercase letters (a-p)",
+      "step-path": "3. Copy Extension Directory Path",
+      "step-path-btn": "Copy Path",
+      "step-path-success": "Path copied to clipboard",
+      "step-path-fail": "Copy failed",
+      "step-open": "4. Open Browser Extensions Page",
+      "step-open-btn": "Open Extensions Page",
+      "step-open-success": "Opened. Please enable Developer Mode in the browser.",
+      "step-open-fail": "Failed to open",
+      "step-load": "5. Load Unpacked Extension",
+      "step-load-desc": "Click \"Load unpacked\" on the browser extensions page, paste the copied path, and select the helper-extension folder.",
+      "step-reconnect": "6. Reconnect Extension",
+      "step-reconnect-desc": "If extension is disconnected, click to clean NMH processes, then click \"Refresh\" on the extension card in the extensions page.",
+      "step-reconnect-btn": "Reconnect",
+      "step-reconnect-success": "Cleaned. Please refresh the extension in the extensions page.",
+      "step-reconnect-fail": "Operation failed",
+      "diag-killed": "Killed {{count}} NMH process(es)",
+      "diag-build-hint": "Run: cargo build -p irtool-native-messaging",
+      "dev-mode-hint": "Tip: Enable the \"Developer mode\" toggle in the top-right of the browser extensions page.",
+      "advanced-toggle": "Advanced options (try if connection fails)",
+      "advanced-extid-desc": "Manually specify extension ID (overrides the default fixed ID). Only use if default connection fails, e.g. manifest.json key was modified or browser doesn't respect key field.",
+      "advanced-extid-hint": "Leave empty to use default fixed ID. After filling, click the \"Install NMH\" button above to reinstall."
+    },
+    "connection": {
+      "connected": "Extension Connected",
+      "disconnected": "Extension Disconnected",
+      "last-heartbeat": "Last heartbeat",
+      "last-heartbeat-seconds": "{{count}}s ago",
+      "last-heartbeat-minutes": "{{count}}m ago"
     }
   },
   "settings": {

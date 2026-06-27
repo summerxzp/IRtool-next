@@ -5,30 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBrowserForensicsStore } from "../store";
 import * as api from "../api";
+import { ExtensionEventsView } from "./ExtensionEventsView";
 import type {
   DomainAttribution, BrowserKind, MatchedExtension, CurrentTab,
   HistoryEntry, DownloadInfo,
   EvidenceObject, AttributionLevel, EvidenceScore,
 } from "../types";
 import { formatTimestamp } from "../utils";
-
-// ── 工具函数 ───────────────────────────────────────────────────────
-
-function formatEventTimestamp(ts: number): string {
-  try {
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return String(ts);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    const h = String(d.getHours()).padStart(2, "0");
-    const min = String(d.getMinutes()).padStart(2, "0");
-    const s = String(d.getSeconds()).padStart(2, "0");
-    return `${y}/${m}/${day} ${h}:${min}:${s}`;
-  } catch {
-    return String(ts);
-  }
-}
 
 // ── 通用子组件 ────────────────────────────────────────────────────
 
@@ -514,88 +497,6 @@ function EvidenceObjectView({ result }: { result: EvidenceObject }) {
   );
 }
 
-// ── Section B: Extension Events ──────────────────────────────────
-
-function ExtensionEventsCard() {
-  const { t } = useTranslation();
-  const extensionAttributions = useBrowserForensicsStore((s) => s.extensionAttributions);
-  const clearExtensionAttributions = useBrowserForensicsStore((s) => s.clearExtensionAttributions);
-
-  const sorted = [...extensionAttributions].reverse().slice(0, 10);
-
-  return (
-    <div className="px-3 pb-3">
-      <CollapsibleSection
-        title={t("browser-forensics.context.extension-events", { defaultValue: "实时扩展归因事件" })}
-        defaultOpen={false}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground">
-            {t("browser-forensics.context.extension-events-count", { defaultValue: "共 {{count}} 条", count: extensionAttributions.length })}
-          </span>
-          {extensionAttributions.length > 0 && (
-            <Button size="sm" variant="secondary" className="h-6 text-xs" onClick={clearExtensionAttributions}>
-              {t("browser-forensics.context.clear", { defaultValue: "清除" })}
-            </Button>
-          )}
-        </div>
-
-        {extensionAttributions.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic py-4 text-center">
-            {t("browser-forensics.context.extension-events-empty", { defaultValue: "暂无扩展归因事件" })}
-          </div>
-        ) : (
-          <div className="space-y-1 max-h-80 overflow-y-auto">
-            {sorted.map((evt, idx) => (
-              <div
-                key={`${evt.request_id}-${idx}`}
-                className="flex items-start gap-2 p-2 rounded bg-bg-elev-1 border border-border text-xs"
-              >
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      {formatEventTimestamp(evt.timestamp)}
-                    </span>
-                    <span className="px-1 py-0.5 rounded text-[10px] font-mono bg-muted/30 text-muted-foreground">
-                      {evt.method}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                        evt.attribution_status === "matched"
-                          ? "bg-success/15 text-success"
-                          : "bg-muted/30 text-muted-foreground"
-                      }`}
-                    >
-                      {evt.attribution_status === "matched"
-                        ? t("browser-forensics.context.event-matched", { defaultValue: "已匹配" })
-                        : t("browser-forensics.context.event-unmatched", { defaultValue: "未匹配" })}
-                    </span>
-                  </div>
-                  <div className="text-fg-primary truncate font-medium" title={evt.url}>
-                    {evt.url}
-                  </div>
-                  <div className="flex gap-3 text-[10px] text-muted-foreground">
-                    {evt.extension_name && (
-                      <span>
-                        {t("browser-forensics.context.event-extension", { defaultValue: "扩展" })}: {evt.extension_name}
-                      </span>
-                    )}
-                    {evt.initiator && (
-                      <span>
-                        {t("browser-forensics.context.event-initiator", { defaultValue: "发起者" })}: {evt.initiator}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CollapsibleSection>
-    </div>
-  );
-}
-
 // ── 主面板 ──────────────────────────────────────────────────────
 
 export function ContextAttributionPanel() {
@@ -679,7 +580,7 @@ export function ContextAttributionPanel() {
 
         {/* Section B: 实时扩展归因事件 */}
         <div className="border-t border-border mt-2">
-          <ExtensionEventsCard />
+          <ExtensionEventsView />
         </div>
       </div>
     </div>

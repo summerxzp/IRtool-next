@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useCallback, useState } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
-import { ScanLine } from "lucide-react";
+import { ScanLine, Puzzle } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useBrowserForensicsStore, type ForensicsTab } from "../store";
+import { useBrowserForensicsStore, type ForensicsTab, shouldUpgradeToConfirmed, urlToHostname, hostnameMatchesDomain } from "../store";
 import * as api from "../api";
 import { ExtensionTable } from "../components/ExtensionTable";
 import { ExtensionDetail } from "../components/ExtensionDetail";
@@ -14,6 +14,9 @@ import { AttributionHistoryView } from "../components/AttributionHistoryView";
 import { DownloadTable } from "../components/DownloadTable";
 import { TabTable } from "../components/TabTable";
 import { ContextAttributionPanel } from "../components/ContextAttributionPanel";
+import { WatchTargetsBar } from "../components/WatchTargetsBar";
+import { ExtensionConnectionBadge } from "../components/ExtensionConnectionBadge";
+import { InstallHelperExtensionDialog } from "../components/InstallHelperExtensionDialog";
 import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload, ExtensionAttributionPayload } from "../types";
 
 const BROWSERS: { kind: BrowserKind; label: string }[] = [
@@ -66,6 +69,7 @@ export function BrowserForensicsPage() {
   const setHistoryAttribution = useBrowserForensicsStore((s) => s.setHistoryAttribution);
   const [anchorTime, setAnchorTime] = useState(() => new Date().toISOString());
   const [attributionLoading, setAttributionLoading] = useState(false);
+  const [installDialogOpen, setInstallDialogOpen] = useState(false);
 
   const runAttribution = useCallback(async () => {
     if (!selectedProfile) return;
@@ -84,6 +88,18 @@ export function BrowserForensicsPage() {
   useEffect(() => {
     api.listProfiles().then(setProfiles);
   }, [setProfiles]);
+
+  // 启动时从磁盘 config.json 同步已下发的 filterDomains 到 UI
+  // （IRtool 重启后 store 清空，但磁盘 config 仍有效，扩展仍按旧配置过滤；
+  //  这里把磁盘上的已下发域名读回 UI，避免"已下发但 UI 看不到"的不一致）
+  const setWatchTargets = useBrowserForensicsStore((s) => s.setWatchTargets);
+  useEffect(() => {
+    api.getNativeConfig().then((domains) => {
+      if (domains.length > 0) {
+        setWatchTargets(domains);
+      }
+    });
+  }, [setWatchTargets]);
 
   // Auto-select first profile on mount
   useEffect(() => {
@@ -107,7 +123,20 @@ export function BrowserForensicsPage() {
         // 主要归因：使用完整的浏览器上下文归因（含导航链、分层活动、扩展匹配等）
         api.attributeBrowserContext(domain, ip || null, process_name, pid, cmdline ?? undefined)
           .then((result) => {
-            if (result) setContextResult(result);
+            if (result) {
+              // P1.3: 初始融合 — 若已有 confirmed 扩展归因事件匹配此 domain，升级置信度
+              const existingEvents = useBrowserForensicsStore.getState().extensionAttributions;
+              const merged = result.extension_attribution && shouldUpgradeToConfirmed(existingEvents, result.domain)
+                ? {
+                    ...result,
+                    extension_attribution: {
+                      ...result.extension_attribution,
+                      confidence: "confirmed" as const,
+                    },
+                  }
+                : result;
+              setContextResult(merged);
+            }
             setContextLoading(false);
           })
           .catch(() => {
@@ -132,11 +161,27 @@ export function BrowserForensicsPage() {
 
   // ── 监听 Helper Extension 上报的扩展归因事件 ──────────
   const addExtensionAttribution = useBrowserForensicsStore((s) => s.addExtensionAttribution);
+  const upgradeContextExtensionConfidence = useBrowserForensicsStore((s) => s.upgradeContextExtensionConfidence);
+  const contextResultDomain = useBrowserForensicsStore((s) => s.contextResult?.domain ?? null);
+  // 用 ref 持有 contextResultDomain，监听器只注册一次，避免 domain 变化时
+  // 新旧监听器并存导致同一事件被处理两次（addExtensionAttribution / upgradeContextExtensionConfidence 重复调用）
+  const domainRef = useRef<string | null>(null);
+  useEffect(() => {
+    domainRef.current = contextResultDomain;
+  }, [contextResultDomain]);
   useEffect(() => {
     const unlistenPromise = listen<ExtensionAttributionPayload>(
       "evt_extension_attribution",
       (event) => {
         addExtensionAttribution(event.payload);
+        // P1.3: 若事件 level=confirmed 且 url hostname 匹配当前 contextResult.domain，实时升级置信度
+        const currentDomain = domainRef.current;
+        if (event.payload.level === "confirmed" && currentDomain) {
+          const hostname = urlToHostname(event.payload.url);
+          if (hostname && hostnameMatchesDomain(hostname, currentDomain)) {
+            upgradeContextExtensionConfidence(currentDomain);
+          }
+        }
       },
     );
     return () => {
@@ -357,7 +402,31 @@ export function BrowserForensicsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        <span className="mx-1 text-border select-none">|</span>
+
+        {/* Helper Extension 连接状态 */}
+        <ExtensionConnectionBadge />
+
+        <span className="mx-1 text-border select-none">|</span>
+
+        {/* 安装 Helper Extension 引导 */}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setInstallDialogOpen(true)}
+        >
+          <Puzzle className="h-3.5 w-3.5" />
+          {t("browser-forensics.install-helper.button")}
+        </Button>
       </div>
+
+      {/* 临时监控：关注目标域名/IP */}
+      <WatchTargetsBar />
+
+      {/* 安装 Helper Extension 引导对话框 */}
+      <InstallHelperExtensionDialog open={installDialogOpen} onOpenChange={setInstallDialogOpen} />
 
       {/* Error */}
       {error && (

@@ -6,6 +6,39 @@ import type {
 
 export type ForensicsTab = "extensions" | "history" | "downloads" | "tabs" | "context";
 
+// ── P1.3: Helper Extension 归因融合辅助函数 ──────────────────────
+
+/// 从 URL 提取 hostname，失败返回 null
+export function urlToHostname(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/// 判断 hostname 是否匹配 target domain（精确匹配或子域名后缀匹配）
+/// 例如 target="evil.com" 匹配 hostname="evil.com" 或 "sub.evil.com"，不匹配 "notevil.com"
+export function hostnameMatchesDomain(hostname: string, target: string): boolean {
+  if (hostname === target) return true;
+  if (hostname.endsWith("." + target)) return true;
+  return false;
+}
+
+/// 根据已累积的扩展归因事件，判断是否应升级 EvidenceObject.extension_attribution.confidence 为 confirmed
+/// 条件：存在 level="confirmed" 且 url hostname 匹配 target domain 的事件
+export function shouldUpgradeToConfirmed(
+  events: ExtensionAttributionPayload[],
+  targetDomain: string,
+): boolean {
+  return events.some((evt) => {
+    if (evt.level !== "confirmed") return false;
+    const hostname = urlToHostname(evt.url);
+    if (!hostname) return false;
+    return hostnameMatchesDomain(hostname, targetDomain);
+  });
+}
+
 interface BrowserForensicsState {
   selectedBrowser: BrowserKind;
   setSelectedBrowser: (b: BrowserKind) => void;
@@ -57,6 +90,14 @@ interface BrowserForensicsState {
   search: string;
   setSearch: (s: string) => void;
 
+  // 临时监控：关注的目标域名/IP列表（下发到 Helper Extension）
+  watchTargets: string[];
+  addWatchTarget: (target: string) => void;
+  removeWatchTarget: (target: string) => void;
+  clearWatchTargets: () => void;
+  /// 批量设置 watchTargets（用于启动时从磁盘 config 同步）
+  setWatchTargets: (targets: string[]) => void;
+
   // History Attribution state
   historyAttribution: HistoryAttribution | null;
   setHistoryAttribution: (h: HistoryAttribution | null) => void;
@@ -65,6 +106,9 @@ interface BrowserForensicsState {
   extensionAttributions: ExtensionAttributionPayload[];
   addExtensionAttribution: (e: ExtensionAttributionPayload) => void;
   clearExtensionAttributions: () => void;
+
+  /// 当 Helper Extension confirmed 事件到达时，升级当前 contextResult 的 extension_attribution.confidence
+  upgradeContextExtensionConfidence: (domain: string) => void;
 }
 
 export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) => ({
@@ -116,12 +160,50 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
   search: "",
   setSearch: (search) => set({ search }),
 
+  watchTargets: [],
+  addWatchTarget: (target) =>
+    set((state) => {
+      const trimmed = target.trim();
+      if (!trimmed) return state;
+      if (state.watchTargets.includes(trimmed)) return state;
+      return { watchTargets: [...state.watchTargets, trimmed] };
+    }),
+  removeWatchTarget: (target) =>
+    set((state) => ({
+      watchTargets: state.watchTargets.filter((t) => t !== target),
+    })),
+  clearWatchTargets: () => set({ watchTargets: [] }),
+  setWatchTargets: (targets) =>
+    set(() => ({
+      // 去重 + trim，保持插入顺序
+      watchTargets: Array.from(
+        new Set(targets.map((t) => t.trim()).filter(Boolean)),
+      ),
+    })),
+
   extensionAttributions: [],
   addExtensionAttribution: (e) =>
     set((state) => ({
       extensionAttributions: [...state.extensionAttributions, e].slice(-200),
     })),
   clearExtensionAttributions: () => set({ extensionAttributions: [] }),
+
+  upgradeContextExtensionConfidence: (domain) =>
+    set((state) => {
+      const ctx = state.contextResult;
+      if (!ctx || ctx.domain !== domain) return state;
+      if (!ctx.extension_attribution) return state;
+      if (ctx.extension_attribution.confidence === "confirmed") return state;
+      return {
+        contextResult: {
+          ...ctx,
+          extension_attribution: {
+            ...ctx.extension_attribution,
+            confidence: "confirmed" as const,
+          },
+        },
+      };
+    }),
 
   historyAttribution: null,
   setHistoryAttribution: (historyAttribution) => set({ historyAttribution }),

@@ -104,7 +104,9 @@
     "empty": "暂无数据",
     "retry": "重试",
     "cancel": "取消",
-    "confirm": "确认"
+    "confirm": "确认",
+    "add": "添加",
+    "clear": "清空"
   },
   "database-search": {
     "export-csv": "导出 CSV"
@@ -585,6 +587,58 @@
       "col-domain": "域名",
       "col-ip": "IP",
       "sensitive-perms": "⚠ 敏感权限: webRequest + <all_urls>"
+    },
+    "watch": {
+      "label": "关注目标",
+      "placeholder": "域名/IP",
+      "send": "下发到扩展",
+      "clear": "清除",
+      "send-success": "已下发到 Helper Extension",
+      "clear-success": "已清除过滤"
+    },
+    "events": {
+      "title": "扩展事件流",
+      "search": "搜索 URL/扩展",
+      "empty": "等待 Helper Extension 上报事件",
+      "no-match": "无匹配事件"
+    },
+    "install-helper": {
+      "button": "安装 Helper Extension",
+      "title": "安装 Helper Extension 引导",
+      "step-browser": "1. 选择浏览器",
+      "step-nmh": "2. 安装 Native Messaging Host",
+      "step-nmh-btn": "安装 NMH",
+      "step-nmh-success": "NMH 安装成功",
+      "step-nmh-fail": "NMH 安装失败",
+      "step-nmh-id-invalid": "扩展 ID 必须是 32 位小写字母 (a-p)",
+      "step-path": "3. 复制扩展目录路径",
+      "step-path-btn": "复制路径",
+      "step-path-success": "路径已复制到剪贴板",
+      "step-path-fail": "复制失败",
+      "step-open": "4. 打开浏览器扩展页",
+      "step-open-btn": "打开扩展页",
+      "step-open-success": "已打开，请在浏览器中开启开发者模式",
+      "step-open-fail": "打开失败",
+      "step-load": "5. 加载已解压的扩展程序",
+      "step-load-desc": "在浏览器扩展页点击\"加载已解压的扩展程序\"，粘贴刚才复制的路径，选择 helper-extension 文件夹",
+      "step-reconnect": "6. 重新连接扩展",
+      "step-reconnect-desc": "如果扩展未连接，点击清理 NMH 进程，然后在扩展页点击扩展卡片上的\"刷新\"按钮",
+      "step-reconnect-btn": "重新连接",
+      "step-reconnect-success": "已清理，请在扩展页刷新扩展",
+      "step-reconnect-fail": "操作失败",
+      "diag-killed": "已清理 {{count}} 个 NMH 进程",
+      "diag-build-hint": "请运行: cargo build -p irtool-native-messaging",
+      "dev-mode-hint": "提示：需在浏览器扩展页右上角开启\"开发者模式\"开关",
+      "advanced-toggle": "高级选项（连接失败时尝试）",
+      "advanced-extid-desc": "手动指定扩展 ID（覆盖默认固定 ID）。仅在默认连接失败时使用，例如 manifest.json 的 key 被修改或浏览器不尊重 key 字段。",
+      "advanced-extid-hint": "留空则使用默认固定 ID。填写后点击上方的\"安装 NMH\"按钮重新安装。"
+    },
+    "connection": {
+      "connected": "扩展已连接",
+      "disconnected": "扩展未连接",
+      "last-heartbeat": "最后心跳",
+      "last-heartbeat-seconds": "{{count}}s前",
+      "last-heartbeat-minutes": "{{count}}m前"
     }
   },
   "settings": {

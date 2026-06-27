@@ -659,10 +659,46 @@ async cmdBrowserForensicsAttributeExtension(processName: string, pid: number, do
  * 
  * 写入 Native Messaging Host JSON 配置文件并注册到浏览器注册表。
  * 支持 Chrome / Edge。
+ * 
+ * 扩展 ID 默认由 manifest.json 的 `key` 字段固定，无需前端传入。
+ * `extension_id_override` 用于兜底场景（高级选项），用户可手动输入扩展 ID 覆盖。
  */
-async cmdBrowserForensicsInstallNativeMessagingHost(browser: BrowserKind) : Promise<Result<string, IrError>> {
+async cmdBrowserForensicsInstallNativeMessagingHost(browser: BrowserKind, extensionIdOverride: string | null) : Promise<Result<string, IrError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_install_native_messaging_host", { browser }) };
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_install_native_messaging_host", { browser, extensionIdOverride }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 获取 Helper Extension 目录的绝对路径。
+ * 
+ * dev 模式：返回 workspace 根下的 `helper-extension/` 目录（基于 CARGO_MANIFEST_DIR 解析）。
+ * release 模式：返回 Tauri resource_dir 下的 `helper-extension/`。
+ * 
+ * 前端用此路径：1) 复制到剪贴板供用户 Load unpacked 时粘贴；2) 判断扩展目录是否存在。
+ */
+async cmdBrowserForensicsGetHelperExtensionPath() : Promise<Result<string, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_get_helper_extension_path") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 打开浏览器的扩展管理页。
+ * 
+ * Chrome → `chrome://extensions`
+ * Edge   → `edge://extensions`
+ * 
+ * 通过启动浏览器 exe 并传递 URL 参数实现（`chrome://` 不是标准 URL scheme，
+ * 无法用 shell open 直接打开）。浏览器 exe 路径从注册表或 Program Files 查找。
+ */
+async cmdBrowserForensicsOpenExtensionsPage(browser: BrowserKind) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_open_extensions_page", { browser }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -694,6 +730,51 @@ async cmdBrowserForensicsSendConfig(filterDomains: string[]) : Promise<Result<nu
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * 读取当前已下发的 filterDomains（用于 UI 启动时同步显示）。
+ * 
+ * 从 `%TEMP%\irtool\config.json` 读取。文件不存在时返回空数组。
+ * 用途：IRtool 重启后 UI store 清空，但磁盘 config 仍有效，扩展继续按旧配置过滤；
+ * 此命令让 UI 能把磁盘上的已下发域名同步回界面，避免"已下发但 UI 看不到"的不一致。
+ */
+async cmdBrowserForensicsGetConfig() : Promise<Result<string[], IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_get_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 查询 Helper Extension 连接状态
+ */
+async cmdBrowserForensicsExtensionStatus() : Promise<Result<ExtensionConnectionStatus, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_extension_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 重新连接 Helper Extension
+ * 
+ * 1. kill 所有卡死的 NMH 进程（irtool-native-messaging-host.exe）
+ * 2. 下发 reconnectSignal 给扩展（通过 config.json → NMH → 扩展）
+ * 扩展收到后立即重置退避计数器并尝试重连，省去等待指数退避的时间
+ * 3. 返回诊断信息（NMH 二进制路径/存在性、连接状态）
+ * 
+ * 注意：reconnectSignal 只有在 NMH 进程存活且扩展 port 已断开时才有效。
+ * 如果 NMH 进程被 kill，扩展的 onDisconnect 会触发自动重连（无需 signal）。
+ */
+async cmdBrowserForensicsReconnectExtension() : Promise<Result<ReconnectDiagnostics, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_reconnect_extension") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -717,43 +798,15 @@ export type AdapterInfo = { name: string; ip: string; description: string }
 export type Alert = { id: number; timestamp: number; rule_name: string; event_type: string; process_name: string; key_field: string; action_taken: string; raw_json: string }
 export type AlertPopupParams = { rule_name: string; key_field: string; event_type: string; process_name: string; protocol: string; timestamp: number; source_addr: string | null; remote_addr: string | null; process_chain: string | null }
 export type AppInfo = { name: string; version: string; is_admin: boolean }
-export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 /**
  * 证据置信度等级
- *
+ * 
  * - Confirmed: P1 Helper / P2 CDP 铁证
  * - Probable: P0 高分关联（total >= 70）
  * - Possible: P0 低分关联（total < 70）
  */
 export type AttributionLevel = "confirmed" | "probable" | "possible"
-/**
- * Browser Context Attribution 综合输出
- */
-export type BrowserContext = { malicious_connection: MaliciousConnection; context: BrowserContextDetail }
-/**
- * Browser Context 详情
- */
-export type BrowserContextDetail = { 
-/**
- * 近期浏览器活动（来自 History Analysis）
- */
-recent_browser_activity: RecentActivity[]; 
-/**
- * 用户访问路径（来自 Navigation Chain）
- */
-navigation_chain: NavChainNode[]; 
-/**
- * 当前打开标签页（来自 Session Recovery，暂为空）
- */
-current_tabs: CurrentTab[]; 
-/**
- * 下载溯源（来自 Download Analysis）
- */
-recent_downloads: DownloadInfo[]; 
-/**
- * 匹配的扩展（来自 Permission Matcher）
- */
-matching_extensions: MatchedExtension[] }
+export type AutorunItem = { id: number; category: string; entry: string; enabled: boolean; location: string; description: string; publisher: string; image_path: string | null; launch_string: string | null; timestamp: string | null; file_exists: boolean; file_size: number | null; file_version: string | null; service_name: string | null; md5: string | null; sha256: string | null; risk: RiskLevel; risk_reasons: string[]; signature: SignatureStatus }
 /**
  * Chromium 系浏览器类型
  */
@@ -870,15 +923,15 @@ interrupt_reason: string | null;
  */
 evidence_type: string; 
 /**
- * 完整重定向链（downloads_url_chains）
+ * 完整重定向链（按 chain_index ASC 排序）
  */
 url_chain: string[]; 
 /**
- * 下载触发时的标签页 URL（新版 schema）
+ * 发起下载的标签页 URL（新版 schema 字段）
  */
 tab_url: string | null; 
 /**
- * 下载触发时的 referrer URL（新版 schema）
+ * 标签页 referrer（新版 schema 字段）
  */
 tab_referrer_url: string | null }
 /**
@@ -896,7 +949,7 @@ export type EventQuery = { source: string | null; event_type: string | null; pro
 export type EventSource = "sysmon" | "dns_client" | "net_monitor" | "pcap"
 /**
  * 统一证据对象（设计方案目标 JSON 结构的 Rust 对应）
- *
+ * 
  * `attribute_browser_context` 的返回值，组合 5 类子证据并通过 `overall_score`/`overall_confidence`
  * 给出综合归因结论。P0 阶段 `alert_id`/`tab_attribution` 暂为 None。
  */
@@ -942,9 +995,13 @@ candidate_extensions: MatchedExtension[] }
  */
 export type ExtensionAttributionSummary = { confidence: AttributionLevel; matched: MatchedExtension[] }
 /**
+ * 扩展连接状态快照
+ */
+export type ExtensionConnectionStatus = { connected: boolean; last_heartbeat_ms: number; last_event_ms: number }
+/**
  * 单个扩展的完整信息
  */
-export type ExtensionInfo = { id: string; name: string; version: string; description: string | null; enabled: boolean; install_time: string | null; install_source: string | null; update_url: string | null; was_installed_by_default: boolean | null; permissions: string[]; host_permissions: string[]; has_content_scripts: boolean; has_background: boolean; preferences_tampered: boolean; risk_flags: string[]; ioc_matches: IocMatch[]; path: string }
+export type ExtensionInfo = { id: string; name: string; version: string; description: string | null; enabled: boolean; install_time: string | null; install_source: string | null; update_url: string | null; was_installed_by_default: boolean | null; permissions: string[]; host_permissions: string[]; has_content_scripts: boolean; has_background: boolean; preferences_tampered: boolean; risk_flags: string[]; ioc_matches: IocMatch[]; path: string; risk_score: number; risk_level: RiskLevel }
 /**
  * 扩展资产清单
  */
@@ -1098,7 +1155,15 @@ enabled: boolean }
 /**
  * Navigation Chain 节点
  */
-export type NavChainNode = { url: string; title: string | null; transition: string | null; qualifiers: string[]; referrer: string | null }
+export type NavChainNode = { url: string; title: string | null; transition: string | null; 
+/**
+ * 高位限定符字符串列表（如 "ClientRedirect"、"ServerRedirect"）
+ */
+qualifiers: string[]; 
+/**
+ * visits.referrer 的 visit id 字符串形式（P0.3 阶段不 JOIN urls 表）
+ */
+referrer: string | null }
 export type NetConn = { proto: Proto; family: Family; local: NetEndpoint; remote: NetEndpoint; state: ConnState; pid: number; process_name: string | null; process_path: string | null; process_cmdline: string | null; cmdline_status: CmdlineStatus; first_seen: number; last_seen: number; is_current: boolean }
 export type NetEndpoint = { addr: string; port: number }
 export type NetworkPollingControl = { interval_ms: number | null; paused: boolean | null; retention: RetentionPolicyDto | null }
@@ -1189,11 +1254,35 @@ export type Proto = "tcp" | "udp"
  */
 export type RecentActivity = { url: string; title: string; visit_time: string; tier: TimeTier; time_distance_ms: number; evidence_type: string; score: EvidenceScore | null }
 /**
+ * 重新连接诊断结果
+ */
+export type ReconnectDiagnostics = { 
+/**
+ * 被 kill 的 NMH 进程数
+ */
+killed_processes: number; 
+/**
+ * NMH 二进制路径（从 install_helper 推算）
+ */
+nmh_exe_path: string; 
+/**
+ * NMH 二进制是否存在
+ */
+nmh_exe_exists: boolean; 
+/**
+ * 当前连接状态
+ */
+connection: ExtensionConnectionStatus }
+/**
  * 恢复的标签页
  */
 export type RecoveredTab = { url: string; title: string; active: boolean; tab_index: number | null }
 export type RetentionPolicyDto = "none" | { seconds: number } | "forever"
 export type RiskLevel = "safe" | "suspicious" | "high_risk"
+/**
+ * 扩展风险等级
+ */
+export type RiskLevel = "Low" | "Medium" | "High"
 /**
  * 运行模式
  */

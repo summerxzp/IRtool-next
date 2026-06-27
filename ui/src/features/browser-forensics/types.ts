@@ -1,7 +1,7 @@
 // P0.7: 从 bindings re-export EvidenceObject 及相关新类型
 // 注意：本地仍保留 BrowserContext / BrowserContextDetail 等旧定义（DomainAttribution 路径可能仍在用）
 // NavChainNode / RecentActivity 需本地引用（HistoryAttribution / BrowserContextDetail），故先 import 再 re-export
-import type { NavChainNode, RecentActivity } from "@/lib/bindings";
+import type { NavChainNode, RecentActivity, AttributionLevel } from "@/lib/bindings";
 export type { NavChainNode, RecentActivity };
 export type {
   EvidenceObject,
@@ -172,7 +172,9 @@ export interface BrowserMaliciousConnectionPayload {
   alert_id: string;
 }
 
-/// 后端推送的扩展归因网络请求事件负载
+/// Helper Extension 上报的归因网络请求事件（发布到 EventBus）
+/// 注意：后端 irtool-service/src/dto/browser_forensics.rs 有 #[derive(Type)]，
+/// 但未在 irtool-tauri 中引用，故 bindings.ts 未生成。本地定义保持一致。
 export interface ExtensionAttributionPayload {
   timestamp: number;
   request_id: string;
@@ -182,6 +184,7 @@ export interface ExtensionAttributionPayload {
   attribution_status: string;
   extension_id: string | null;
   extension_name: string | null;
+  level: AttributionLevel;
 }
 
 /// 基于域名的归因结果
