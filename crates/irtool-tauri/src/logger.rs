@@ -68,7 +68,8 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     // --- monitor.log: 所有监控相关 crate 的 DEBUG 日志 ---
     // 包含 irtool_monitor (规则引擎/告警), irtool_net_monitor (网络连接),
-    // irtool_pcap (抓包/SNI/DNS), irtool_sysmon (Sysmon 事件)
+    // irtool_pcap (抓包/SNI/DNS), irtool_sysmon (Sysmon 事件),
+    // 以及浏览器取证/扩展检测（publish_native_events / extension_connection）
     let monitor_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("irtool-monitor")
@@ -88,7 +89,9 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
 
     let monitor_filter = EnvFilter::new(
         "irtool_monitor=debug,irtool_net_monitor=debug,\
-         irtool_pcap=debug,irtool_sysmon=debug",
+         irtool_pcap=debug,irtool_sysmon=debug,\
+         irtool_service::services::browser_forensics=debug,\
+         irtool_service::services::extension_connection=debug",
     );
 
     let monitor_layer = fmt::layer()

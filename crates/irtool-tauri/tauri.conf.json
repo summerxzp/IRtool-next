@@ -49,6 +49,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "../../helper-extension": "helper-extension/"
+    },
     "windows": {
       "wix": {
         "language": [
