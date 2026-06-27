@@ -8,6 +8,8 @@ use tokio::sync;
 use tokio_util::sync::CancellationToken;
 
 use crate::event_bus::EventBus;
+use crate::services::browser_ip_index::{BrowserIpIndex, SharedBrowserIpIndex};
+use crate::services::extension_connection::ExtensionConnectionState;
 
 /// Transport-agnostic application context.
 ///
@@ -36,6 +38,10 @@ pub struct AppContext {
     pub app_dirs: Arc<AppDirs>,
     // --- EventBus ---
     pub event_bus: EventBus,
+    // --- T3: 远程 IP → 浏览器进程时序索引（pcap 域名事件反查） ---
+    pub browser_ip_index: SharedBrowserIpIndex,
+    // --- Helper Extension 连接状态（无锁，高频更新） ---
+    pub extension_connection: Arc<ExtensionConnectionState>,
 }
 
 pub struct NetworkPollingState {
@@ -83,6 +89,8 @@ impl AppContext {
             pcap_collector: Arc::new(sync::Mutex::new(irtool_pcap::PcapCollector::new())),
             app_dirs: Arc::new(app_dirs),
             event_bus: EventBus::new(),
+            browser_ip_index: Arc::new(sync::Mutex::new(BrowserIpIndex::new())),
+            extension_connection: Arc::new(ExtensionConnectionState::new()),
         }
     }
 }

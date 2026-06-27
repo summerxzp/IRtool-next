@@ -79,6 +79,7 @@ impl<'a> NetworkService<'a> {
             let shared_retention = Arc::new(Mutex::new(polling.retention));
             let monitor_engine = self.ctx.monitor_engine.clone();
             let event_bus = self.ctx.event_bus.clone();
+            let browser_ip_index = self.ctx.browser_ip_index.clone();
             drop(polling);
 
             let collector = self.ctx.net_collector.clone();
@@ -94,6 +95,7 @@ impl<'a> NetworkService<'a> {
                     new_interval,
                     token,
                     monitor_engine,
+                    browser_ip_index,
                 )
                 .await;
             });
@@ -198,6 +200,7 @@ impl<'a> NetworkService<'a> {
         let shared_retention = Arc::new(Mutex::new(retention));
         let monitor_engine = self.ctx.monitor_engine.clone();
         let event_bus = self.ctx.event_bus.clone();
+        let browser_ip_index = self.ctx.browser_ip_index.clone();
         handle.spawn(async move {
             run_polling_loop(
                 collector,
@@ -208,6 +211,7 @@ impl<'a> NetworkService<'a> {
                 interval,
                 token,
                 monitor_engine,
+                browser_ip_index,
             )
             .await;
         });
@@ -224,6 +228,7 @@ async fn run_polling_loop(
     interval_ms: u64,
     cancel: CancellationToken,
     monitor_engine: Arc<tokio::sync::Mutex<irtool_monitor::MonitorEngine>>,
+    browser_ip_index: crate::services::browser_ip_index::SharedBrowserIpIndex,
 ) {
     info!(interval_ms, "network polling loop starting");
     let mut ticker = tokio::time::interval(Duration::from_millis(interval_ms));
@@ -315,8 +320,18 @@ async fn run_polling_loop(
                                     // 检查是否为浏览器进程的恶意连接（覆盖 Chrome/Edge）
                                     let proc_name = conn.process_name.as_deref().unwrap_or("");
                                     if browser_kind_from_process_name(proc_name).is_some() {
+                                        // T3: 写入 IP→浏览器进程索引，供 pcap 域名事件反查
+                                        let now_ms = (now_secs as i64) * 1000;
+                                        browser_ip_index
+                                            .lock()
+                                            .await
+                                            .insert(&conn.remote.addr, conn.pid, proc_name, now_ms);
+
                                         let payload = BrowserMaliciousConnectionPayload {
-                                            domain: conn.remote.addr.clone(),
+                                            // net-monitor 只有 IP（NetConn.remote.addr），无域名信息；
+                                            // domain 留空，前端按 domain 非空判断是否为域名告警。
+                                            // 域名→IP 关联由 T3（pcap/sysmon 域名反查）或前端手动输入处理。
+                                            domain: String::new(),
                                             ip: conn.remote.addr.clone(),
                                             process_name: conn.process_name.clone().unwrap_or_default(),
                                             pid: conn.pid,

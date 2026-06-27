@@ -2,6 +2,7 @@ use irtool_core::IrError;
 use irtool_pcap::{AdapterInfo, PcapConfig, PcapCountersSnapshot, PcapEvent};
 
 use crate::context::AppContext;
+use crate::dto::browser_forensics::BrowserMaliciousConnectionPayload;
 use crate::event_bus::AppEvent;
 
 pub struct PcapService<'a> {
@@ -24,12 +25,28 @@ impl<'a> PcapService<'a> {
         // Forward pcap events: rule engine + EventBus
         let monitor_engine = self.ctx.monitor_engine.clone();
         let event_bus = self.ctx.event_bus.clone();
+        let browser_ip_index = self.ctx.browser_ip_index.clone();
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
                 // Rule engine always processes
                 let alerts = monitor_engine.lock().await.process_pcap_event(&event).await;
                 for alert in &alerts {
                     event_bus.publish(AppEvent::MonitorAlert(alert.clone()));
+
+                    // T3: pcap 域名事件反查浏览器进程（pcap 无 pid，靠 IP 索引归因）
+                    let now_ms = event.timestamp;
+                    let entry = browser_ip_index.lock().await.lookup(&event.dst_ip, now_ms).cloned();
+                    if let Some(entry) = entry {
+                        let payload = BrowserMaliciousConnectionPayload {
+                            domain: event.domain.clone(),
+                            ip: event.dst_ip.clone(),
+                            process_name: entry.process_name.clone(),
+                            pid: entry.pid,
+                            cmdline: None, // pcap 路径无 cmdline
+                            alert_id: alert.id.to_string(),
+                        };
+                        event_bus.publish(AppEvent::BrowserMaliciousConnection(payload));
+                    }
                 }
                 // Only publish to frontend when not in background mode
                 let is_background = monitor_engine.lock().await.is_background_mode();

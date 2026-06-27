@@ -5,6 +5,7 @@ use irtool_core::IrError;
 
 use crate::context::AppContext;
 use crate::dto::browser_forensics::*;
+use crate::services::extension_connection::ExtensionConnectionState;
 
 pub struct BrowserForensicsService<'a> {
     pub ctx: &'a AppContext,
@@ -231,20 +232,42 @@ fn read_queue_file(path: &std::path::Path) -> Vec<NativeQueueMessage> {
         .collect()
 }
 
+/// 根据扩展归因状态计算 AttributionLevel
+///
+/// Helper Extension 上报的 status 取值（见 helper-extension/service_worker.js）：
+/// - "high-confidence" → 扩展 initiator 铁证，Confirmed
+/// - "page-originated" → 页面 origin 发起，非扩展归因，Possible
+/// - "browser-owned"  → 无 initiator，非扩展归因，Possible
+///
+/// 兼容历史值 "matched"（早期文档使用）。
+pub fn compute_attribution_level(status: &str) -> AttributionLevel {
+    if status == "matched" || status == "high-confidence" {
+        AttributionLevel::Confirmed
+    } else {
+        AttributionLevel::Possible
+    }
+}
+
 /// 从 Native Messaging 队列读取消息并发布到 EventBus。
 ///
 /// 当前处理以下消息类型：
 /// - `network_batch` → 提取 events 数组中的每条请求，发布为 `ExtensionAttribution` 事件
 /// - `extension_list` → 记录扩展清单更新
-/// - `heartbeat` → 忽略
+/// - `heartbeat` → 记录心跳时间戳，确保 config 文件存在供 NMH 检测
+///
+/// 所有消息类型都会更新 `ExtensionConnectionState` 的时间戳，供前端轮询判断扩展是否在线。
 ///
 /// 返回本次处理的消息数量。
-pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
+pub fn publish_native_events(
+    event_bus: &crate::event_bus::EventBus,
+    conn: &ExtensionConnectionState,
+) -> usize {
     let messages = read_native_messaging_queue();
     if messages.is_empty() {
         return 0;
     }
 
+    let now_ms = chrono::Utc::now().timestamp_millis();
     let mut event_count = 0;
 
     for msg in &messages {
@@ -268,9 +291,10 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
                                     url: req.url,
                                     method: req.method,
                                     initiator: req.initiator,
-                                    attribution_status: req.attribution.status,
+                                    attribution_status: req.attribution.status.clone(),
                                     extension_id: req.attribution.extension_id,
                                     extension_name: req.attribution.extension_name,
+                                    level: compute_attribution_level(&req.attribution.status),
                                 },
                             ));
 
@@ -278,6 +302,7 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
                         }
                     }
                 }
+                conn.record_event(now_ms);
             }
             "extension_list" => {
                 let mode = msg.payload.get("mode").and_then(|v| v.as_str()).unwrap_or("unknown");
@@ -304,13 +329,18 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus) -> usize {
                 }
 
                 event_count += count;
+                conn.record_event(now_ms);
             }
             "heartbeat" => {
-                // 心跳消息 → 扩展在线，确保 config 文件存在供 NMH 检测
-                tracing::trace!("native heartbeat, ensuring config file exists");
+                // 心跳消息 → 扩展在线，记录心跳时间戳并确保 config 文件存在供 NMH 检测
+                tracing::debug!("native heartbeat received, extension is online");
+                conn.record_heartbeat(now_ms);
                 // 确保 NMH host 有 config.json 可检测（内容为空表示不过滤）
+                // 此处失败不影响事件处理主流程，仅记录日志
                 if !native_config_path().exists() {
-                    send_config(&[]);
+                    if let Err(e) = send_config(&[]) {
+                        tracing::warn!("failed to create initial config.json on heartbeat: {}", e);
+                    }
                 }
             }
             other => {
@@ -332,21 +362,173 @@ fn native_config_path() -> PathBuf {
 /// 向 Helper Extension 下发配置（下行通道）。
 ///
 /// 写入 `%TEMP%\irtool\config.json`，NMH host 进程在事件循环中检测到此文件
-/// 变化后，会通过 stdout 向扩展转发 `{"type":"config","filterDomains":[...]}` 消息。
+/// 变化后，会通过 stdout 向扩展转发 `{"type":"config",...}` 消息。
 ///
 /// 传递空切片可清除过滤规则（取消域名过滤）。
-pub fn send_config(filter_domains: &[String]) {
+///
+/// 返回 Err 时调用方应向 UI 报错（避免静默失败导致用户以为已下发但实际没写）。
+pub fn send_config(filter_domains: &[String]) -> Result<(), String> {
     let config_path = native_config_path();
     if let Some(parent) = config_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return Err(format!("failed to create config dir {:?}: {}", parent, e));
+        }
     }
 
     let content = serde_json::json!({
         "filterDomains": filter_domains,
     });
 
-    match std::fs::write(&config_path, serde_json::to_string_pretty(&content).unwrap()) {
-        Ok(_) => tracing::info!("config written to {:?} ({} domains)", config_path, filter_domains.len()),
-        Err(e) => tracing::error!("failed to write config {:?}: {}", config_path, e),
+    let json_str = serde_json::to_string_pretty(&content)
+        .map_err(|e| format!("serialize config failed: {}", e))?;
+
+    std::fs::write(&config_path, &json_str)
+        .map_err(|e| format!("failed to write config {:?}: {}", config_path, e))?;
+
+    tracing::info!("config written to {:?} ({} domains)", config_path, filter_domains.len());
+    Ok(())
+}
+
+/// 读取当前已下发的 filterDomains（用于 UI 启动时同步显示）。
+///
+/// 从 `%TEMP%\irtool\config.json` 中读取 `filterDomains` 字段。
+/// 文件不存在、解析失败或字段缺失时返回空 Vec。
+///
+/// 用途：UI 重启后 store 清空，但磁盘上的 config 仍然有效，扩展仍按旧配置
+/// 过滤。启动时调用此函数把已下发的域名同步回 UI，避免"已下发但 UI 看不到"
+/// 的不一致。
+pub fn get_native_config_filter_domains() -> Vec<String> {
+    let config_path = native_config_path();
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let config: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(
+                path = ?config_path,
+                error = %e,
+                "failed to parse native config json, returning empty filter list"
+            );
+            return Vec::new();
+        }
+    };
+
+    match config.get("filterDomains").and_then(|v| v.as_array()) {
+        Some(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// 向 Helper Extension 下发重连信号（下行通道）。
+///
+/// 在 config.json 中写入 `reconnectSignal: true`，NMH 检测到文件变化后
+/// 通过 stdout 转发给扩展。扩展收到后立即重置退避计数器并尝试重连，
+/// 省去等待指数退避的时间。
+///
+/// 注意：此函数保留现有的 filterDomains 不变，只追加 reconnectSignal 字段。
+pub fn send_reconnect_signal() {
+    let config_path = native_config_path();
+    if let Some(parent) = config_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // 读取现有 config（保留 filterDomains），追加 reconnectSignal
+    let mut config: serde_json::Value = std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    // 确保是 object
+    if !config.is_object() {
+        config = serde_json::json!({});
+    }
+
+    // 写入 reconnectSignal（用时间戳保证 mtime 变化，即使连续点击也能触发）
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    if let Some(obj) = config.as_object_mut() {
+        obj.insert("reconnectSignal".to_string(), serde_json::json!(now_ms));
+    }
+
+    match std::fs::write(
+        &config_path,
+        serde_json::to_string_pretty(&config).unwrap_or_else(|e| {
+            tracing::error!("serialize config failed: {e}");
+            "{}".to_string()
+        }),
+    ) {
+        Ok(_) => tracing::info!("reconnect signal written to {:?} (ts={})", config_path, now_ms),
+        Err(e) => tracing::error!("failed to write reconnect signal {:?}: {}", config_path, e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_attribution_level_matched_returns_confirmed() {
+        assert_eq!(compute_attribution_level("matched"), AttributionLevel::Confirmed);
+        assert_eq!(
+            compute_attribution_level("high-confidence"),
+            AttributionLevel::Confirmed
+        );
+    }
+
+    #[test]
+    fn compute_attribution_level_unmatched_returns_possible() {
+        assert_eq!(compute_attribution_level("page-originated"), AttributionLevel::Possible);
+        assert_eq!(compute_attribution_level("browser-owned"), AttributionLevel::Possible);
+        assert_eq!(compute_attribution_level("unmatched"), AttributionLevel::Possible);
+        assert_eq!(compute_attribution_level("unknown"), AttributionLevel::Possible);
+        assert_eq!(compute_attribution_level(""), AttributionLevel::Possible);
+    }
+
+    // ── C3 回归测试：JS 上报 camelCase，Rust 结构体必须能正确反序列化 ──
+
+    #[test]
+    fn attributed_web_request_deserializes_camel_case() {
+        // 与 service_worker.js onBeforeRequest 上报格式一致
+        let json = serde_json::json!({
+            "timestamp": 1719400000000u64,
+            "requestId": "req-123",
+            "url": "https://evil.com/payload.zip",
+            "method": "GET",
+            "initiator": "chrome-extension://abcdefghijklmnopqrstuvwxyz123456/",
+            "attribution": {
+                "status": "high-confidence",
+                "extensionId": "abcdefghijklmnopqrstuvwxyz123456",
+                "extensionName": "Suspicious Ext"
+            }
+        });
+        let req: AttributedWebRequest = serde_json::from_value(json).expect("camelCase JSON should deserialize");
+        assert_eq!(req.request_id, "req-123");
+        assert_eq!(req.attribution.extension_id.as_deref(), Some("abcdefghijklmnopqrstuvwxyz123456"));
+        assert_eq!(req.attribution.extension_name.as_deref(), Some("Suspicious Ext"));
+        assert_eq!(req.attribution.status, "high-confidence");
+    }
+
+    #[test]
+    fn extension_list_entry_deserializes_camel_case() {
+        // 与 service_worker.js reportExtensionListFull 上报格式一致
+        let json = serde_json::json!({
+            "id": "extid",
+            "name": "Test Extension",
+            "version": "1.0.0",
+            "enabled": true,
+            "hostPermissions": ["<all_urls>"],
+            "installType": "development"
+        });
+        let entry: ExtensionListEntry = serde_json::from_value(json).expect("camelCase JSON should deserialize");
+        assert_eq!(entry.install_type, "development");
+        assert_eq!(entry.host_permissions.as_deref(), Some(&["<all_urls>".to_string()][..]));
     }
 }

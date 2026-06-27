@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use irtool_browser_forensics::BrowserKind;
+use irtool_browser_forensics::{AttributionLevel, BrowserKind};
 
 // ── Native Messaging 事件 DTO ─────────────────────────────────
 
@@ -15,7 +15,11 @@ pub struct NativeQueueMessage {
 }
 
 /// 从扩展上报的网络请求归因事件
+///
+/// JS 端（service_worker.js）使用 camelCase 上报：
+/// `requestId` / `attribution.extensionId` / `attribution.extensionName`
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AttributedWebRequest {
     pub timestamp: u64,
     pub request_id: String,
@@ -26,7 +30,10 @@ pub struct AttributedWebRequest {
 }
 
 /// 归因信息
+///
+/// JS 端上报字段为 camelCase：`extensionId` / `extensionName`
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AttributionInfo {
     pub status: String,
     pub extension_id: Option<String>,
@@ -34,7 +41,11 @@ pub struct AttributionInfo {
 }
 
 /// 扩展清单条目
+///
+/// JS 端（chrome.management.ExtensionInfo）使用 camelCase：
+/// `installType` / `hostPermissions`
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionListEntry {
     pub id: String,
     pub name: Option<String>,
@@ -66,6 +77,8 @@ pub struct ExtensionAttributionPayload {
     pub attribution_status: String,
     pub extension_id: Option<String>,
     pub extension_name: Option<String>,
+    /// P1.2: Helper Extension 自报归因置信度（matched → Confirmed）
+    pub level: AttributionLevel,
 }
 
 /// 扫描请求参数
