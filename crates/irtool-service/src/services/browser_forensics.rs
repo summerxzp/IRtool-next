@@ -470,6 +470,123 @@ pub fn send_reconnect_signal() {
     }
 }
 
+/// 向 Helper Extension 下发自我卸载信号（手动清理）。
+///
+/// 在 config.json 中写入 `selfUninstall: <timestamp>`，NMH 检测到文件变化后
+/// 通过 stdout 转发给扩展。扩展收到后调用 `chrome.management.uninstallSelf()`
+/// 立即卸载自己。
+///
+/// 用途：应急响应场景，用户在 IRtool UI 点击"清理扩展"按钮时调用。
+/// 与自动清理（selfCleanupTimeoutMin）配合使用：
+/// - 自动清理：IRtool 离线超时后扩展自动卸载
+/// - 手动清理：用户主动触发立即卸载
+pub fn send_self_uninstall_signal() {
+    let config_path = native_config_path();
+    if let Some(parent) = config_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // 读取现有 config（保留 filterDomains / selfCleanupTimeoutMin 等），追加 selfUninstall
+    let mut config: serde_json::Value = std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    if !config.is_object() {
+        config = serde_json::json!({});
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    if let Some(obj) = config.as_object_mut() {
+        obj.insert("selfUninstall".to_string(), serde_json::json!(now_ms));
+    }
+
+    match std::fs::write(
+        &config_path,
+        serde_json::to_string_pretty(&config).unwrap_or_else(|e| {
+            tracing::error!("serialize config failed: {e}");
+            "{}".to_string()
+        }),
+    ) {
+        Ok(_) => tracing::info!(
+            "self-uninstall signal written to {:?} (ts={})",
+            config_path,
+            now_ms
+        ),
+        Err(e) => tracing::error!(
+            "failed to write self-uninstall signal {:?}: {}",
+            config_path,
+            e
+        ),
+    }
+}
+
+/// 设置扩展自我清理超时时间（分钟）。
+///
+/// 写入 config.json 的 `selfCleanupTimeoutMin` 字段，扩展读取后调整定时器：
+/// - 0 = 禁用自动清理
+/// - >0 = 启用，IRtool 离线超过该时长后扩展自动卸载
+///
+/// 默认值 60 分钟（在扩展端 DEFAULT_SELF_CLEANUP_TIMEOUT_MIN 常量中定义）。
+/// 此函数用于用户在 IRtool UI 中修改超时时间时持久化到 config。
+pub fn set_self_cleanup_timeout(timeout_min: u32) {
+    let config_path = native_config_path();
+    if let Some(parent) = config_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let mut config: serde_json::Value = std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    if !config.is_object() {
+        config = serde_json::json!({});
+    }
+
+    if let Some(obj) = config.as_object_mut() {
+        obj.insert(
+            "selfCleanupTimeoutMin".to_string(),
+            serde_json::json!(timeout_min),
+        );
+    }
+
+    match std::fs::write(
+        &config_path,
+        serde_json::to_string_pretty(&config).unwrap_or_else(|e| {
+            tracing::error!("serialize config failed: {e}");
+            "{}".to_string()
+        }),
+    ) {
+        Ok(_) => tracing::info!(
+            "self-cleanup timeout written to {:?} ({} min)",
+            config_path,
+            timeout_min
+        ),
+        Err(e) => tracing::error!(
+            "failed to write self-cleanup timeout {:?}: {}",
+            config_path,
+            e
+        ),
+    }
+}
+
+/// 读取当前 selfCleanupTimeoutMin 配置（用于 UI 显示当前值）。
+///
+/// 文件不存在/字段缺失时返回 None，UI 可用默认值 60 显示。
+pub fn get_self_cleanup_timeout() -> Option<u32> {
+    let config_path = native_config_path();
+    let content = std::fs::read_to_string(&config_path).ok()?;
+    let config: serde_json::Value = serde_json::from_str(&content).ok()?;
+    config
+        .get("selfCleanupTimeoutMin")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

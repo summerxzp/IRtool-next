@@ -268,6 +268,9 @@ fn command_builder() -> Builder<tauri::Wry> {
         cmd_browser_forensics_attribute_by_domain,
         cmd_browser_forensics_send_config,
         cmd_browser_forensics_get_config,
+        cmd_browser_forensics_self_uninstall,
+        cmd_browser_forensics_set_self_cleanup_timeout,
+        cmd_browser_forensics_get_self_cleanup_timeout,
         cmd_browser_forensics_extension_status,
         cmd_browser_forensics_reconnect_extension,
     ])

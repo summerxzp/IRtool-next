@@ -333,6 +333,43 @@ pub async fn cmd_browser_forensics_get_config() -> Result<Vec<String>, IrError> 
     Ok(irtool_service::services::browser_forensics::get_native_config_filter_domains())
 }
 
+/// 下发自我卸载信号给扩展（手动清理）。
+///
+/// 在 config.json 中写入 `selfUninstall: <timestamp>`，NMH 检测到 mtime 变化后
+/// 透传给扩展，扩展调用 `chrome.management.uninstallSelf()` 立即卸载。
+///
+/// 用途：应急响应场景，用户点击"清理扩展"按钮时调用。
+/// 注意：此操作不可逆，扩展会被立即卸载。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_self_uninstall() -> Result<(), IrError> {
+    irtool_service::services::browser_forensics::send_self_uninstall_signal();
+    Ok(())
+}
+
+/// 设置扩展自我清理超时时间（分钟）。
+///
+/// 写入 config.json 的 `selfCleanupTimeoutMin` 字段：
+/// - 0 = 禁用自动清理
+/// - >0 = 启用，IRtool 离线超过该时长后扩展自动卸载（默认 60）
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_set_self_cleanup_timeout(
+    timeout_min: u32,
+) -> Result<(), IrError> {
+    irtool_service::services::browser_forensics::set_self_cleanup_timeout(timeout_min);
+    Ok(())
+}
+
+/// 读取当前 selfCleanupTimeoutMin 配置。
+///
+/// 返回 None 时 UI 应显示默认值 60。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_get_self_cleanup_timeout() -> Result<Option<u32>, IrError> {
+    Ok(irtool_service::services::browser_forensics::get_self_cleanup_timeout())
+}
+
 /// 查询 Helper Extension 连接状态
 #[tauri::command]
 #[specta::specta]
