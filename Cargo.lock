@@ -2546,6 +2546,7 @@ name = "irtool-browser-forensics"
 version = "2.0.3"
 dependencies = [
  "chrono",
+ "encoding_rs",
  "glob",
  "irtool-core",
  "regex",
@@ -2634,10 +2635,13 @@ dependencies = [
 name = "irtool-native-messaging"
 version = "2.0.3"
 dependencies = [
+ "chrono",
+ "irtool-core",
  "serde",
  "serde_json",
  "tempfile",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
 ]
 

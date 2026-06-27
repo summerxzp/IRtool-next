@@ -55,3 +55,10 @@ docs/*
 
 # IDE / tool temp dirs
 .workbuddy/
+
+# Crypto keys & packaged extension (never commit)
+*.pem
+*.crx
+.tmp_helper_ext_privkey.pem
+helper-extension.pem
+helper-extension.crx
