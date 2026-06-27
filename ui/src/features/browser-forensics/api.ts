@@ -229,6 +229,32 @@ export async function getNativeConfig(): Promise<string[]> {
   }
 }
 
+/// 下发自我卸载信号给扩展（手动清理，立即卸载扩展）
+export async function selfUninstall(): Promise<void> {
+  const result = await commands.cmdBrowserForensicsSelfUninstall();
+  if (result.status === "error") throwIrError(result.error);
+}
+
+/// 设置扩展自我清理超时时间（分钟）
+/// 0 = 禁用自动清理，>0 = 启用
+export async function setSelfCleanupTimeout(timeoutMin: number): Promise<void> {
+  const result = await commands.cmdBrowserForensicsSetSelfCleanupTimeout(timeoutMin);
+  if (result.status === "error") throwIrError(result.error);
+}
+
+/// 读取当前 selfCleanupTimeoutMin 配置
+/// 返回 null 表示文件不存在或字段缺失，UI 应显示默认值 60
+export async function getSelfCleanupTimeout(): Promise<number | null> {
+  try {
+    const result = await commands.cmdBrowserForensicsGetSelfCleanupTimeout();
+    if (result.status === "error") throwIrError(result.error);
+    return result.data;
+  } catch (e) {
+    console.error("Failed to get self-cleanup timeout:", e);
+    return null;
+  }
+}
+
 /// 安装 Native Messaging Host（bindings 已有，re-export 统一入口）
 ///
 /// 扩展 ID 默认由 manifest.json 的 `key` 字段固定，无需前端传入。

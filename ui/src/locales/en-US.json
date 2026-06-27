@@ -630,7 +630,16 @@
       "dev-mode-hint": "Tip: Enable the \"Developer mode\" toggle in the top-right of the browser extensions page.",
       "advanced-toggle": "Advanced options (try if connection fails)",
       "advanced-extid-desc": "Manually specify extension ID (overrides the default fixed ID). Only use if default connection fails, e.g. manifest.json key was modified or browser doesn't respect key field.",
-      "advanced-extid-hint": "Leave empty to use default fixed ID. After filling, click the \"Install NMH\" button above to reinstall."
+      "advanced-extid-hint": "Leave empty to use default fixed ID. After filling, click the \"Install NMH\" button above to reinstall.",
+      "cleanup-title": "Auto-cleanup extension",
+      "cleanup-desc": "After IRtool closes, the extension auto-uninstalls if it cannot reconnect within the specified time (to avoid leaving traces on user's device). Set to 0 to disable.",
+      "cleanup-unit": "minutes",
+      "cleanup-disabled": "(disabled)",
+      "manual-cleanup-title": "Manual cleanup extension",
+      "manual-cleanup-desc": "Immediately uninstall the Helper Extension from the browser (irreversible). Use for proactive cleanup after emergency response is complete.",
+      "manual-cleanup-btn": "Uninstall extension now",
+      "manual-cleanup-success": "Uninstall signal sent",
+      "manual-cleanup-fail": "Uninstall failed"
     },
     "connection": {
       "connected": "Extension Connected",

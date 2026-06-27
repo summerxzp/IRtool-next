@@ -747,6 +747,51 @@ async cmdBrowserForensicsGetConfig() : Promise<Result<string[], IrError>> {
 }
 },
 /**
+ * 下发自我卸载信号给扩展（手动清理）。
+ *
+ * 在 config.json 中写入 `selfUninstall: <timestamp>`，NMH 检测到 mtime 变化后
+ * 透传给扩展，扩展调用 `chrome.management.uninstallSelf()` 立即卸载。
+ *
+ * 用途：应急响应场景，用户点击"清理扩展"按钮时调用。
+ * 注意：此操作不可逆，扩展会被立即卸载。
+ */
+async cmdBrowserForensicsSelfUninstall() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_self_uninstall") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 设置扩展自我清理超时时间（分钟）。
+ *
+ * 写入 config.json 的 `selfCleanupTimeoutMin` 字段：
+ * - 0 = 禁用自动清理
+ * - >0 = 启用，IRtool 离线超过该时长后扩展自动卸载（默认 60）
+ */
+async cmdBrowserForensicsSetSelfCleanupTimeout(timeoutMin: number) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_set_self_cleanup_timeout", { timeoutMin }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 读取当前 selfCleanupTimeoutMin 配置。
+ *
+ * 返回 None 时 UI 应显示默认值 60。
+ */
+async cmdBrowserForensicsGetSelfCleanupTimeout() : Promise<Result<number | null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_get_self_cleanup_timeout") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 查询 Helper Extension 连接状态
  */
 async cmdBrowserForensicsExtensionStatus() : Promise<Result<ExtensionConnectionStatus, IrError>> {

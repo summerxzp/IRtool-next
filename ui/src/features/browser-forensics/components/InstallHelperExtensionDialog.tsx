@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle, AlertCircle, Copy, ExternalLink, Package, RefreshCw } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, ExternalLink, Package, RefreshCw, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import * as api from "../api";
@@ -37,6 +37,9 @@ export function InstallHelperExtensionDialog({ open, onOpenChange }: Props) {
   const [diagnostics, setDiagnostics] = useState<ReconnectDiagnostics | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [extensionIdOverride, setExtensionIdOverride] = useState("");
+  const [cleanupTimeout, setCleanupTimeout] = useState<number>(60); // 默认 60 分钟
+  const [uninstallStatus, setUninstallStatus] = useState<StepStatus>("idle");
+  const [uninstallError, setUninstallError] = useState("");
 
   // 重新打开时重置各步骤状态（保留浏览器选择）
   useEffect(() => {
@@ -52,6 +55,12 @@ export function InstallHelperExtensionDialog({ open, onOpenChange }: Props) {
       setDiagnostics(null);
       setShowAdvanced(false);
       setExtensionIdOverride("");
+      setUninstallStatus("idle");
+      setUninstallError("");
+      // 读取磁盘上的 selfCleanupTimeoutMin（无配置则用默认 60）
+      api.getSelfCleanupTimeout().then((t) => {
+        setCleanupTimeout(t ?? 60);
+      });
     }
   }, [open]);
 
@@ -110,6 +119,31 @@ export function InstallHelperExtensionDialog({ open, onOpenChange }: Props) {
     } catch (e) {
       setReconnectError(errMsg(e));
       setReconnectStatus("error");
+    }
+  };
+
+  // 手动清理：立即卸载扩展（不可逆）
+  const handleUninstall = async () => {
+    setUninstallStatus("loading");
+    setUninstallError("");
+    try {
+      await api.selfUninstall();
+      setUninstallStatus("success");
+    } catch (e) {
+      setUninstallError(errMsg(e));
+      setUninstallStatus("error");
+    }
+  };
+
+  // 修改自动清理超时时间（0 = 禁用）
+  const handleCleanupTimeoutChange = async (value: number) => {
+    const v = Math.max(0, Math.floor(value));
+    setCleanupTimeout(v);
+    try {
+      await api.setSelfCleanupTimeout(v);
+    } catch (e) {
+      // 静默失败，不打扰用户（磁盘写入失败时后端有日志）
+      console.error("Failed to set self-cleanup timeout:", e);
     }
   };
 
@@ -291,22 +325,80 @@ export function InstallHelperExtensionDialog({ open, onOpenChange }: Props) {
               {t("browser-forensics.install-helper.advanced-toggle")}
             </button>
             {showAdvanced && (
-              <div className="mt-2 space-y-1.5">
-                <p className="text-xs text-fg-secondary select-none">
-                  {t("browser-forensics.install-helper.advanced-extid-desc")}
-                </p>
-                <input
-                  type="text"
-                  value={extensionIdOverride}
-                  onChange={(e) => setExtensionIdOverride(e.target.value.trim())}
-                  placeholder="abcdefghijklmnopabcdefghijklmnop"
-                  className="w-full px-2 py-1 text-xs font-mono border rounded bg-background select-none"
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground select-none">
-                  {t("browser-forensics.install-helper.advanced-extid-hint")}
-                </p>
+              <div className="mt-2 space-y-3">
+                {/* 兜底扩展 ID 输入 */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-fg-secondary select-none">
+                    {t("browser-forensics.install-helper.advanced-extid-desc")}
+                  </p>
+                  <input
+                    type="text"
+                    value={extensionIdOverride}
+                    onChange={(e) => setExtensionIdOverride(e.target.value.trim())}
+                    placeholder="abcdefghijklmnopabcdefghijklmnop"
+                    className="w-full px-2 py-1 text-xs font-mono border rounded bg-background select-none"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground select-none">
+                    {t("browser-forensics.install-helper.advanced-extid-hint")}
+                  </p>
+                </div>
+
+                {/* 扩展自动清理配置 */}
+                <div className="space-y-1.5 pt-2 border-t">
+                  <p className="text-xs font-medium select-none">
+                    {t("browser-forensics.install-helper.cleanup-title")}
+                  </p>
+                  <p className="text-xs text-fg-secondary select-none">
+                    {t("browser-forensics.install-helper.cleanup-desc")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={1440}
+                      value={cleanupTimeout}
+                      onChange={(e) => handleCleanupTimeoutChange(Number(e.target.value))}
+                      className="w-20 px-2 py-1 text-xs border rounded bg-background select-none"
+                    />
+                    <span className="text-xs text-fg-secondary select-none">
+                      {t("browser-forensics.install-helper.cleanup-unit")}
+                    </span>
+                    {cleanupTimeout === 0 && (
+                      <span className="text-xs text-muted-foreground select-none">
+                        {t("browser-forensics.install-helper.cleanup-disabled")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 手动清理扩展按钮 */}
+                <div className="space-y-1.5 pt-2 border-t">
+                  <p className="text-xs font-medium select-none">
+                    {t("browser-forensics.install-helper.manual-cleanup-title")}
+                  </p>
+                  <p className="text-xs text-fg-secondary select-none">
+                    {t("browser-forensics.install-helper.manual-cleanup-desc")}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleUninstall}
+                      disabled={uninstallStatus === "loading"}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      {t("browser-forensics.install-helper.manual-cleanup-btn")}
+                    </Button>
+                    {renderStatus(
+                      uninstallStatus,
+                      uninstallError,
+                      "browser-forensics.install-helper.manual-cleanup-success",
+                      "browser-forensics.install-helper.manual-cleanup-fail",
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -631,7 +631,16 @@
       "dev-mode-hint": "提示：需在浏览器扩展页右上角开启\"开发者模式\"开关",
       "advanced-toggle": "高级选项（连接失败时尝试）",
       "advanced-extid-desc": "手动指定扩展 ID（覆盖默认固定 ID）。仅在默认连接失败时使用，例如 manifest.json 的 key 被修改或浏览器不尊重 key 字段。",
-      "advanced-extid-hint": "留空则使用默认固定 ID。填写后点击上方的\"安装 NMH\"按钮重新安装。"
+      "advanced-extid-hint": "留空则使用默认固定 ID。填写后点击上方的\"安装 NMH\"按钮重新安装。",
+      "cleanup-title": "自动清理扩展",
+      "cleanup-desc": "IRtool 关闭后，扩展在指定时间内无法重连则自动卸载（避免给用户设备留痕）。设为 0 禁用。",
+      "cleanup-unit": "分钟",
+      "cleanup-disabled": "（已禁用）",
+      "manual-cleanup-title": "手动清理扩展",
+      "manual-cleanup-desc": "立即卸载浏览器中的 Helper Extension（不可逆）。适用于应急响应结束后的主动清理。",
+      "manual-cleanup-btn": "立即卸载扩展",
+      "manual-cleanup-success": "卸载信号已下发",
+      "manual-cleanup-fail": "卸载失败"
     },
     "connection": {
       "connected": "扩展已连接",
