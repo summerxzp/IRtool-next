@@ -54,6 +54,23 @@ const RECONNECT_ALARM = "irtool-reconnect";
 /// 每次收到比这个值大的 reconnectSignal 才响应，并更新此值。
 let lastReconnectSignalTs = 0;
 
+/// 自我清理（self-cleanup）alarm 名称。
+///
+/// 应急响应场景：用户关闭 IRtool 后，扩展应自动卸载，避免给用户设备留痕。
+/// 机制：onDisconnect 后启动 alarm，超时后调用 chrome.management.uninstallSelf()。
+/// 防误删：alarm 触发时会先试连一次 NMH，连不上才卸载（避免 service worker
+/// 挂起导致 alarm 误触发）。
+///
+/// 超时时间由 IRtool 通过 config.selfCleanupTimeoutMin 下发：
+/// - 0 = 禁用自动清理
+/// - >0 = 启用，单位分钟（默认 60）
+const SELF_CLEANUP_ALARM = "irtool-self-cleanup";
+const DEFAULT_SELF_CLEANUP_TIMEOUT_MIN = 60;
+let selfCleanupTimeoutMin = DEFAULT_SELF_CLEANUP_TIMEOUT_MIN;
+
+/// 已处理过的 selfUninstall 时间戳上限（去重，机制同 reconnectSignal）
+let lastSelfUninstallTs = 0;
+
 /** @type {number|null} setTimeout 重连句柄（≤30s 重连用，需追踪以便取消） */
 let reconnectTimer = null;
 
@@ -126,16 +143,22 @@ function connectNative() {
       nativePort = null;
       sendFailCount++;
       scheduleReconnect();
+      // 启动自我清理定时器（IRtool 关闭后扩展自动卸载）
+      scheduleSelfCleanup();
     });
 
     // 连接成功，重置失败计数
     sendFailCount = 0;
     console.log("[IRTool] Native messaging connected");
+    // IRtool 在线，取消自我清理定时器（防误删）
+    cancelSelfCleanup();
   } catch (e) {
     console.warn("[IRTool] Failed to connect native messaging:", e);
     nativePort = null;
     sendFailCount++;
     scheduleReconnect();
+    // 首次连接就失败（IRtool 未启动），启动自我清理定时器
+    scheduleSelfCleanup();
   }
 }
 
@@ -168,6 +191,105 @@ function scheduleReconnect() {
     // 超过 30s 用 chrome.alarms（持久化，不受 service worker 挂起影响）
     // alarms 最小 1 分钟，用 delayInMinutes
     chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: Math.ceil(delayMs / 60_000) });
+  }
+}
+
+// ============================================================
+// 自我清理（Self-Cleanup）
+// ============================================================
+
+/**
+ * 启动自我清理定时器。
+ *
+ * 当 NMH 断开（IRtool 关闭）时调用。如果超时时间内没有重连成功，
+ * 扩展会调用 chrome.management.uninstallSelf() 自动卸载，避免给用户设备留痕。
+ *
+ * 防误删：alarm 触发时会先试连一次 NMH，连不上才卸载。
+ * 超时时间 selfCleanupTimeoutMin：
+ * - 0 = 禁用自动清理（不创建 alarm）
+ * - >0 = 启用，单位分钟
+ */
+function scheduleSelfCleanup() {
+  // 先清旧的 alarm（避免叠加）
+  chrome.alarms.clear(SELF_CLEANUP_ALARM);
+
+  // 0 = 禁用
+  if (selfCleanupTimeoutMin <= 0) {
+    console.log("[IRTool] Self-cleanup disabled (timeout=0)");
+    return;
+  }
+
+  console.log(
+    "[IRTool] Scheduling self-cleanup in",
+    selfCleanupTimeoutMin,
+    "minutes (IRtool offline)"
+  );
+  chrome.alarms.create(SELF_CLEANUP_ALARM, {
+    delayInMinutes: selfCleanupTimeoutMin,
+  });
+}
+
+/** 取消自我清理定时器（IRtool 在线时调用，防误删） */
+function cancelSelfCleanup() {
+  chrome.alarms.clear(SELF_CLEANUP_ALARM);
+}
+
+/**
+ * 自我清理 alarm 触发时的处理。
+ *
+ * 防误删机制：先试连一次 NMH，连得上说明 IRtool 刚回来，取消清理；
+ * 连不上才真正调用 uninstallSelf。
+ *
+ * 场景：用户临时关 IRtool 几分钟再开，alarm 可能在 IRtool 回来后立即触发，
+ * 这时试连能成功，避免误删。
+ */
+function onSelfCleanupAlarmFired() {
+  console.log("[IRTool] Self-cleanup alarm fired, verifying IRtool is still offline");
+
+  // 防误删：先试连一次
+  try {
+    const testPort = chrome.runtime.connectNative(NATIVE_HOST);
+    testPort.onDisconnect.addListener(() => {
+      // 连不上（NMH 不存在或立即断开）→ 真正卸载
+      console.log("[IRTool] IRtool confirmed offline, uninstalling self");
+      chrome.management.uninstallSelf(
+        { showConfirmDialog: false },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.warn(
+              "[IRTool] uninstallSelf failed:",
+              chrome.runtime.lastError.message
+            );
+          }
+        }
+      );
+    });
+    testPort.onMessage.addListener(() => {
+      // 收到消息说明 NMH 在线 → 取消清理
+      console.log("[IRTool] IRtool is back online, canceling self-cleanup");
+      try { testPort.disconnect(); } catch (e) {}
+      cancelSelfCleanup();
+      // 顺便恢复主连接
+      connectNative();
+    });
+    // 1 秒内没收到消息也没断开？保守起见也取消清理（可能 NMH 在但没消息）
+    setTimeout(() => {
+      try { testPort.disconnect(); } catch (e) {}
+    }, 1000);
+  } catch (e) {
+    // connectNative 抛异常 → NMH 不存在 → 卸载
+    console.log("[IRTool] NMH not reachable, uninstalling self");
+    chrome.management.uninstallSelf(
+      { showConfirmDialog: false },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.warn(
+            "[IRTool] uninstallSelf failed:",
+            chrome.runtime.lastError.message
+          );
+        }
+      }
+    );
   }
 }
 
@@ -266,6 +388,51 @@ function applyConfig(msg) {
   } else if (msg.filterDomains === null || msg.filterDomains === false) {
     filterDomains = null;
     console.log("[IRTool] Filter cleared");
+  }
+
+  // 处理自我清理超时配置（IRtool 下发，0=禁用，>0=启用）
+  if (typeof msg.selfCleanupTimeoutMin === "number") {
+    const newTimeout = Math.max(0, Math.floor(msg.selfCleanupTimeoutMin));
+    if (newTimeout !== selfCleanupTimeoutMin) {
+      selfCleanupTimeoutMin = newTimeout;
+      console.log(
+        "[IRTool] Self-cleanup timeout updated:",
+        newTimeout === 0 ? "disabled" : `${newTimeout} minutes`
+      );
+      // 如果当前已断开（已 schedule 清理），重新 schedule 用新超时
+      if (!nativePort) {
+        scheduleSelfCleanup();
+      }
+    }
+  }
+
+  // 处理手动 selfUninstall 信号（用户在 IRtool UI 点击"清理扩展"触发）
+  // 带时间戳去重，机制同 reconnectSignal
+  if (msg.selfUninstall && typeof msg.selfUninstall === "number") {
+    if (msg.selfUninstall <= lastSelfUninstallTs) {
+      console.log(
+        "[IRTool] Stale selfUninstall signal ignored:",
+        msg.selfUninstall,
+        "(last processed:",
+        lastSelfUninstallTs,
+        ")"
+      );
+    } else {
+      lastSelfUninstallTs = msg.selfUninstall;
+      console.log("[IRTool] Self-uninstall signal received, uninstalling now");
+      // 立即卸载，不弹确认对话框
+      chrome.management.uninstallSelf(
+        { showConfirmDialog: false },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.warn(
+              "[IRTool] uninstallSelf failed:",
+              chrome.runtime.lastError.message
+            );
+          }
+        }
+      );
+    }
   }
 }
 
@@ -511,11 +678,13 @@ function init() {
   // 5. 启动心跳
   startHeartbeat();
 
-  // 6. 监听 alarms（用于 service worker 挂起后的持久化重连）
+  // 6. 监听 alarms（用于 service worker 挂起后的持久化重连 + 自我清理）
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === RECONNECT_ALARM) {
       console.log("[IRTool] Reconnect alarm fired, attempting reconnect");
       connectNative();
+    } else if (alarm.name === SELF_CLEANUP_ALARM) {
+      onSelfCleanupAlarmFired();
     }
   });
 

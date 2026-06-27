@@ -162,13 +162,16 @@ pub fn write_message_to_stdout(json_str: &str) -> Result<(), NativeMessagingErro
 /// 空数组或缺失 filterDomains 字段表示清除过滤。
 /// reconnectSignal 字段（任意非零值）表示重连信号，扩展收到后立即重连。
 ///
-/// `include_reconnect_signal` 控制是否透传 reconnectSignal：
-/// - 启动时传 false：避免 NMH 重启后读到旧的 reconnectSignal 触发死循环
-///   （扩展重连 → NMH 重启 → 又透传 → 又重连）
-/// - 运行期间 mtime 变化时传 true：用户点击"重新连接"才能立即触发
+/// `include_one_shot_signals` 控制是否透传一次性信号（reconnectSignal / selfUninstall）：
+/// - 启动时传 false：避免 NMH 重启后读到旧信号触发死循环
+///   （扩展重连 → NMH 重启 → 又透传 reconnectSignal → 又重连）
+/// - 运行期间 mtime 变化时传 true：用户点击"重新连接"/"清理扩展"才能立即触发
+///
+/// 注意：selfCleanupTimeoutMin 是配置项（不是一次性信号），始终透传，
+/// 让扩展在任何时候都能拿到最新的超时配置。
 fn build_config_message(
     content: &str,
-    include_reconnect_signal: bool,
+    include_one_shot_signals: bool,
 ) -> Result<String, NativeMessagingError> {
     let content = content.trim();
     if content.is_empty() {
@@ -191,12 +194,20 @@ fn build_config_message(
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
-    // 提取 reconnectSignal（仅在运行期间透传，启动时跳过避免死循环）
-    let reconnect_signal = if include_reconnect_signal {
+    // 提取一次性信号（仅在运行期间透传，启动时跳过避免死循环）
+    let reconnect_signal = if include_one_shot_signals {
         config.get("reconnectSignal").cloned()
     } else {
         None
     };
+    let self_uninstall = if include_one_shot_signals {
+        config.get("selfUninstall").cloned()
+    } else {
+        None
+    };
+
+    // selfCleanupTimeoutMin 是配置项，始终透传（启动时也需要让扩展知道超时设置）
+    let self_cleanup_timeout = config.get("selfCleanupTimeoutMin").cloned();
 
     let mut msg = serde_json::json!({
         "type": "config",
@@ -209,9 +220,19 @@ fn build_config_message(
         msg["filterDomains"] = serde_json::json!(filter_domains);
     }
 
-    // 透传 reconnectSignal（如果有且允许）
+    // 透传 reconnectSignal（一次性信号，仅运行期间）
     if let Some(signal) = reconnect_signal {
         msg["reconnectSignal"] = signal;
+    }
+
+    // 透传 selfUninstall（一次性信号，仅运行期间）
+    if let Some(signal) = self_uninstall {
+        msg["selfUninstall"] = signal;
+    }
+
+    // 透传 selfCleanupTimeoutMin（配置项，始终透传）
+    if let Some(timeout) = self_cleanup_timeout {
+        msg["selfCleanupTimeoutMin"] = timeout;
     }
 
     serde_json::to_string(&msg)
@@ -223,12 +244,12 @@ fn build_config_message(
 /// 读取 `{config_dir}/config.json`，如果 mtime 有变化，
 /// 构造 `{"type":"config","filterDomains":[...]}` 消息写入 stdout。
 ///
-/// `include_reconnect_signal`：启动检查时传 false（避免 NMH 重启触发死循环），
-/// 运行期间检查传 true（用户点击重连时透传 reconnectSignal）。
+/// `include_one_shot_signals`：启动检查时传 false（避免 NMH 重启触发死循环），
+/// 运行期间检查传 true（用户点击重连/清理扩展时透传一次性信号）。
 fn check_and_forward_config(
     config_dir: &Path,
     last_mtime: &mut Option<std::time::SystemTime>,
-    include_reconnect_signal: bool,
+    include_one_shot_signals: bool,
 ) -> Result<(), NativeMessagingError> {
     let config_path = config_dir.join("config.json");
     if !config_path.exists() {
@@ -249,11 +270,11 @@ fn check_and_forward_config(
         return Ok(());
     }
 
-    let json_str = build_config_message(&content, include_reconnect_signal)?;
+    let json_str = build_config_message(&content, include_one_shot_signals)?;
 
     info!(
-        "config changed, forwarding to extension (include_reconnect_signal={}): {:?}",
-        include_reconnect_signal, config_path
+        "config changed, forwarding to extension (include_one_shot_signals={}): {:?}",
+        include_one_shot_signals, config_path
     );
     write_message_to_stdout(&json_str)?;
     *last_mtime = mtime;
@@ -497,25 +518,35 @@ mod tests {
         assert!(parsed["filterDomains"].is_null());
     }
 
-    /// 启动时不透传 reconnectSignal（避免 NMH 重启触发死循环）
+    /// 启动时不透传一次性信号（reconnectSignal / selfUninstall），避免 NMH 重启触发死循环
     #[test]
-    fn test_build_config_message_startup_skips_reconnect_signal() {
-        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000}"#;
+    fn test_build_config_message_startup_skips_one_shot_signals() {
+        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000,"selfUninstall":1719500000001,"selfCleanupTimeoutMin":60}"#;
         let result = build_config_message(content, false).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
         assert_eq!(parsed["filterDomains"][0], "evil.com");
-        // 关键：reconnectSignal 不应出现在启动时的消息中
+        // 关键：一次性信号不应出现在启动时的消息中
         assert!(
             parsed.get("reconnectSignal").is_none(),
             "reconnectSignal should NOT be included on startup check"
         );
+        assert!(
+            parsed.get("selfUninstall").is_none(),
+            "selfUninstall should NOT be included on startup check"
+        );
+        // 但配置项始终透传
+        assert_eq!(
+            parsed.get("selfCleanupTimeoutMin").and_then(|v| v.as_u64()),
+            Some(60),
+            "selfCleanupTimeoutMin should always be included"
+        );
     }
 
-    /// 运行期间透传 reconnectSignal
+    /// 运行期间透传一次性信号（reconnectSignal / selfUninstall）
     #[test]
-    fn test_build_config_message_runtime_includes_reconnect_signal() {
-        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000}"#;
+    fn test_build_config_message_runtime_includes_one_shot_signals() {
+        let content = r#"{"filterDomains":["evil.com"],"reconnectSignal":1719500000000,"selfUninstall":1719500000001,"selfCleanupTimeoutMin":60}"#;
         let result = build_config_message(content, true).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["type"], "config");
@@ -523,6 +554,14 @@ mod tests {
         assert_eq!(
             parsed.get("reconnectSignal").and_then(|v| v.as_u64()),
             Some(1719500000000)
+        );
+        assert_eq!(
+            parsed.get("selfUninstall").and_then(|v| v.as_u64()),
+            Some(1719500000001)
+        );
+        assert_eq!(
+            parsed.get("selfCleanupTimeoutMin").and_then(|v| v.as_u64()),
+            Some(60)
         );
     }
 
