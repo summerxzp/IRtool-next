@@ -1,9 +1,0 @@
-{
-  "name": "com.irtool.attribution",
-  "description": "IRtool Browser Attribution Native Messaging Host",
-  "path": "irtool-native-messaging-host.exe",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://EXTENSION_ID_PLACEHOLDER/"
-  ]
-}

@@ -3,7 +3,14 @@
   "name": "IRTool Network Attribution Helper",
   "version": "1.0.0",
   "description": "Attribution helper for IRTool browser forensics",
-  "permissions": ["webRequest", "management", "nativeMessaging"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2nmu61tooSA7oKc80mReYzrweCw97LCJFp0iagc0ULybfKLmNJjRwFf3CRoAwv5V19U0ejZq2FB4azIMyfL+z8qyBZtfKpGAObi+qkya+1Z40TA6GqEkU04n0rtfRb2ab5dQTObAfPU1mJ/xsP1kWXn0mdihykCHvfeuWxos/13JFIacFCkvibiynO0ZApIhDTAwW0Fi4G10Ta0dr1Kjwl79wzXdQbBfIDzG/MlGBlqLQmW8yMy1Sc6vlggb6IUMGO1W1HM/z71J+erGV/QpXIEwF234slraR7NVlpiWOdREr030iq/gG/volMQqftYFBaJbjhDsD3X9f6aoh9eSjQIDAQAB",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["webRequest", "management", "nativeMessaging", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service_worker.js"

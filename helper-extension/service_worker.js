@@ -44,7 +44,17 @@ let nativePort = null;
 /** @type {number} 连续发送失败计数 */
 let sendFailCount = 0;
 
-/** @type {number|null} 重连定时器 */
+/// 重连用 chrome.alarms（MV3 service worker 挂起后 setTimeout 会丢失，
+/// alarms 不会被取消，适合做持久化重连定时器）
+const RECONNECT_ALARM = "irtool-reconnect";
+
+/// 已处理过的 reconnectSignal 时间戳上限。
+/// 用于去重：NMH 重启时会重复透传同一份 config（含 reconnectSignal），
+/// 没有去重会触发"扩展重连 → NMH 重启 → 又透传 reconnectSignal → 又重连"死循环。
+/// 每次收到比这个值大的 reconnectSignal 才响应，并更新此值。
+let lastReconnectSignalTs = 0;
+
+/** @type {number|null} setTimeout 重连句柄（≤30s 重连用，需追踪以便取消） */
 let reconnectTimer = null;
 
 // ── 心跳定时器 ────────────────────────────────────────────────
@@ -101,6 +111,8 @@ function matchesFilter(hostname) {
 function connectNative() {
   if (nativePort) return;
 
+  console.log("[IRTool] Connecting to native host:", NATIVE_HOST);
+
   try {
     nativePort = chrome.runtime.connectNative(NATIVE_HOST);
 
@@ -112,6 +124,7 @@ function connectNative() {
       const err = chrome.runtime.lastError;
       console.warn("[IRTool] Native port disconnected:", err?.message || "unknown");
       nativePort = null;
+      sendFailCount++;
       scheduleReconnect();
     });
 
@@ -121,18 +134,41 @@ function connectNative() {
   } catch (e) {
     console.warn("[IRTool] Failed to connect native messaging:", e);
     nativePort = null;
+    sendFailCount++;
     scheduleReconnect();
   }
 }
 
-/** 安排重连（指数退避，最大 30s） */
+/** 安排重连（指数退避，最大 1 分钟）
+ *
+ * MV3 service worker 在不活动 30s 后会被挂起，setTimeout 会被取消。
+ * 改用 chrome.alarms，它不会被 service worker 挂起影响。
+ * alarms 最小间隔约 1 分钟（Chrome 限制），首次重连用 setTimeout（30s 内），
+ * 超时后用 alarms 持久化重连。
+ */
 function scheduleReconnect() {
-  if (reconnectTimer) return;
-  const delay = Math.min(1000 * Math.pow(2, sendFailCount), 30_000);
-  reconnectTimer = setTimeout(() => {
+  // 清除可能存在的旧 alarm
+  chrome.alarms.clear(RECONNECT_ALARM);
+
+  // 清除可能存在的旧 setTimeout 重连句柄
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
     reconnectTimer = null;
-    connectNative();
-  }, delay);
+  }
+
+  const delayMs = Math.min(1000 * Math.pow(2, sendFailCount), 60_000);
+
+  if (delayMs <= 30_000) {
+    // 30s 内用 setTimeout（service worker 通常不会在 30s 内挂起）
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectNative();
+    }, delayMs);
+  } else {
+    // 超过 30s 用 chrome.alarms（持久化，不受 service worker 挂起影响）
+    // alarms 最小 1 分钟，用 delayInMinutes
+    chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: Math.ceil(delayMs / 60_000) });
+  }
 }
 
 /**
@@ -184,6 +220,46 @@ function handleNativeMessage(msg) {
 
 /** 应用 IRtool 下发的配置 */
 function applyConfig(msg) {
+  // 处理重连信号（用户点击 IRtool 的"重新连接"按钮触发）
+  // 收到后立即重置退避计数器并尝试重连，省去等待指数退避的时间
+  //
+  // 去重：reconnectSignal 是带时间戳的一次性事件，但 NMH 重启时会重新透传
+  // 整份 config（含 reconnectSignal 字段），不去重会触发
+  // "扩展重连 → NMH 重启 → 又透传 → 又重连" 死循环。
+  // 只响应当前时间戳严格大于 lastReconnectSignalTs 的信号。
+  if (msg.reconnectSignal && typeof msg.reconnectSignal === "number") {
+    if (msg.reconnectSignal <= lastReconnectSignalTs) {
+      console.log(
+        "[IRTool] Stale reconnect signal ignored:",
+        msg.reconnectSignal,
+        "(last processed:",
+        lastReconnectSignalTs,
+        ")"
+      );
+      // 注意：不走 return，继续往下处理 filterDomains（reconnectSignal 与
+      // filterDomains 可能在同一条 config 消息中，不能因去重跳过 filter 更新）
+    } else {
+      lastReconnectSignalTs = msg.reconnectSignal;
+      console.log("[IRTool] Reconnect signal received, resetting backoff and reconnecting now");
+      sendFailCount = 0;
+      chrome.alarms.clear(RECONNECT_ALARM);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (nativePort) {
+        try { nativePort.disconnect(); } catch (e) {}
+        nativePort = null;
+      }
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      connectNative();
+      // 注意：不走 return，继续往下处理 filterDomains
+    }
+  }
+
   if (msg.filterDomains && Array.isArray(msg.filterDomains)) {
     filterDomains = new Set(msg.filterDomains);
     console.log("[IRTool] Filter applied:", msg.filterDomains.length, "domains");
@@ -254,6 +330,11 @@ function onBeforeRequest(details) {
   // 过滤：域名过滤
   const hostname = hostnameFromUrl(url);
   if (!matchesFilter(hostname)) return;
+
+  // MV3 service worker 唤醒后 nativePort 可能丢失，检查并重连
+  if (!nativePort) {
+    connectNative();
+  }
 
   let attribution;
 
@@ -399,7 +480,17 @@ function startHeartbeat() {
 // 初始化
 // ============================================================
 
+// MV3 service worker 生命周期：
+// - 首次安装/更新/启用时：脚本完整执行一次
+// - Chrome 重启后：service worker 不会自动启动，只在事件触发时唤醒
+// - 唤醒时：脚本完整重新执行（全局变量重置）
+//
+// 因此所有事件监听器必须在顶层注册（不能放在 if 块内），
+// connectNative() 在每次脚本执行时调用。
+
 function init() {
+  console.log("[IRTool] Service Worker starting (init)");
+
   // 1. 连接 Native Messaging Host
   connectNative();
 
@@ -419,6 +510,14 @@ function init() {
 
   // 5. 启动心跳
   startHeartbeat();
+
+  // 6. 监听 alarms（用于 service worker 挂起后的持久化重连）
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === RECONNECT_ALARM) {
+      console.log("[IRTool] Reconnect alarm fired, attempting reconnect");
+      connectNative();
+    }
+  });
 
   console.log("[IRTool] Service Worker initialized");
 }
