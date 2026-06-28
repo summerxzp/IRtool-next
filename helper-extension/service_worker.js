@@ -932,7 +932,17 @@ function startHeartbeat() {
 function init() {
   console.log("[IRTool] Service Worker starting (init)");
 
-  // 整体 try-catch：任何一个 chrome API 不可用（策略禁用/版本不支持）不应导致 SW 求值失败。
+  // 诊断：输出浏览器/环境信息，便于排查 chrome.debugger 不可用等问题
+  console.log(
+    "[IRTool] Diagnostic: UA=",
+    navigator.userAgent,
+    "| chrome.debugger type=",
+    typeof chrome.debugger,
+    "| chrome.runtime.id=",
+    chrome.runtime.id
+  );
+
+  // 整体 try-catch：任何一个 chrome API 不可用（策略禁用/版本支持）不应导致 SW 求值失败。
   // 失败的 API 会被记录，SW 仍能加载，便于排查。
   try {
     // 1. 连接 Native Messaging Host
@@ -958,6 +968,7 @@ function init() {
     //   (a) 动态 attach/detach 该扩展的 SW target
     //   (b) 上报扩展清单变更给 IRtool（onExtensionInstalled/onExtensionUninstalled）
     // 两个 listener 都注册，互不干扰（Chrome 允许同一事件多个 listener）
+    // 注意：onEnabled/onDisabled 在部分 Chrome 版本不存在，需存在性检查
     chrome.management.onInstalled.addListener((ext) => {
       if (ext.id === chrome.runtime.id) return;
       // 等 SW 启动，1s 后全量扫描 attach 新扩展的 SW
@@ -969,15 +980,19 @@ function init() {
         if (info.extensionId === id) detachTarget(key);
       }
     });
-    chrome.management.onEnabled.addListener((ext) => {
-      if (ext.id === chrome.runtime.id) return;
-      setTimeout(() => attachAllExisting(), 1000);
-    });
-    chrome.management.onDisabled.addListener((ext) => {
-      for (const [key, info] of attachedTargets) {
-        if (info.extensionId === ext.id) detachTarget(key);
-      }
-    });
+    if (chrome.management.onEnabled) {
+      chrome.management.onEnabled.addListener((ext) => {
+        if (ext.id === chrome.runtime.id) return;
+        setTimeout(() => attachAllExisting(), 1000);
+      });
+    }
+    if (chrome.management.onDisabled) {
+      chrome.management.onDisabled.addListener((ext) => {
+        for (const [key, info] of attachedTargets) {
+          if (info.extensionId === ext.id) detachTarget(key);
+        }
+      });
+    }
 
     // 4. CDP 事件监听
     if (chrome.debugger?.onMessage) {
