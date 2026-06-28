@@ -17,6 +17,7 @@ function makeAttributionEvent(
     request_id: "req-1",
     url: "https://evil.com/path",
     method: "GET",
+    resource_type: null,
     initiator: null,
     attribution_status: "matched",
     extension_id: "ext-1",

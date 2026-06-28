@@ -127,6 +127,11 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
           {levelLabels[evt.level]}
         </span>
         <span className="text-[10px] text-muted-foreground font-mono select-none">{evt.method}</span>
+        {evt.resource_type && (
+          <span className="text-[10px] text-muted-foreground font-mono px-1 rounded border border-border select-none">
+            {evt.resource_type}
+          </span>
+        )}
         <span className="text-[10px] text-muted-foreground font-mono">{formatTs(evt.timestamp)}</span>
         <div className="flex-1" />
         {evt.extension_name && (

@@ -180,6 +180,8 @@ export interface ExtensionAttributionPayload {
   request_id: string;
   url: string;
   method: string;
+  /** CDP 资源类型（Document/XHR/Fetch/WebSocket/...）。旧事件可能为 null。 */
+  resource_type: string | null;
   initiator: string | null;
   attribution_status: string;
   extension_id: string | null;
