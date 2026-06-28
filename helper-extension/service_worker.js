@@ -155,6 +155,23 @@ function extensionIdFromTargetUrl(url) {
 }
 
 /**
+ * 判断 target 是否为扩展 Service Worker。
+ *
+ * 实测 Chrome/Edge 的 getTargets() 不返回 "service_worker" 类型，
+ * 而是返回 "worker"（MV3 扩展 SW + 普通 web worker 共用此类型），
+ * Edge 还会用 "background_page" 表示 MV2 扩展的背景页。
+ * 用 url 是否以 chrome-extension:// 开头来区分扩展 SW。
+ *
+ * @param {{type: string, url?: string}} t
+ * @returns {boolean}
+ */
+function isExtensionServiceWorker(t) {
+  if (!t || !t.url) return false;
+  return (t.type === "worker" || t.type === "background_page")
+    && t.url.startsWith("chrome-extension://");
+}
+
+/**
  * Attach 到指定 target（用 targetId），并启用 Network 域。
  * 失败时不加入 attachedTargets，下次 reconcile 会重试。
  *
@@ -181,7 +198,8 @@ async function attachTarget(targetId, targetInfo) {
       });
     });
 
-    const extensionId = targetInfo.type === "service_worker"
+    // 用 isExtensionServiceWorker 判断（兼容 getTargets 返回 "worker"/"background_page" 的情况）
+    const extensionId = isExtensionServiceWorker(targetInfo)
       ? extensionIdFromTargetUrl(targetInfo.url)
       : null;
 
@@ -266,7 +284,7 @@ async function attachAllExisting() {
     chrome.debugger.getTargets(resolve);
   });
 
-  // 诊断：统计 target 类型分布，定位 service_worker 不被抓到的问题
+  // 诊断：统计 target 类型分布 + 列出扩展 SW
   const typeCount = {};
   for (const t of targets) {
     typeCount[t.type] = (typeCount[t.type] || 0) + 1;
@@ -275,20 +293,23 @@ async function attachAllExisting() {
     "[IRTool] getTargets returned", targets.length, "targets, types:",
     JSON.stringify(typeCount)
   );
-  // 列出所有 service_worker target 的 url（调试用）
-  const swTargets = targets.filter((t) => t.type === "service_worker");
-  if (swTargets.length > 0) {
-    console.log("[IRTool] service_worker targets:", swTargets.map((t) => t.url).join(", "));
+  // 列出所有扩展 SW target（用 isExtensionServiceWorker 判断）
+  const extSwTargets = targets.filter(isExtensionServiceWorker);
+  if (extSwTargets.length > 0) {
+    console.log("[IRTool] Extension SW targets:", extSwTargets.length,
+      extSwTargets.map((t) => extensionIdFromTargetUrl(t.url)).join(", "));
   } else {
-    console.warn("[IRTool] No service_worker targets found in getTargets()!");
+    console.warn("[IRTool] No extension SW targets found!");
   }
 
   for (const t of targets) {
-    if (t.type !== "page" && t.type !== "service_worker") continue;
+    const isPage = t.type === "page";
+    const isExtSW = isExtensionServiceWorker(t);
+    if (!isPage && !isExtSW) continue;
     // 跳过自己（IRtool Helper Extension 自身的 SW）
-    if (t.type === "service_worker" && t.url && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
+    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
     // 跳过 chrome:// 等非 http/https page（减少噪声）
-    if (t.type === "page" && t.url && !t.url.startsWith("http")) continue;
+    if (isPage && t.url && !t.url.startsWith("http")) continue;
     await attachTarget(t.id, t);
   }
 }
@@ -303,11 +324,13 @@ async function reconcile() {
     chrome.debugger.getTargets(resolve);
   });
 
-  // 当前存在的 target ID 集合（仅 service_worker / page target）
+  // 当前存在的 target ID 集合（仅扩展 SW / page target）
   const existingTargetIds = new Set();
   for (const t of targets) {
-    if (t.type !== "page" && t.type !== "service_worker") continue;
-    if (t.type === "service_worker" && t.url && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
+    const isPage = t.type === "page";
+    const isExtSW = isExtensionServiceWorker(t);
+    if (!isPage && !isExtSW) continue;
+    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
     existingTargetIds.add(t.id);
   }
 
@@ -321,9 +344,11 @@ async function reconcile() {
 
   // attach 新增的
   for (const t of targets) {
-    if (t.type !== "page" && t.type !== "service_worker") continue;
-    if (t.type === "service_worker" && t.url && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
-    if (t.type === "page" && t.url && !t.url.startsWith("http")) continue;
+    const isPage = t.type === "page";
+    const isExtSW = isExtensionServiceWorker(t);
+    if (!isPage && !isExtSW) continue;
+    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
+    if (isPage && t.url && !t.url.startsWith("http")) continue;
     if (!attachedTargets.has(t.id)) {
       await attachTarget(t.id, t);
     }
@@ -388,8 +413,10 @@ function onDebuggerMessage(debuggee, method, params) {
   const targetInfo = attachedTargets.get(key);
 
   // 归因：基于 target 类型判断（不依赖 initiator 字符串，更可靠）
+  // 注意：getTargets() 返回的扩展 SW type 是 "worker"/"background_page"（非 "service_worker"），
+  // 所以这里用 extensionId 是否存在来判断（attachTarget 时已根据 url 设置 extensionId）
   let attribution;
-  if (targetInfo?.type === "service_worker" && targetInfo.extensionId) {
+  if (targetInfo?.extensionId) {
     attribution = {
       status: "high-confidence",
       extensionId: targetInfo.extensionId,
