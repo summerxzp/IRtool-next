@@ -936,7 +936,10 @@ function init() {
   connectNative();
 
   // 2. 启动 DebuggerManager：全量 attach 现有 target
-  attachAllExisting();
+  //    用 .catch 包住，避免未捕获的 Promise rejection 导致 SW 被判为"无效"
+  attachAllExisting().catch((e) => {
+    console.warn("[IRTool] attachAllExisting failed during init:", e?.message || e);
+  });
 
   // 3. 监听 target 生命周期事件（动态 attach/detach）
   chrome.tabs.onCreated.addListener((tab) => attachTargetByTabId(tab.id));
