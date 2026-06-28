@@ -266,6 +266,23 @@ async function attachAllExisting() {
     chrome.debugger.getTargets(resolve);
   });
 
+  // 诊断：统计 target 类型分布，定位 service_worker 不被抓到的问题
+  const typeCount = {};
+  for (const t of targets) {
+    typeCount[t.type] = (typeCount[t.type] || 0) + 1;
+  }
+  console.log(
+    "[IRTool] getTargets returned", targets.length, "targets, types:",
+    JSON.stringify(typeCount)
+  );
+  // 列出所有 service_worker target 的 url（调试用）
+  const swTargets = targets.filter((t) => t.type === "service_worker");
+  if (swTargets.length > 0) {
+    console.log("[IRTool] service_worker targets:", swTargets.map((t) => t.url).join(", "));
+  } else {
+    console.warn("[IRTool] No service_worker targets found in getTargets()!");
+  }
+
   for (const t of targets) {
     if (t.type !== "page" && t.type !== "service_worker") continue;
     // 跳过自己（IRtool Helper Extension 自身的 SW）
