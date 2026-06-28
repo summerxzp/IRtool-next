@@ -347,7 +347,7 @@ function scheduleReattach(key) {
 // ============================================================
 
 /**
- * chrome.debugger.onMessage 回调。
+ * chrome.debugger.onEvent 回调。
  * 只处理 Network.requestWillBeSent 事件。
  */
 function onDebuggerMessage(debuggee, method, params) {
@@ -995,17 +995,9 @@ function init() {
     }
 
     // 4. CDP 事件监听
-    //    详细诊断 chrome.debugger 各属性，定位 onMessage 不可用问题
-    console.log(
-      "[IRTool] chrome.debugger diagnostic:",
-      "keys=[" + Object.keys(chrome.debugger || {}).join(",") + "]",
-      "| typeof onMessage=" + typeof chrome.debugger?.onMessage,
-      "| typeof onDetach=" + typeof chrome.debugger?.onDetach,
-      "| typeof attach=" + typeof chrome.debugger?.attach,
-      "| typeof getTargets=" + typeof chrome.debugger?.getTargets
-    );
+    //    chrome.debugger 的事件 API 是 onEvent（不是 onMessage，onMessage 是 chrome.runtime 的）
     try {
-      chrome.debugger.onMessage.addListener(onDebuggerMessage);
+      chrome.debugger.onEvent.addListener(onDebuggerMessage);
       chrome.debugger.onDetach.addListener((debuggee, reason) => {
         const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
         console.log("[IRTool] Debugger detached:", key, "reason:", reason);
