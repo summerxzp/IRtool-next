@@ -25,8 +25,16 @@ pub struct AttributedWebRequest {
     pub request_id: String,
     pub url: String,
     pub method: String,
+    /// CDP Network.requestWillBeSent 的 type 字段（Document/XHR/Fetch/WebSocket/...）。
+    /// 旧事件（webRequest 时代）无该字段，用 Option + default 兼容。
+    #[serde(default)]
+    pub resource_type: Option<String>,
     pub initiator: Option<String>,
     pub attribution: AttributionInfo,
+    /// 请求来源 target 信息（page 或 service_worker）。
+    /// 旧事件无该字段，用 Option + default 兼容。
+    #[serde(default)]
+    pub source_target: Option<SourceTarget>,
 }
 
 /// 归因信息
@@ -38,6 +46,20 @@ pub struct AttributionInfo {
     pub status: String,
     pub extension_id: Option<String>,
     pub extension_name: Option<String>,
+}
+
+/// 请求来源 target 信息（debugger API 抓包时填充）
+///
+/// JS 端上报字段为 camelCase：`targetId` / `extensionId`
+/// 注意 `type` 字段用 serde rename 保留关键字
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceTarget {
+    #[serde(rename = "type")]
+    pub target_type: String,
+    pub target_id: String,
+    #[serde(default)]
+    pub extension_id: Option<String>,
 }
 
 /// 扩展清单条目
@@ -73,6 +95,9 @@ pub struct ExtensionAttributionPayload {
     pub request_id: String,
     pub url: String,
     pub method: String,
+    /// CDP 资源类型（Document/XHR/Fetch/WebSocket/...）。旧事件可能为 None。
+    #[serde(default)]
+    pub resource_type: Option<String>,
     pub initiator: Option<String>,
     pub attribution_status: String,
     pub extension_id: Option<String>,

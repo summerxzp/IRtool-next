@@ -290,6 +290,7 @@ pub fn publish_native_events(
                                     request_id: req.request_id,
                                     url: req.url,
                                     method: req.method,
+                                    resource_type: req.resource_type,
                                     initiator: req.initiator,
                                     attribution_status: req.attribution.status.clone(),
                                     extension_id: req.attribution.extension_id,
@@ -631,6 +632,54 @@ mod tests {
         assert_eq!(req.attribution.extension_id.as_deref(), Some("abcdefghijklmnopqrstuvwxyz123456"));
         assert_eq!(req.attribution.extension_name.as_deref(), Some("Suspicious Ext"));
         assert_eq!(req.attribution.status, "high-confidence");
+    }
+
+    #[test]
+    fn attributed_web_request_old_event_without_resource_type_deserializes_as_none() {
+        // 旧事件（webRequest 时代）没有 resourceType 和 sourceTarget 字段
+        let json = serde_json::json!({
+            "timestamp": 1719400000000u64,
+            "requestId": "req-old-123",
+            "url": "https://example.com/",
+            "method": "GET",
+            "initiator": "https://example.com/",
+            "attribution": {
+                "status": "page-originated",
+                "extensionId": null,
+                "extensionName": null
+            }
+        });
+        let req: AttributedWebRequest = serde_json::from_value(json).expect("old event should deserialize");
+        assert_eq!(req.resource_type, None, "old event resource_type should be None");
+        assert_eq!(req.source_target, None, "old event source_target should be None");
+        assert_eq!(req.attribution.status, "page-originated");
+    }
+
+    #[test]
+    fn attributed_web_request_new_event_with_resource_type_deserializes() {
+        // 新事件（debugger API 时代）有 resourceType 和 sourceTarget 字段
+        let json = serde_json::json!({
+            "timestamp": 1719400000001u64,
+            "requestId": "req-new-456",
+            "url": "https://evil.com/exfil",
+            "method": "POST",
+            "resourceType": "Fetch",
+            "initiator": "chrome-extension://mbgpppibaejglkaklcbceckkicbhkalp/",
+            "attribution": {
+                "status": "high-confidence",
+                "extensionId": "mbgpppibaejglkaklcbceckkicbhkalp",
+                "extensionName": "Suspicious Ext"
+            },
+            "sourceTarget": {
+                "type": "service_worker",
+                "targetId": "target-abc",
+                "extensionId": "mbgpppibaejglkaklcbceckkicbhkalp"
+            }
+        });
+        let req: AttributedWebRequest = serde_json::from_value(json).expect("new event should deserialize");
+        assert_eq!(req.resource_type.as_deref(), Some("Fetch"));
+        assert_eq!(req.source_target.as_ref().map(|s| s.target_type.as_str()), Some("service_worker"));
+        assert_eq!(req.source_target.as_ref().and_then(|s| s.extension_id.as_deref()), Some("mbgpppibaejglkaklcbceckkicbhkalp"));
     }
 
     #[test]
