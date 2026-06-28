@@ -995,7 +995,16 @@ function init() {
     }
 
     // 4. CDP 事件监听
-    if (chrome.debugger?.onMessage) {
+    //    详细诊断 chrome.debugger 各属性，定位 onMessage 不可用问题
+    console.log(
+      "[IRTool] chrome.debugger diagnostic:",
+      "keys=[" + Object.keys(chrome.debugger || {}).join(",") + "]",
+      "| typeof onMessage=" + typeof chrome.debugger?.onMessage,
+      "| typeof onDetach=" + typeof chrome.debugger?.onDetach,
+      "| typeof attach=" + typeof chrome.debugger?.attach,
+      "| typeof getTargets=" + typeof chrome.debugger?.getTargets
+    );
+    try {
       chrome.debugger.onMessage.addListener(onDebuggerMessage);
       chrome.debugger.onDetach.addListener((debuggee, reason) => {
         const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
@@ -1004,8 +1013,9 @@ function init() {
         // 用户关提示条（reason="canceled_by_user"）或其他原因 → 重试 attach
         scheduleReattach(key);
       });
-    } else {
-      console.error("[IRTool] chrome.debugger API unavailable! debugger permission may be blocked by policy");
+      console.log("[IRTool] CDP event listeners registered");
+    } catch (e) {
+      console.error("[IRTool] Failed to register CDP listeners:", e?.message || e);
     }
 
     // 5. 定期校准（应对 SW 重启等边界场景，1 分钟一次）
