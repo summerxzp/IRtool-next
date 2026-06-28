@@ -296,6 +296,14 @@ function onSelfCleanupAlarmFired() {
 /**
  * 通过 Native Messaging 发送消息。
  * 如果长连接不可用，回退到 sendNativeMessage 单次发送。
+ *
+ * 返回值：
+ * - true：消息已成功投递（长连接 postMessage 成功，或单次发送已发起）
+ * - false：消息发送失败（nativePort 不存在 + 单次发送也失败）
+ *
+ * 注意：单次发送（sendNativeMessage）是异步的，返回 true 只表示调用已发起，
+ * 不保证 NMH 端收到。但失败会通过 sendFailCount 跟踪，触发重连。
+ * 对于 flush 调用方，如果返回 false 需要把事件放回 ringBuffer 重试。
  */
 function sendNativeMessage(message) {
   // 优先使用长连接
@@ -303,7 +311,7 @@ function sendNativeMessage(message) {
     try {
       nativePort.postMessage(message);
       sendFailCount = 0;
-      return;
+      return true;
     } catch (e) {
       console.warn("[IRTool] Long-connection send failed, falling back:", e);
       nativePort = null;
@@ -321,9 +329,11 @@ function sendNativeMessage(message) {
         sendFailCount = 0;
       }
     });
+    return true; // 单次发送已发起（异步回调跟踪结果）
   } catch (e) {
     sendFailCount++;
     console.warn("[IRTool] sendNativeMessage threw:", e);
+    return false;
   }
 }
 
@@ -459,7 +469,7 @@ function enqueue(event) {
   }
 }
 
-/** 将 Ring Buffer 中的事件批量发送 */
+/** 将 Ring Buffer 中的事件批量发送。失败时把事件放回 ringBuffer 等待重试。 */
 function flush() {
   if (flushTimer) {
     clearTimeout(flushTimer);
@@ -477,7 +487,34 @@ function flush() {
     events: batch,
   };
 
-  sendNativeMessage(message);
+  const ok = sendNativeMessage(message);
+  if (!ok) {
+    // 发送失败：把事件放回 ringBuffer 前面，下次重试
+    // 防止事件丢失（应急响应场景要求所有请求都要抓到）
+    ringBuffer = batch.concat(ringBuffer);
+    console.warn(
+      "[IRTool] flush failed,",
+      batch.length,
+      "events returned to buffer (total:",
+      ringBuffer.length,
+      "), will retry"
+    );
+    // 限制 ringBuffer 大小，防止无限增长（极端情况下最多保留 1000 条）
+    if (ringBuffer.length > 1000) {
+      console.warn("[IRTool] ringBuffer overflow, dropping", ringBuffer.length - 1000, "old events");
+      ringBuffer = ringBuffer.slice(-1000);
+    }
+    // 1 秒后重试（用 setTimeout，如果 service worker 挂起会被取消，
+    // 但下次 onBeforeRequest 触发时会重新启动 flush 定时器）
+    if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flush();
+      }, 1000);
+    }
+  } else {
+    console.log("[IRTool] Flushed", batch.length, "events");
+  }
 }
 
 // ============================================================
@@ -497,6 +534,19 @@ function onBeforeRequest(details) {
   // 过滤：域名过滤
   const hostname = hostnameFromUrl(url);
   if (!matchesFilter(hostname)) return;
+
+  // 调试日志：确认 onBeforeRequest 触发了哪些请求（帮助定位 404/失败请求是否被抓取）
+  console.log(
+    "[IRTool] onBeforeRequest:",
+    method,
+    url,
+    "| hostname:",
+    hostname,
+    "| initiator:",
+    initiator || "(none)",
+    "| nativePort:",
+    nativePort ? "connected" : "disconnected"
+  );
 
   // MV3 service worker 唤醒后 nativePort 可能丢失，检查并重连
   if (!nativePort) {
