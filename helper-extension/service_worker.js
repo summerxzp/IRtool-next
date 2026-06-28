@@ -932,81 +932,97 @@ function startHeartbeat() {
 function init() {
   console.log("[IRTool] Service Worker starting (init)");
 
-  // 1. 连接 Native Messaging Host
-  connectNative();
+  // 整体 try-catch：任何一个 chrome API 不可用（策略禁用/版本不支持）不应导致 SW 求值失败。
+  // 失败的 API 会被记录，SW 仍能加载，便于排查。
+  try {
+    // 1. 连接 Native Messaging Host
+    connectNative();
 
-  // 2. 启动 DebuggerManager：全量 attach 现有 target
-  //    用 .catch 包住，避免未捕获的 Promise rejection 导致 SW 被判为"无效"
-  attachAllExisting().catch((e) => {
-    console.warn("[IRTool] attachAllExisting failed during init:", e?.message || e);
-  });
+    // 2. 启动 DebuggerManager：全量 attach 现有 target
+    //    用 .catch 包住，避免未捕获的 Promise rejection
+    attachAllExisting().catch((e) => {
+      console.warn("[IRTool] attachAllExisting failed during init:", e?.message || e);
+    });
 
-  // 3. 监听 target 生命周期事件（动态 attach/detach）
-  chrome.tabs.onCreated.addListener((tab) => attachTargetByTabId(tab.id));
-  chrome.tabs.onRemoved.addListener((tabId) => {
-    detachTarget(`tab:${tabId}`);
-  });
-  // 注意：onInstalled/onUninstalled/onEnabled/onDisabled 同时承担两个职责：
-  //   (a) 动态 attach/detach 该扩展的 SW target
-  //   (b) 上报扩展清单变更给 IRtool（onExtensionInstalled/onExtensionUninstalled）
-  // 两个 listener 都注册，互不干扰（Chrome 允许同一事件多个 listener）
-  chrome.management.onInstalled.addListener((ext) => {
-    if (ext.id === chrome.runtime.id) return;
-    // 等 SW 启动，1s 后全量扫描 attach 新扩展的 SW
-    setTimeout(() => attachAllExisting(), 1000);
-  });
-  chrome.management.onUninstalled.addListener((id) => {
-    // 找到该扩展的 SW target 并 detach
-    for (const [key, info] of attachedTargets) {
-      if (info.extensionId === id) detachTarget(key);
+    // 3. 监听 target 生命周期事件（动态 attach/detach）
+    if (chrome.tabs?.onCreated) {
+      chrome.tabs.onCreated.addListener((tab) => attachTargetByTabId(tab.id));
+      chrome.tabs.onRemoved.addListener((tabId) => {
+        detachTarget(`tab:${tabId}`);
+      });
+    } else {
+      console.warn("[IRTool] chrome.tabs API unavailable, tab tracking disabled");
     }
-  });
-  chrome.management.onEnabled.addListener((ext) => {
-    if (ext.id === chrome.runtime.id) return;
-    setTimeout(() => attachAllExisting(), 1000);
-  });
-  chrome.management.onDisabled.addListener((ext) => {
-    for (const [key, info] of attachedTargets) {
-      if (info.extensionId === ext.id) detachTarget(key);
+
+    // 注意：onInstalled/onUninstalled/onEnabled/onDisabled 同时承担两个职责：
+    //   (a) 动态 attach/detach 该扩展的 SW target
+    //   (b) 上报扩展清单变更给 IRtool（onExtensionInstalled/onExtensionUninstalled）
+    // 两个 listener 都注册，互不干扰（Chrome 允许同一事件多个 listener）
+    chrome.management.onInstalled.addListener((ext) => {
+      if (ext.id === chrome.runtime.id) return;
+      // 等 SW 启动，1s 后全量扫描 attach 新扩展的 SW
+      setTimeout(() => attachAllExisting(), 1000);
+    });
+    chrome.management.onUninstalled.addListener((id) => {
+      // 找到该扩展的 SW target 并 detach
+      for (const [key, info] of attachedTargets) {
+        if (info.extensionId === id) detachTarget(key);
+      }
+    });
+    chrome.management.onEnabled.addListener((ext) => {
+      if (ext.id === chrome.runtime.id) return;
+      setTimeout(() => attachAllExisting(), 1000);
+    });
+    chrome.management.onDisabled.addListener((ext) => {
+      for (const [key, info] of attachedTargets) {
+        if (info.extensionId === ext.id) detachTarget(key);
+      }
+    });
+
+    // 4. CDP 事件监听
+    if (chrome.debugger?.onMessage) {
+      chrome.debugger.onMessage.addListener(onDebuggerMessage);
+      chrome.debugger.onDetach.addListener((debuggee, reason) => {
+        const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
+        console.log("[IRTool] Debugger detached:", key, "reason:", reason);
+        attachedTargets.delete(key);
+        // 用户关提示条（reason="canceled_by_user"）或其他原因 → 重试 attach
+        scheduleReattach(key);
+      });
+    } else {
+      console.error("[IRTool] chrome.debugger API unavailable! debugger permission may be blocked by policy");
     }
-  });
 
-  // 4. CDP 事件监听
-  chrome.debugger.onMessage.addListener(onDebuggerMessage);
-  chrome.debugger.onDetach.addListener((debuggee, reason) => {
-    const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
-    console.log("[IRTool] Debugger detached:", key, "reason:", reason);
-    attachedTargets.delete(key);
-    // 用户关提示条（reason="canceled_by_user"）或其他原因 → 重试 attach
-    scheduleReattach(key);
-  });
+    // 5. 定期校准（应对 SW 重启等边界场景，1 分钟一次）
+    chrome.alarms.create(RECONCILE_ALARM, { periodInMinutes: 1 });
 
-  // 5. 定期校准（应对 SW 重启等边界场景，1 分钟一次）
-  chrome.alarms.create(RECONCILE_ALARM, { periodInMinutes: 1 });
+    // 6. 监听扩展安装/卸载（上报清单，与上面 attach/detach 的 listener 并存）
+    chrome.management.onInstalled.addListener(onExtensionInstalled);
+    chrome.management.onUninstalled.addListener(onExtensionUninstalled);
 
-  // 6. 监听扩展安装/卸载（上报清单，与上面 attach/detach 的 listener 并存）
-  chrome.management.onInstalled.addListener(onExtensionInstalled);
-  chrome.management.onUninstalled.addListener(onExtensionUninstalled);
+    // 7. 全量上报扩展清单
+    reportExtensionListFull();
 
-  // 7. 全量上报扩展清单
-  reportExtensionListFull();
+    // 8. 启动心跳
+    startHeartbeat();
 
-  // 8. 启动心跳
-  startHeartbeat();
+    // 9. 监听 alarms（reconnect + self-cleanup + reconcile）
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === RECONNECT_ALARM) {
+        console.log("[IRTool] Reconnect alarm fired, attempting reconnect");
+        connectNative();
+      } else if (alarm.name === SELF_CLEANUP_ALARM) {
+        onSelfCleanupAlarmFired();
+      } else if (alarm.name === RECONCILE_ALARM) {
+        reconcile();
+      }
+    });
 
-  // 9. 监听 alarms（reconnect + self-cleanup + reconcile）
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === RECONNECT_ALARM) {
-      console.log("[IRTool] Reconnect alarm fired, attempting reconnect");
-      connectNative();
-    } else if (alarm.name === SELF_CLEANUP_ALARM) {
-      onSelfCleanupAlarmFired();
-    } else if (alarm.name === RECONCILE_ALARM) {
-      reconcile();
-    }
-  });
-
-  console.log("[IRTool] Service Worker initialized");
+    console.log("[IRTool] Service Worker initialized");
+  } catch (e) {
+    // 捕获同步错误，避免 SW 求值失败（status code 15）
+    console.error("[IRTool] init() threw:", e?.message || e, e?.stack || "");
+  }
 }
 
 // 启动
