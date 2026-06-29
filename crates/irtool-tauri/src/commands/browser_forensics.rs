@@ -1,7 +1,7 @@
 use irtool_browser_forensics::extension_attribution::ExtensionAttribution;
 use irtool_browser_forensics::*;
-use irtool_core::IrError;
 use irtool_cdp::discovery::{discover_targets, is_port_listening};
+use irtool_core::IrError;
 use irtool_service::context::AppContext;
 use irtool_service::services::cdp_capture::CdpCaptureService;
 use irtool_service::services::extension_connection::ExtensionConnectionStatus;
@@ -213,9 +213,7 @@ pub async fn cmd_browser_forensics_install_native_messaging_host(
 /// 前端用此路径：1) 复制到剪贴板供用户 Load unpacked 时粘贴；2) 判断扩展目录是否存在。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_get_helper_extension_path(
-    app: tauri::AppHandle,
-) -> Result<String, IrError> {
+pub async fn cmd_browser_forensics_get_helper_extension_path(app: tauri::AppHandle) -> Result<String, IrError> {
     let path = if cfg!(debug_assertions) {
         // dev 模式：crates/irtool-tauri/ → 上溯两级到 workspace 根 → helper-extension/
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -233,10 +231,7 @@ pub async fn cmd_browser_forensics_get_helper_extension_path(
             .path()
             .resource_dir()
             .map_err(|e| IrError::Internal(format!("failed to get resource_dir: {}", e)))?;
-        resource_dir
-            .join("helper-extension")
-            .to_string_lossy()
-            .to_string()
+        resource_dir.join("helper-extension").to_string_lossy().to_string()
     };
 
     // Windows canonicalize() 会加 `\\?\` 前缀（扩展长度路径语法），
@@ -356,9 +351,7 @@ pub async fn cmd_browser_forensics_self_uninstall() -> Result<(), IrError> {
 /// - >0 = 启用，IRtool 离线超过该时长后扩展自动卸载（默认 60）
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_set_self_cleanup_timeout(
-    timeout_min: u32,
-) -> Result<(), IrError> {
+pub async fn cmd_browser_forensics_set_self_cleanup_timeout(timeout_min: u32) -> Result<(), IrError> {
     irtool_service::services::browser_forensics::set_self_cleanup_timeout(timeout_min);
     Ok(())
 }
@@ -416,10 +409,7 @@ pub async fn cmd_browser_forensics_reconnect_extension(
 
     // 1. kill 所有 NMH 进程（用 taskkill，忽略"未找到进程"错误）
     let killed = kill_nmh_processes();
-    tracing::info!(
-        killed_processes = killed,
-        "reconnect: killed NMH processes"
-    );
+    tracing::info!(killed_processes = killed, "reconnect: killed NMH processes");
 
     // 2. 推算 NMH 二进制路径（与 install_helper::nmh_exe_path 一致）
     let nmh_exe_path = std::env::current_exe()
@@ -527,15 +517,11 @@ pub async fn cmd_browser_forensics_cdp_probe() -> Result<Option<CdpCaptureStatus
 /// 复用现有 ExtensionEventsView 展示。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_cdp_capture_start(
-    ctx: State<'_, AppContext>,
-) -> Result<CdpCaptureStatus, IrError> {
+pub async fn cmd_browser_forensics_cdp_capture_start(ctx: State<'_, AppContext>) -> Result<CdpCaptureStatus, IrError> {
     // 探测端口（用于状态返回）
     let targets = discover_targets().await;
     let cdp_target = targets.into_iter().next().ok_or_else(|| {
-        IrError::Internal(
-            "no CDP target discovered (browser not running with --remote-debugging-port?)".to_string(),
-        )
+        IrError::Internal("no CDP target discovered (browser not running with --remote-debugging-port?)".to_string())
     })?;
 
     // 启动抓包服务
@@ -565,9 +551,7 @@ pub async fn cmd_browser_forensics_cdp_capture_start(
 /// 停止 CDP 抓包服务。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_cdp_capture_stop(
-    ctx: State<'_, AppContext>,
-) -> Result<(), IrError> {
+pub async fn cmd_browser_forensics_cdp_capture_stop(ctx: State<'_, AppContext>) -> Result<(), IrError> {
     let mut guard = ctx.cdp_capture.lock().await;
     if let Some(service) = guard.take() {
         service.stop().await?;
@@ -579,15 +563,16 @@ pub async fn cmd_browser_forensics_cdp_capture_stop(
 /// 查询 CDP 抓包服务状态。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_cdp_capture_status(
-    ctx: State<'_, AppContext>,
-) -> Result<CdpCaptureStatus, IrError> {
+pub async fn cmd_browser_forensics_cdp_capture_status(ctx: State<'_, AppContext>) -> Result<CdpCaptureStatus, IrError> {
     let guard = ctx.cdp_capture.lock().await;
     let running = guard.is_some();
     // 若运行中，再探测一次端口用于状态返回（端口可能在运行期间关闭）
     let port_browser = if running {
         let targets = discover_targets().await;
-        targets.into_iter().next().map(|t| (t.port, format!("{:?}", t.browser).to_lowercase()))
+        targets
+            .into_iter()
+            .next()
+            .map(|t| (t.port, format!("{:?}", t.browser).to_lowercase()))
     } else {
         None
     };
@@ -611,9 +596,7 @@ pub async fn cmd_browser_forensics_cdp_capture_status(
 /// spawn 后轮询 9222 端口是否监听（最多 8s），双重保险。
 #[tauri::command]
 #[specta::specta]
-pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
-    browser: BrowserKind,
-) -> Result<(), IrError> {
+pub async fn cmd_browser_forensics_launch_browser_with_debug_port(browser: BrowserKind) -> Result<(), IrError> {
     let (exe_candidates, browser_name) = match browser {
         BrowserKind::Chrome => (
             vec![
@@ -632,7 +615,9 @@ pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
         ),
     };
 
-    let exe = exe_candidates.into_iter().find(|p| !p.is_empty() && std::path::Path::new(p).exists())
+    let exe = exe_candidates
+        .into_iter()
+        .find(|p| !p.is_empty() && std::path::Path::new(p).exists())
         .ok_or_else(|| IrError::Internal(format!("{} executable not found", browser_name)))?;
 
     tracing::info!(exe = %exe, browser = %browser_name, "launching browser with debug port 9222");
@@ -646,9 +631,8 @@ pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
     // 临时 profile 目录
     let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| r"C:\Temp".to_string());
     let debug_profile = format!(r"{}\irtool\debug-profile", temp_dir);
-    std::fs::create_dir_all(&debug_profile).map_err(|e| {
-        IrError::Internal(format!("failed to create debug profile dir: {}", e))
-    })?;
+    std::fs::create_dir_all(&debug_profile)
+        .map_err(|e| IrError::Internal(format!("failed to create debug profile dir: {}", e)))?;
 
     // 清理可能残留的 SingletonLock（Chrome 异常退出后会残留，导致新进程误判已有实例）
     let singleton_lock = std::path::Path::new(&debug_profile).join("SingletonLock");
@@ -724,7 +708,11 @@ pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
                  诊断文件：{log}",
                 name = browser_name,
                 pid = pid,
-                stderr = if stderr_preview.is_empty() { "(无输出)" } else { &stderr_preview },
+                stderr = if stderr_preview.is_empty() {
+                    "(无输出)"
+                } else {
+                    &stderr_preview
+                },
                 log = stderr_log.display(),
             )));
         }
@@ -739,8 +727,8 @@ pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
 /// 使用 ToolHelp32 进程快照枚举，比 WMI 更轻量。
 #[allow(dead_code)]
 fn count_browser_processes(process_name: &str) -> usize {
-    use windows::Win32::System::Diagnostics::ToolHelp::*;
     use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::*;
 
     let target = format!("{}.exe", process_name.to_lowercase());
     let mut count = 0usize;

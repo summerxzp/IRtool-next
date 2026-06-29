@@ -376,10 +376,8 @@ pub fn run() {
                 let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
                 loop {
                     interval.tick().await;
-                    let count = irtool_service::services::browser_forensics::publish_native_events(
-                        &nmh_event_bus,
-                        &nmh_conn,
-                    );
+                    let count =
+                        irtool_service::services::browser_forensics::publish_native_events(&nmh_event_bus, &nmh_conn);
                     if count > 0 {
                         tracing::debug!("published {} native attribution events", count);
                     }

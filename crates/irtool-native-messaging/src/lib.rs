@@ -169,10 +169,7 @@ pub fn write_message_to_stdout(json_str: &str) -> Result<(), NativeMessagingErro
 ///
 /// 注意：selfCleanupTimeoutMin 是配置项（不是一次性信号），始终透传，
 /// 让扩展在任何时候都能拿到最新的超时配置。
-fn build_config_message(
-    content: &str,
-    include_one_shot_signals: bool,
-) -> Result<String, NativeMessagingError> {
+fn build_config_message(content: &str, include_one_shot_signals: bool) -> Result<String, NativeMessagingError> {
     let content = content.trim();
     if content.is_empty() {
         // 空内容 → 清除过滤
@@ -559,10 +556,7 @@ mod tests {
             parsed.get("selfUninstall").and_then(|v| v.as_u64()),
             Some(1719500000001)
         );
-        assert_eq!(
-            parsed.get("selfCleanupTimeoutMin").and_then(|v| v.as_u64()),
-            Some(60)
-        );
+        assert_eq!(parsed.get("selfCleanupTimeoutMin").and_then(|v| v.as_u64()), Some(60));
     }
 
     #[test]

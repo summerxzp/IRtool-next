@@ -551,7 +551,11 @@ mod tests {
         assert_eq!(payload.initiator.as_deref(), Some("https://example.com/script.js"));
         assert_eq!(payload.attribution_status, "high-confidence");
         assert_eq!(payload.extension_id.as_deref(), Some(ext_id));
-        assert_eq!(payload.extension_name, None);
+        // CDP 路径用 target URL 作为源头标识（无法访问 chrome.management API）
+        assert_eq!(
+            payload.extension_name.as_deref(),
+            Some(format!("chrome-extension://{}/_generated_background_page.html", ext_id).as_str())
+        );
         // high-confidence → Confirmed
         assert_eq!(payload.level, AttributionLevel::Confirmed);
     }

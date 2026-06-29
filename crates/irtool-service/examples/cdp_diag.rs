@@ -15,10 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let target_list = client.get_targets().await?;
     println!("\n=== 所有 target (Target.getTargets) ===");
     for t in &target_list {
-        println!(
-            "  type={:20} id={} url={}",
-            t.target_type, t.target_id, t.url
-        );
+        println!("  type={:20} id={} url={}", t.target_type, t.target_id, t.url);
     }
 
     // 找一个 page target

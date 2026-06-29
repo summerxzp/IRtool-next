@@ -290,10 +290,7 @@ impl CdpClient {
             Ok(Err(_)) => Err(CdpError::WebSocket("response channel closed".to_string())),
             Err(_) => {
                 self.pending.lock().await.remove(&id);
-                Err(CdpError::WebSocket(format!(
-                    "session command {} timeout",
-                    method
-                )))
+                Err(CdpError::WebSocket(format!("session command {} timeout", method)))
             }
         }
     }

@@ -65,7 +65,7 @@ fn nm_host_reg_path(browser: BrowserKind) -> String {
 /// release 模式：主 exe 同目录下的 `irtool-native-messaging-host.exe`
 fn nmh_exe_path() -> io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
-    let dir = exe.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no parent dir"))?;
+    let dir = exe.parent().ok_or_else(|| io::Error::other("no parent dir"))?;
     let nmh_exe = if cfg!(windows) {
         dir.join("irtool-native-messaging-host.exe")
     } else {

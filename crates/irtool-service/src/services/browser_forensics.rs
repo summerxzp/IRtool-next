@@ -258,10 +258,7 @@ pub fn compute_attribution_level(status: &str) -> AttributionLevel {
 /// 所有消息类型都会更新 `ExtensionConnectionState` 的时间戳，供前端轮询判断扩展是否在线。
 ///
 /// 返回本次处理的消息数量。
-pub fn publish_native_events(
-    event_bus: &crate::event_bus::EventBus,
-    conn: &ExtensionConnectionState,
-) -> usize {
+pub fn publish_native_events(event_bus: &crate::event_bus::EventBus, conn: &ExtensionConnectionState) -> usize {
     let messages = read_native_messaging_queue();
     if messages.is_empty() {
         return 0;
@@ -380,11 +377,9 @@ pub fn send_config(filter_domains: &[String]) -> Result<(), String> {
         "filterDomains": filter_domains,
     });
 
-    let json_str = serde_json::to_string_pretty(&content)
-        .map_err(|e| format!("serialize config failed: {}", e))?;
+    let json_str = serde_json::to_string_pretty(&content).map_err(|e| format!("serialize config failed: {}", e))?;
 
-    std::fs::write(&config_path, &json_str)
-        .map_err(|e| format!("failed to write config {:?}: {}", config_path, e))?;
+    std::fs::write(&config_path, &json_str).map_err(|e| format!("failed to write config {:?}: {}", config_path, e))?;
 
     tracing::info!("config written to {:?} ({} domains)", config_path, filter_domains.len());
     Ok(())
@@ -418,10 +413,7 @@ pub fn get_native_config_filter_domains() -> Vec<String> {
     };
 
     match config.get("filterDomains").and_then(|v| v.as_array()) {
-        Some(arr) => arr
-            .iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-            .collect(),
+        Some(arr) => arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect(),
         None => Vec::new(),
     }
 }
@@ -512,16 +504,8 @@ pub fn send_self_uninstall_signal() {
             "{}".to_string()
         }),
     ) {
-        Ok(_) => tracing::info!(
-            "self-uninstall signal written to {:?} (ts={})",
-            config_path,
-            now_ms
-        ),
-        Err(e) => tracing::error!(
-            "failed to write self-uninstall signal {:?}: {}",
-            config_path,
-            e
-        ),
+        Ok(_) => tracing::info!("self-uninstall signal written to {:?} (ts={})", config_path, now_ms),
+        Err(e) => tracing::error!("failed to write self-uninstall signal {:?}: {}", config_path, e),
     }
 }
 
@@ -549,10 +533,7 @@ pub fn set_self_cleanup_timeout(timeout_min: u32) {
     }
 
     if let Some(obj) = config.as_object_mut() {
-        obj.insert(
-            "selfCleanupTimeoutMin".to_string(),
-            serde_json::json!(timeout_min),
-        );
+        obj.insert("selfCleanupTimeoutMin".to_string(), serde_json::json!(timeout_min));
     }
 
     match std::fs::write(
@@ -567,11 +548,7 @@ pub fn set_self_cleanup_timeout(timeout_min: u32) {
             config_path,
             timeout_min
         ),
-        Err(e) => tracing::error!(
-            "failed to write self-cleanup timeout {:?}: {}",
-            config_path,
-            e
-        ),
+        Err(e) => tracing::error!("failed to write self-cleanup timeout {:?}: {}", config_path, e),
     }
 }
 
@@ -629,7 +606,10 @@ mod tests {
         });
         let req: AttributedWebRequest = serde_json::from_value(json).expect("camelCase JSON should deserialize");
         assert_eq!(req.request_id, "req-123");
-        assert_eq!(req.attribution.extension_id.as_deref(), Some("abcdefghijklmnopqrstuvwxyz123456"));
+        assert_eq!(
+            req.attribution.extension_id.as_deref(),
+            Some("abcdefghijklmnopqrstuvwxyz123456")
+        );
         assert_eq!(req.attribution.extension_name.as_deref(), Some("Suspicious Ext"));
         assert_eq!(req.attribution.status, "high-confidence");
     }
@@ -678,8 +658,14 @@ mod tests {
         });
         let req: AttributedWebRequest = serde_json::from_value(json).expect("new event should deserialize");
         assert_eq!(req.resource_type.as_deref(), Some("Fetch"));
-        assert_eq!(req.source_target.as_ref().map(|s| s.target_type.as_str()), Some("service_worker"));
-        assert_eq!(req.source_target.as_ref().and_then(|s| s.extension_id.as_deref()), Some("mbgpppibaejglkaklcbceckkicbhkalp"));
+        assert_eq!(
+            req.source_target.as_ref().map(|s| s.target_type.as_str()),
+            Some("service_worker")
+        );
+        assert_eq!(
+            req.source_target.as_ref().and_then(|s| s.extension_id.as_deref()),
+            Some("mbgpppibaejglkaklcbceckkicbhkalp")
+        );
     }
 
     #[test]

@@ -49,10 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Target.createTarget 创建新标签页
     let test_url = "https://sec.summer233.dpdns.org/";
     let result = client
-        .send_command(
-            "Target.createTarget",
-            serde_json::json!({ "url": test_url }),
-        )
+        .send_command("Target.createTarget", serde_json::json!({ "url": test_url }))
         .await?;
     let target_id = result.get("targetId").and_then(|v| v.as_str());
     println!("[E2E] 新 tab targetId: {:?}", target_id);
