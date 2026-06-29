@@ -1,8 +1,8 @@
 import { commands } from "@/lib/bindings";
-import type { ExtensionConnectionStatus, ReconnectDiagnostics } from "@/lib/bindings";
+import type { ExtensionConnectionStatus, ReconnectDiagnostics, CdpCaptureStatus } from "@/lib/bindings";
 import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, EvidenceObject, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
 
-export type { ExtensionConnectionStatus, ReconnectDiagnostics };
+export type { ExtensionConnectionStatus, ReconnectDiagnostics, CdpCaptureStatus };
 
 /// 将后端 IrError（tagged union）转为抛出的 Error。
 ///
@@ -296,5 +296,43 @@ export async function reconnectExtension(): Promise<ReconnectDiagnostics> {
   const result = await commands.cmdBrowserForensicsReconnectExtension();
   if (result.status === "error") throwIrError(result.error);
   return result.data;
+}
+
+// ── CDP 远程调试抓包 ──────────────────────────────────────────
+
+/// 探测浏览器调试端口（不启动抓包服务）。
+/// 返回 null 表示无浏览器开启调试端口。
+export async function cdpProbe(): Promise<CdpCaptureStatus | null> {
+  const result = await commands.cmdBrowserForensicsCdpProbe();
+  if (result.status === "error") throwIrError(result.error);
+  return result.data;
+}
+
+/// 启动 CDP 抓包服务。
+/// 失败会抛出错误（如端口未开启）。
+export async function cdpCaptureStart(): Promise<CdpCaptureStatus> {
+  const result = await commands.cmdBrowserForensicsCdpCaptureStart();
+  if (result.status === "error") throwIrError(result.error);
+  return result.data;
+}
+
+/// 停止 CDP 抓包服务。
+export async function cdpCaptureStop(): Promise<void> {
+  const result = await commands.cmdBrowserForensicsCdpCaptureStop();
+  if (result.status === "error") throwIrError(result.error);
+}
+
+/// 查询 CDP 抓包服务状态。
+export async function cdpCaptureStatus(): Promise<CdpCaptureStatus> {
+  const result = await commands.cmdBrowserForensicsCdpCaptureStatus();
+  if (result.status === "error") throwIrError(result.error);
+  return result.data;
+}
+
+/// 启动带调试端口的浏览器（独立临时 profile）。
+/// 用于"一键启动调试浏览器"按钮。
+export async function launchBrowserWithDebugPort(browser: BrowserKind): Promise<void> {
+  const result = await commands.cmdBrowserForensicsLaunchBrowserWithDebugPort(browser);
+  if (result.status === "error") throwIrError(result.error);
 }
 

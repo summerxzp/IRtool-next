@@ -2,6 +2,7 @@ pub mod app;
 pub mod autoruns;
 pub mod browser_forensics;
 pub mod browser_ip_index;
+pub mod cdp_capture;
 pub mod extension_connection;
 pub mod monitor;
 pub mod network;

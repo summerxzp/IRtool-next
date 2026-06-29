@@ -120,9 +120,27 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
     possible: t("browser-forensics.context.confidence.possible", { defaultValue: "可能" }),
   };
 
+  // 源头信息：extension_name 字段在 CDP 路径下存放 target URL（如 chrome-extension://<id>/background.js）
+  // 用于体现"请求是由什么发起的"
+  const sourceLabel = evt.extension_name;
+  const sourceTitle = evt.extension_id ? `Extension ID: ${evt.extension_id}` : undefined;
+
+  // initiator 友好化：chrome-error://chromewebdata/ → "Chrome 错误页"
+  const initiatorLabel = (() => {
+    if (!evt.initiator) return null;
+    if (evt.initiator === "chrome-error://chromewebdata/") {
+      return t("browser-forensics.events.initiator-chrome-error", { defaultValue: "Chrome 错误页" });
+    }
+    if (evt.initiator.startsWith("chrome-extension://")) {
+      const path = evt.initiator.slice("chrome-extension://".length);
+      return `extension://${path}`;
+    }
+    return evt.initiator;
+  })();
+
   return (
     <div className="px-3 py-1.5 hover:bg-bg-elev-1/50 transition-colors">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${levelStyles[evt.level]}`}>
           {levelLabels[evt.level]}
         </span>
@@ -134,18 +152,19 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
         )}
         <span className="text-[10px] text-muted-foreground font-mono">{formatTs(evt.timestamp)}</span>
         <div className="flex-1" />
-        {evt.extension_name && (
-          <span className="text-[10px] text-accent truncate max-w-32" title={evt.extension_id ?? ""}>
-            {evt.extension_name}
+        {sourceLabel && (
+          <span className="text-[10px] text-accent font-mono" title={sourceTitle}>
+            {sourceLabel}
           </span>
         )}
       </div>
-      <div className="mt-0.5 text-xs text-fg-primary truncate font-mono" title={evt.url}>
+      {/* URL：不截断，允许换行（base64 等长 URL 完整展示） */}
+      <div className="mt-0.5 text-xs text-fg-primary break-all font-mono">
         {evt.url}
       </div>
-      {evt.initiator && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground truncate font-mono">
-          initiator: {evt.initiator}
+      {initiatorLabel && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground break-all font-mono">
+          {t("browser-forensics.events.initiator-label", { defaultValue: "源头" })}: {initiatorLabel}
         </div>
       )}
     </div>

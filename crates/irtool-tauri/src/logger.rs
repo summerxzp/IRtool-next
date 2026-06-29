@@ -90,8 +90,10 @@ pub fn init_logger(log_dir: PathBuf) -> LoggerGuard {
     let monitor_filter = EnvFilter::new(
         "irtool_monitor=debug,irtool_net_monitor=debug,\
          irtool_pcap=debug,irtool_sysmon=debug,\
+         irtool_cdp=debug,\
          irtool_service::services::browser_forensics=debug,\
-         irtool_service::services::extension_connection=debug",
+         irtool_service::services::extension_connection=debug,\
+         irtool_service::services::cdp_capture=debug",
     );
 
     let monitor_layer = fmt::layer()

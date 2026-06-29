@@ -273,6 +273,12 @@ fn command_builder() -> Builder<tauri::Wry> {
         cmd_browser_forensics_get_self_cleanup_timeout,
         cmd_browser_forensics_extension_status,
         cmd_browser_forensics_reconnect_extension,
+        // --- CDP 远程调试抓包 ---
+        cmd_browser_forensics_cdp_probe,
+        cmd_browser_forensics_cdp_capture_start,
+        cmd_browser_forensics_cdp_capture_stop,
+        cmd_browser_forensics_cdp_capture_status,
+        cmd_browser_forensics_launch_browser_with_debug_port,
     ])
 }
 

@@ -26,6 +26,7 @@ irtool-pcap = { path = "../irtool-pcap" }
 irtool-tools = { path = "../irtool-tools" }
 irtool-browser-forensics = { path = "../irtool-browser-forensics" }
 irtool-native-messaging = { path = "../irtool-native-messaging" }
+irtool-cdp = { path = "../irtool-cdp" }
 irtool-egui = { path = "../irtool-egui", optional = true }
 
 tauri = { workspace = true, features = ["tray-icon"] }
@@ -44,6 +45,7 @@ windows = { workspace = true, features = [
   "Win32_System_Threading",
   "Win32_System_Registry",
   "Win32_System_Services",
+  "Win32_System_Diagnostics_ToolHelp",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }

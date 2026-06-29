@@ -16,6 +16,7 @@ import { TabTable } from "../components/TabTable";
 import { ContextAttributionPanel } from "../components/ContextAttributionPanel";
 import { WatchTargetsBar } from "../components/WatchTargetsBar";
 import { ExtensionConnectionBadge } from "../components/ExtensionConnectionBadge";
+import { CdpCaptureControl } from "../components/CdpCaptureControl";
 import { InstallHelperExtensionDialog } from "../components/InstallHelperExtensionDialog";
 import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload, ExtensionAttributionPayload } from "../types";
 
@@ -405,7 +406,12 @@ export function BrowserForensicsPage() {
 
         <span className="mx-1 text-border select-none">|</span>
 
-        {/* Helper Extension 连接状态 */}
+        {/* CDP 远程调试抓包控制（主抓包通道） */}
+        <CdpCaptureControl />
+
+        <span className="mx-1 text-border select-none">|</span>
+
+        {/* Helper Extension 连接状态（NMH 兜底通道） */}
         <ExtensionConnectionBadge />
 
         <span className="mx-1 text-border select-none">|</span>

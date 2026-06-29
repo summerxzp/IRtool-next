@@ -1,7 +1,9 @@
 use irtool_browser_forensics::extension_attribution::ExtensionAttribution;
 use irtool_browser_forensics::*;
 use irtool_core::IrError;
+use irtool_cdp::discovery::{discover_targets, is_port_listening};
 use irtool_service::context::AppContext;
+use irtool_service::services::cdp_capture::CdpCaptureService;
 use irtool_service::services::extension_connection::ExtensionConnectionStatus;
 use tauri::{Manager, State};
 
@@ -484,4 +486,290 @@ fn kill_nmh_processes() -> usize {
         }
         _ => 0,
     }
+}
+
+// ── CDP 远程调试抓包 ───────────────────────────────────────────
+
+/// CDP 抓包服务状态
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct CdpCaptureStatus {
+    /// 抓包服务是否运行
+    pub running: bool,
+    /// 已连接的浏览器类型（running=true 时有值）
+    pub browser_kind: Option<String>,
+    /// 调试端口（running=true 时有值）
+    pub port: Option<u16>,
+}
+
+/// 探测浏览器调试端口（不启动抓包服务，仅检查 9222/9223/9229 是否有浏览器监听）。
+///
+/// 用于 UI 判断：若探测到端口 → 显示"启动抓包"按钮；
+/// 若未探测到 → 显示"启动调试浏览器"按钮（自动启动带调试端口的浏览器）。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_cdp_probe() -> Result<Option<CdpCaptureStatus>, IrError> {
+    let targets = discover_targets().await;
+    Ok(targets.into_iter().next().map(|t| CdpCaptureStatus {
+        running: false,
+        browser_kind: Some(format!("{:?}", t.browser).to_lowercase()),
+        port: Some(t.port),
+    }))
+}
+
+/// 启动 CDP 抓包服务。
+///
+/// 内部流程：
+/// 1. discover_targets 探测调试端口
+/// 2. CdpCaptureService::start 启动后台抓包 task
+/// 3. 句柄存入 AppContext.cdp_capture 供后续 stop 使用
+///
+/// 抓包事件通过 EventBus → evt_extension_attribution 推送到前端，
+/// 复用现有 ExtensionEventsView 展示。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_cdp_capture_start(
+    ctx: State<'_, AppContext>,
+) -> Result<CdpCaptureStatus, IrError> {
+    // 探测端口（用于状态返回）
+    let targets = discover_targets().await;
+    let cdp_target = targets.into_iter().next().ok_or_else(|| {
+        IrError::Internal(
+            "no CDP target discovered (browser not running with --remote-debugging-port?)".to_string(),
+        )
+    })?;
+
+    // 启动抓包服务
+    let service = CdpCaptureService::start(ctx.event_bus.clone()).await?;
+
+    // 存入 AppContext
+    let mut guard = ctx.cdp_capture.lock().await;
+    if let Some(old) = guard.take() {
+        tracing::warn!("cdp capture: previous service still running, stopping before start");
+        let _ = old.stop().await;
+    }
+    *guard = Some(service);
+
+    tracing::info!(
+        port = cdp_target.port,
+        browser = ?cdp_target.browser,
+        "cdp capture started"
+    );
+
+    Ok(CdpCaptureStatus {
+        running: true,
+        browser_kind: Some(format!("{:?}", cdp_target.browser).to_lowercase()),
+        port: Some(cdp_target.port),
+    })
+}
+
+/// 停止 CDP 抓包服务。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_cdp_capture_stop(
+    ctx: State<'_, AppContext>,
+) -> Result<(), IrError> {
+    let mut guard = ctx.cdp_capture.lock().await;
+    if let Some(service) = guard.take() {
+        service.stop().await?;
+        tracing::info!("cdp capture stopped");
+    }
+    Ok(())
+}
+
+/// 查询 CDP 抓包服务状态。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_cdp_capture_status(
+    ctx: State<'_, AppContext>,
+) -> Result<CdpCaptureStatus, IrError> {
+    let guard = ctx.cdp_capture.lock().await;
+    let running = guard.is_some();
+    // 若运行中，再探测一次端口用于状态返回（端口可能在运行期间关闭）
+    let port_browser = if running {
+        let targets = discover_targets().await;
+        targets.into_iter().next().map(|t| (t.port, format!("{:?}", t.browser).to_lowercase()))
+    } else {
+        None
+    };
+
+    Ok(CdpCaptureStatus {
+        running,
+        browser_kind: port_browser.as_ref().map(|(_, b)| b.clone()),
+        port: port_browser.map(|(p, _)| p),
+    })
+}
+
+/// 启动带调试端口的浏览器（用于"一键启动调试浏览器"按钮）。
+///
+/// 用 `chrome.exe --remote-debugging-port=9222 --user-data-dir=<temp>` 启动独立实例。
+/// 临时 profile 路径：`%TEMP%\irtool\debug-profile`，避免污染用户主 profile。
+///
+/// **关键限制**：Chrome/Edge 的单实例机制会拒绝在新进程启用调试端口，
+/// 如果已有同名浏览器进程在运行（包括托盘后台进程），新进程会把参数转发给已有实例后立即退出。
+/// 因此启动前必须先检测同名进程，若存在则直接返回错误，提示用户手动关闭。
+///
+/// spawn 后轮询 9222 端口是否监听（最多 8s），双重保险。
+#[tauri::command]
+#[specta::specta]
+pub async fn cmd_browser_forensics_launch_browser_with_debug_port(
+    browser: BrowserKind,
+) -> Result<(), IrError> {
+    let (exe_candidates, browser_name) = match browser {
+        BrowserKind::Chrome => (
+            vec![
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe".to_string(),
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe".to_string(),
+                env_local_app_data_chrome(),
+            ],
+            "Chrome",
+        ),
+        BrowserKind::Edge => (
+            vec![
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".to_string(),
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe".to_string(),
+            ],
+            "Edge",
+        ),
+    };
+
+    let exe = exe_candidates.into_iter().find(|p| !p.is_empty() && std::path::Path::new(p).exists())
+        .ok_or_else(|| IrError::Internal(format!("{} executable not found", browser_name)))?;
+
+    tracing::info!(exe = %exe, browser = %browser_name, "launching browser with debug port 9222");
+
+    // spawn 前先检测端口是否已被占用（可能是之前的调试浏览器实例仍存活）
+    if is_port_listening(9222).await {
+        tracing::info!("port 9222 already listening before launch, skip spawning new browser");
+        return Ok(());
+    }
+
+    // 临时 profile 目录
+    let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| r"C:\Temp".to_string());
+    let debug_profile = format!(r"{}\irtool\debug-profile", temp_dir);
+    std::fs::create_dir_all(&debug_profile).map_err(|e| {
+        IrError::Internal(format!("failed to create debug profile dir: {}", e))
+    })?;
+
+    // 清理可能残留的 SingletonLock（Chrome 异常退出后会残留，导致新进程误判已有实例）
+    let singleton_lock = std::path::Path::new(&debug_profile).join("SingletonLock");
+    if singleton_lock.exists() {
+        tracing::info!(path = %singleton_lock.display(), "removing stale SingletonLock");
+        let _ = std::fs::remove_file(&singleton_lock);
+    }
+
+    // 将 Chrome 的 stdout/stderr 重定向到日志文件，便于诊断退出原因
+    let stderr_log = std::path::Path::new(&debug_profile).join("chrome-stderr.log");
+    let stderr_file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&stderr_log)
+        .map_err(|e| IrError::Internal(format!("failed to open chrome stderr log: {}", e)))?;
+
+    // 启动浏览器（独立进程，捕获 stderr 以便诊断）
+    //
+    // 关键：--user-data-dir 必须用等号连接路径（--user-data-dir=<path>），
+    // 不能分成两个参数（"--user-data-dir", <path>）。
+    // Chrome 的命令行解析会把分开的 --user-data-dir 当成无值开关，
+    // 路径会被当成位置参数（URL），导致 Chrome 136+ 安全限制触发：
+    // --remote-debugging-port 必须搭配非默认 user-data-dir，否则拒绝启用调试端口。
+    let stdout_stdio = match stderr_file.try_clone() {
+        Ok(f) => std::process::Stdio::from(f),
+        Err(_) => std::process::Stdio::null(),
+    };
+    let user_data_dir_arg = format!("--user-data-dir={}", debug_profile);
+    let mut child = std::process::Command::new(&exe)
+        .args([
+            "--remote-debugging-port=9222",
+            &user_data_dir_arg,
+            "--no-first-run",
+            "--no-default-browser-check",
+        ])
+        .stdout(stdout_stdio)
+        .stderr(std::process::Stdio::from(stderr_file))
+        .spawn()
+        .map_err(|e| IrError::Internal(format!("failed to launch {}: {}", exe, e)))?;
+
+    let pid = child.id();
+    tracing::info!(exe = %exe, profile = %debug_profile, pid, stderr_log = %stderr_log.display(), "browser process spawned, waiting for port 9222 to listen");
+
+    // 轮询端口监听（最多 15s，每 500ms 一次）
+    //
+    // 关键：不依赖 child.try_wait() 判断 Chrome 是否退出。
+    // Chrome 多进程架构下，spawn 拿到的主进程（launcher）启动真正的 browser process 后
+    // 会立即退出（exit code 0），这是正常行为，不代表启动失败。
+    // 特别是管理员权限启动时，主进程退出更快（1 秒内）。
+    // 真正的 browser process 会继续运行并监听 9222 端口。
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        if is_port_listening(9222).await {
+            tracing::info!(pid, "port 9222 is now listening, browser ready for CDP capture");
+            return Ok(());
+        }
+
+        if std::time::Instant::now() >= deadline {
+            tracing::error!(pid, "timed out waiting for port 9222 to listen (15s)");
+            let stderr_content = std::fs::read_to_string(&stderr_log).unwrap_or_default();
+            let stderr_preview: String = stderr_content.chars().take(2000).collect();
+            tracing::error!(pid, stderr = %stderr_preview, "chrome stderr at timeout");
+            // 尝试 kill 残留进程
+            let _ = child.kill();
+            return Err(IrError::Internal(format!(
+                "{name} 已启动但 15 秒内端口 9222 未监听（spawn PID {pid}）。\n\n\
+                 可能原因：\n\
+                 1) 仍有 {name} 进程在运行（单实例转发，新进程参数被忽略）\n\
+                 2) Chrome 136+ 安全限制：--remote-debugging-port 必须搭配非默认 user-data-dir\n\
+                 3) {name} 启动缓慢或被安全软件拦截\n\n\
+                 Chrome stderr 输出：\n{stderr}\n\n\
+                 诊断文件：{log}",
+                name = browser_name,
+                pid = pid,
+                stderr = if stderr_preview.is_empty() { "(无输出)" } else { &stderr_preview },
+                log = stderr_log.display(),
+            )));
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+}
+
+/// 统计指定浏览器进程数量（用于单实例冲突检测）。
+///
+/// `process_name` 不带 `.exe` 后缀（如 "chrome"、"msedge"）。
+/// 使用 ToolHelp32 进程快照枚举，比 WMI 更轻量。
+#[allow(dead_code)]
+fn count_browser_processes(process_name: &str) -> usize {
+    use windows::Win32::System::Diagnostics::ToolHelp::*;
+    use windows::Win32::Foundation::CloseHandle;
+
+    let target = format!("{}.exe", process_name.to_lowercase());
+    let mut count = 0usize;
+
+    unsafe {
+        let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            Ok(h) => h,
+            Err(_) => return 0,
+        };
+
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                let name = String::from_utf16_lossy(
+                    &entry.szExeFile[..entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0)],
+                );
+                if name.to_lowercase() == target {
+                    count += 1;
+                }
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+
+        let _ = CloseHandle(snapshot);
+    }
+
+    count
 }

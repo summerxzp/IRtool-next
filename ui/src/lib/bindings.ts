@@ -748,10 +748,10 @@ async cmdBrowserForensicsGetConfig() : Promise<Result<string[], IrError>> {
 },
 /**
  * 下发自我卸载信号给扩展（手动清理）。
- *
+ * 
  * 在 config.json 中写入 `selfUninstall: <timestamp>`，NMH 检测到 mtime 变化后
  * 透传给扩展，扩展调用 `chrome.management.uninstallSelf()` 立即卸载。
- *
+ * 
  * 用途：应急响应场景，用户点击"清理扩展"按钮时调用。
  * 注意：此操作不可逆，扩展会被立即卸载。
  */
@@ -765,7 +765,7 @@ async cmdBrowserForensicsSelfUninstall() : Promise<Result<null, IrError>> {
 },
 /**
  * 设置扩展自我清理超时时间（分钟）。
- *
+ * 
  * 写入 config.json 的 `selfCleanupTimeoutMin` 字段：
  * - 0 = 禁用自动清理
  * - >0 = 启用，IRtool 离线超过该时长后扩展自动卸载（默认 60）
@@ -780,7 +780,7 @@ async cmdBrowserForensicsSetSelfCleanupTimeout(timeoutMin: number) : Promise<Res
 },
 /**
  * 读取当前 selfCleanupTimeoutMin 配置。
- *
+ * 
  * 返回 None 时 UI 应显示默认值 60。
  */
 async cmdBrowserForensicsGetSelfCleanupTimeout() : Promise<Result<number | null, IrError>> {
@@ -816,6 +816,81 @@ async cmdBrowserForensicsExtensionStatus() : Promise<Result<ExtensionConnectionS
 async cmdBrowserForensicsReconnectExtension() : Promise<Result<ReconnectDiagnostics, IrError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_reconnect_extension") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 探测浏览器调试端口（不启动抓包服务，仅检查 9222/9223/9229 是否有浏览器监听）。
+ * 
+ * 用于 UI 判断：若探测到端口 → 显示"启动抓包"按钮；
+ * 若未探测到 → 显示"启动调试浏览器"按钮（自动启动带调试端口的浏览器）。
+ */
+async cmdBrowserForensicsCdpProbe() : Promise<Result<CdpCaptureStatus | null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_cdp_probe") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 启动 CDP 抓包服务。
+ * 
+ * 内部流程：
+ * 1. discover_targets 探测调试端口
+ * 2. CdpCaptureService::start 启动后台抓包 task
+ * 3. 句柄存入 AppContext.cdp_capture 供后续 stop 使用
+ * 
+ * 抓包事件通过 EventBus → evt_extension_attribution 推送到前端，
+ * 复用现有 ExtensionEventsView 展示。
+ */
+async cmdBrowserForensicsCdpCaptureStart() : Promise<Result<CdpCaptureStatus, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_cdp_capture_start") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 停止 CDP 抓包服务。
+ */
+async cmdBrowserForensicsCdpCaptureStop() : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_cdp_capture_stop") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 查询 CDP 抓包服务状态。
+ */
+async cmdBrowserForensicsCdpCaptureStatus() : Promise<Result<CdpCaptureStatus, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_cdp_capture_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 启动带调试端口的浏览器（用于"一键启动调试浏览器"按钮）。
+ * 
+ * 用 `chrome.exe --remote-debugging-port=9222 --user-data-dir=<temp>` 启动独立实例。
+ * 临时 profile 路径：`%TEMP%\irtool\debug-profile`，避免污染用户主 profile。
+ * 
+ * **关键限制**：Chrome/Edge 的单实例机制会拒绝在新进程启用调试端口，
+ * 如果已有同名浏览器进程在运行（包括托盘后台进程），新进程会把参数转发给已有实例后立即退出。
+ * 因此启动前必须先检测同名进程，若存在则直接返回错误，提示用户手动关闭。
+ * 
+ * spawn 后轮询 9222 端口是否监听（最多 8s），双重保险。
+ */
+async cmdBrowserForensicsLaunchBrowserWithDebugPort(browser: BrowserKind) : Promise<Result<null, IrError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cmd_browser_forensics_launch_browser_with_debug_port", { browser }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -872,6 +947,22 @@ display_name: string | null;
  * Profile 目录完整路径
  */
 path: string }
+/**
+ * CDP 抓包服务状态
+ */
+export type CdpCaptureStatus = { 
+/**
+ * 抓包服务是否运行
+ */
+running: boolean; 
+/**
+ * 已连接的浏览器类型（running=true 时有值）
+ */
+browser_kind: string | null; 
+/**
+ * 调试端口（running=true 时有值）
+ */
+port: number | null }
 export type CmdlineStatus = "unknown" | "pending" | "ready" | "denied" | "exited" | "failed"
 export type ConnState = "CLOSED" | "LISTEN" | "SYN_SENT" | "SYN_RCVD" | "ESTABLISHED" | "FIN_WAIT_1" | "FIN_WAIT_2" | "CLOSE_WAIT" | "CLOSING" | "LAST_ACK" | "TIME_WAIT" | "DELETE_TCB" | "NONE"
 /**

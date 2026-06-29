@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::event_bus::EventBus;
 use crate::services::browser_ip_index::{BrowserIpIndex, SharedBrowserIpIndex};
+use crate::services::cdp_capture::CdpCaptureService;
 use crate::services::extension_connection::ExtensionConnectionState;
 
 /// Transport-agnostic application context.
@@ -42,6 +43,8 @@ pub struct AppContext {
     pub browser_ip_index: SharedBrowserIpIndex,
     // --- Helper Extension 连接状态（无锁，高频更新） ---
     pub extension_connection: Arc<ExtensionConnectionState>,
+    // --- CDP 远程调试抓包服务句柄（用户手动启停） ---
+    pub cdp_capture: Arc<sync::Mutex<Option<CdpCaptureService>>>,
 }
 
 pub struct NetworkPollingState {
@@ -91,6 +94,7 @@ impl AppContext {
             event_bus: EventBus::new(),
             browser_ip_index: Arc::new(sync::Mutex::new(BrowserIpIndex::new())),
             extension_connection: Arc::new(ExtensionConnectionState::new()),
+            cdp_capture: Arc::new(sync::Mutex::new(None)),
         }
     }
 }
