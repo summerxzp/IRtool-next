@@ -1,8 +1,15 @@
 // ============================================================
 // IRTool Network Attribution Helper — Service Worker (MV3)
 // ============================================================
-// 监听浏览器网络请求，提取 initiator 字段实现扩展级归因，
-// 通过 Native Messaging 批量发送给 IRtool 本地进程。
+// 通过 chrome.webRequest 监听浏览器页面上下文发起的网络请求，
+// 提取 initiator 字段实现归因，通过 Native Messaging 批量上报给 IRtool。
+//
+// 能力边界：
+// - ✅ 页面 HTTP/HTTPS 请求（含 Fetch/XHR，少数 Fetch 场景除外）
+// - ✅ 从页面上下文发起、initiator 为扩展的请求（可归因到扩展）
+// - ❌ 扩展 service worker 自身发起的请求（webRequest 设计限制）
+//
+// 如需抓扩展 SW 流量，使用 IRtool 的 CDP 远程调试模式（高级模式）。
 // ============================================================
 
 "use strict";
@@ -74,30 +81,6 @@ let lastSelfUninstallTs = 0;
 /** @type {number|null} setTimeout 重连句柄（≤30s 重连用，需追踪以便取消） */
 let reconnectTimer = null;
 
-// ── DebuggerManager（替代 webRequest） ────────────────────────
-//
-// chrome.debugger API + CDP 抓包：
-// - 启动时全量 attach 所有 page + extension service_worker target
-// - 事件驱动动态 attach/detach（onCreated/onRemoved/onInstalled/onUninstalled/onEnabled/onDisabled）
-// - chrome.alarms 1min 定期 reconcile（应对 SW 重启、targetId 变化等边界）
-// - 监听 CDP Network.requestWillBeSent 事件抓取所有请求
-//
-// 优势：能抓到扩展 service worker 发起的请求（webRequest 抓不到）
-// 代价：浏览器顶部会显示"正在调试此浏览器"提示条（应急响应场景接受）
-
-/** 已 attach 的 target：key → {type, url?, extensionId?, tabId?}
- *  key 形如：targetId（service_worker target）或 "tab:<tabId>"（page tab） */
-const attachedTargets = new Map();
-
-/** 正在 attach 中的 key，防止并发 attach 同一 target */
-const attachInProgress = new Set();
-
-/** onDetach 重试退避计数：key → retryCount */
-const targetDetachRetry = new Map();
-
-/** 定期校准 alarm 名称（1 分钟一次全量扫描） */
-const RECONCILE_ALARM = "irtool-debugger-reconcile";
-
 // ── 心跳定时器 ────────────────────────────────────────────────
 
 /** @type {number|null} */
@@ -138,334 +121,6 @@ function matchesFilter(hostname) {
     }
   }
   return false;
-}
-
-// ============================================================
-// DebuggerManager
-// ============================================================
-
-/**
- * 从 chrome.debugger.getTargets() 的 target.url 中提取 extensionId。
- * target.url 形如 chrome-extension://<id>/_generated_background_page.html
- */
-function extensionIdFromTargetUrl(url) {
-  if (!url) return null;
-  const match = url.match(/^chrome-extension:\/\/([a-z]{32})/);
-  return match ? match[1] : null;
-}
-
-/**
- * 判断 target 是否为扩展 Service Worker。
- *
- * 实测 Chrome/Edge 的 getTargets() 不返回 "service_worker" 类型，
- * 而是返回 "worker"（MV3 扩展 SW + 普通 web worker 共用此类型），
- * Edge 还会用 "background_page" 表示 MV2 扩展的背景页。
- * 用 url 是否以 chrome-extension:// 开头来区分扩展 SW。
- *
- * @param {{type: string, url?: string}} t
- * @returns {boolean}
- */
-function isExtensionServiceWorker(t) {
-  if (!t || !t.url) return false;
-  return (t.type === "worker" || t.type === "background_page")
-    && t.url.startsWith("chrome-extension://");
-}
-
-/**
- * Attach 到指定 target（用 targetId），并启用 Network 域。
- * 失败时不加入 attachedTargets，下次 reconcile 会重试。
- *
- * @param {string} targetId - CDP target ID
- * @param {{type: string, url?: string}} targetInfo - 从 getTargets 获取的 target 元信息
- */
-async function attachTarget(targetId, targetInfo) {
-  if (attachedTargets.has(targetId) || attachInProgress.has(targetId)) return;
-  attachInProgress.add(targetId);
-
-  try {
-    await new Promise((resolve, reject) => {
-      chrome.debugger.attach({ targetId }, "1.3", () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve();
-      });
-    });
-
-    // 启用 Network 域，开启 requestWillBeSent 事件
-    await new Promise((resolve, reject) => {
-      chrome.debugger.sendCommand({ targetId }, "Network.enable", {}, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve();
-      });
-    });
-
-    // 用 isExtensionServiceWorker 判断（兼容 getTargets 返回 "worker"/"background_page" 的情况）
-    const extensionId = isExtensionServiceWorker(targetInfo)
-      ? extensionIdFromTargetUrl(targetInfo.url)
-      : null;
-
-    attachedTargets.set(targetId, {
-      type: targetInfo.type,
-      url: targetInfo.url || null,
-      extensionId,
-    });
-    console.log("[IRTool] Attached target:", targetInfo.type, targetId);
-  } catch (e) {
-    console.warn("[IRTool] Attach failed for", targetId, ":", e.message);
-    // 不加入 attachedTargets，下次 reconcile 会重试
-  } finally {
-    attachInProgress.delete(targetId);
-  }
-}
-
-/**
- * Attach 到指定 tab（用 tabId）。
- * tab 用 tabId attach，onMessage 中 debuggee.tabId 仍可取到。
- * 内部用 "tab:<tabId>" 作 key 区分。
- */
-async function attachTargetByTabId(tabId) {
-  const key = `tab:${tabId}`;
-  if (attachedTargets.has(key) || attachInProgress.has(key)) return;
-  attachInProgress.add(key);
-
-  try {
-    await new Promise((resolve, reject) => {
-      chrome.debugger.attach({ tabId }, "1.3", () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve();
-      });
-    });
-
-    await new Promise((resolve, reject) => {
-      chrome.debugger.sendCommand({ tabId }, "Network.enable", {}, () => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve();
-      });
-    });
-
-    attachedTargets.set(key, {
-      type: "page",
-      url: null,
-      extensionId: null,
-      tabId,
-    });
-    console.log("[IRTool] Attached tab:", tabId);
-  } catch (e) {
-    console.warn("[IRTool] Attach failed for tab", tabId, ":", e.message);
-  } finally {
-    attachInProgress.delete(key);
-  }
-}
-
-/** Detach 指定 target/tab（用内部 key） */
-async function detachTarget(key) {
-  if (!attachedTargets.has(key)) return;
-  const info = attachedTargets.get(key);
-  try {
-    const debuggee = info.tabId != null ? { tabId: info.tabId } : { targetId: key };
-    await new Promise((resolve) => {
-      chrome.debugger.detach(debuggee, () => {
-        if (chrome.runtime.lastError) {
-          console.warn("[IRTool] Detach error:", chrome.runtime.lastError.message);
-        }
-        resolve();
-      });
-    });
-  } catch (e) {
-    // 忽略 detach 错误（target 可能已消失）
-  }
-  attachedTargets.delete(key);
-  targetDetachRetry.delete(key);
-  console.log("[IRTool] Detached:", key);
-}
-
-/** 全量 attach 所有现有 page + extension service_worker target */
-async function attachAllExisting() {
-  const targets = await new Promise((resolve) => {
-    chrome.debugger.getTargets(resolve);
-  });
-
-  // 诊断：统计 target 类型分布 + 列出扩展 SW
-  const typeCount = {};
-  for (const t of targets) {
-    typeCount[t.type] = (typeCount[t.type] || 0) + 1;
-  }
-  console.log(
-    "[IRTool] getTargets returned", targets.length, "targets, types:",
-    JSON.stringify(typeCount)
-  );
-  // 列出所有扩展 SW target（用 isExtensionServiceWorker 判断）
-  const extSwTargets = targets.filter(isExtensionServiceWorker);
-  if (extSwTargets.length > 0) {
-    console.log("[IRTool] Extension SW targets:", extSwTargets.length,
-      extSwTargets.map((t) => extensionIdFromTargetUrl(t.url)).join(", "));
-  } else {
-    console.warn("[IRTool] No extension SW targets found!");
-  }
-
-  for (const t of targets) {
-    const isPage = t.type === "page";
-    const isExtSW = isExtensionServiceWorker(t);
-    if (!isPage && !isExtSW) continue;
-    // 跳过自己（IRtool Helper Extension 自身的 SW）
-    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
-    // 跳过 chrome:// 等非 http/https page（减少噪声）
-    if (isPage && t.url && !t.url.startsWith("http")) continue;
-    await attachTarget(t.id, t);
-  }
-}
-
-/**
- * 全量校准：扫描所有现有 target，detach 已消失的，attach 新增的。
- * 应对 service worker 重启、targetId 变化等边界场景。
- */
-async function reconcile() {
-  console.log("[IRTool] Reconcile: scanning targets");
-  const targets = await new Promise((resolve) => {
-    chrome.debugger.getTargets(resolve);
-  });
-
-  // 当前存在的 target ID 集合（仅扩展 SW / page target）
-  const existingTargetIds = new Set();
-  for (const t of targets) {
-    const isPage = t.type === "page";
-    const isExtSW = isExtensionServiceWorker(t);
-    if (!isPage && !isExtSW) continue;
-    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
-    existingTargetIds.add(t.id);
-  }
-
-  // detach 已消失的（只检查 targetId 类型的 key，tab 类的由 onRemoved 处理）
-  for (const key of Array.from(attachedTargets.keys())) {
-    if (key.startsWith("tab:")) continue;
-    if (!existingTargetIds.has(key)) {
-      await detachTarget(key);
-    }
-  }
-
-  // attach 新增的
-  for (const t of targets) {
-    const isPage = t.type === "page";
-    const isExtSW = isExtensionServiceWorker(t);
-    if (!isPage && !isExtSW) continue;
-    if (isExtSW && t.url.startsWith(`chrome-extension://${chrome.runtime.id}`)) continue;
-    if (isPage && t.url && !t.url.startsWith("http")) continue;
-    if (!attachedTargets.has(t.id)) {
-      await attachTarget(t.id, t);
-    }
-  }
-}
-
-/**
- * 安排重试 attach（用户关提示条后用）。
- * 指数退避：1s → 2s → 4s → ... → 30s（封顶）。
- */
-function scheduleReattach(key) {
-  const retryCount = (targetDetachRetry.get(key) || 0) + 1;
-  targetDetachRetry.set(key, retryCount);
-  const delayMs = Math.min(1000 * Math.pow(2, retryCount - 1), 30_000);
-
-  // 用 setTimeout（≤30s 内 service worker 通常不挂起）
-  // 极端情况：30s 后才触发 + service worker 已挂起 → reconcile 会兜底
-  setTimeout(async () => {
-    // 重新查询 target 是否仍存在
-    const targets = await new Promise((resolve) => {
-      chrome.debugger.getTargets(resolve);
-    });
-    const t = targets.find((x) => x.id === key);
-    if (!t) {
-      // target 已消失，清理状态
-      targetDetachRetry.delete(key);
-      return;
-    }
-    // 重新 attach
-    await attachTarget(key, t);
-  }, delayMs);
-
-  console.log("[IRTool] Reattach scheduled for", key, "in", delayMs, "ms (retry", retryCount, ")");
-}
-
-// ============================================================
-// CDP 网络事件处理
-// ============================================================
-
-/**
- * chrome.debugger.onEvent 回调。
- * 只处理 Network.requestWillBeSent 事件。
- */
-function onDebuggerMessage(debuggee, method, params) {
-  if (method !== "Network.requestWillBeSent") return;
-
-  const { requestId, request, type, initiator } = params;
-  const { url, method: httpMethod } = request;
-
-  // 过滤：仅 http/https
-  if (!url.startsWith("http")) return;
-
-  // 过滤：域名过滤（filterDomains 复用现有逻辑）
-  const hostname = hostnameFromUrl(url);
-  if (!matchesFilter(hostname)) return;
-
-  // initiator 是对象 {type, url, stack}，提取 url 保持兼容
-  const initiatorUrl = initiator?.url || null;
-
-  // 找到 debuggee 对应的 target 信息（支持 tabId 和 targetId 两种 key）
-  const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
-  const targetInfo = attachedTargets.get(key);
-
-  // 归因：基于 target 类型判断（不依赖 initiator 字符串，更可靠）
-  // 注意：getTargets() 返回的扩展 SW type 是 "worker"/"background_page"（非 "service_worker"），
-  // 所以这里用 extensionId 是否存在来判断（attachTarget 时已根据 url 设置 extensionId）
-  let attribution;
-  if (targetInfo?.extensionId) {
-    attribution = {
-      status: "high-confidence",
-      extensionId: targetInfo.extensionId,
-      extensionName: extensionCache.get(targetInfo.extensionId)?.name || "Unknown",
-    };
-  } else if (targetInfo?.type === "page") {
-    attribution = {
-      status: "page-originated",
-      extensionId: null,
-      extensionName: null,
-    };
-  } else {
-    attribution = {
-      status: "browser-owned",
-      extensionId: null,
-      extensionName: null,
-    };
-  }
-
-  // MV3 service worker 唤醒后 nativePort 可能丢失，检查并重连
-  if (!nativePort) {
-    connectNative();
-  }
-
-  // 调试日志
-  console.log(
-    "[IRTool] CDP requestWillBeSent:",
-    httpMethod,
-    url,
-    "| type:", type,
-    "| hostname:", hostname,
-    "| source:", targetInfo?.type || "unknown",
-    "| nativePort:", nativePort ? "connected" : "disconnected"
-  );
-
-  enqueue({
-    timestamp: Date.now(),
-    requestId,
-    url,
-    method: httpMethod,
-    resourceType: type,  // CDP 原始取值：Document/XHR/Fetch/WebSocket/...
-    initiator: initiatorUrl,
-    attribution,
-    sourceTarget: {
-      type: targetInfo?.type || "unknown",
-      targetId: debuggee.targetId || key,
-      extensionId: targetInfo?.extensionId || null,
-    },
-  });
 }
 
 // ============================================================
@@ -857,7 +512,7 @@ function flush() {
       ringBuffer = ringBuffer.slice(-1000);
     }
     // 1 秒后重试（用 setTimeout，如果 service worker 挂起会被取消，
-    // 但下次 CDP requestWillBeSent 触发时会重新启动 flush 定时器）
+    // 但下次 onBeforeRequest 触发时会重新启动 flush 定时器）
     if (!flushTimer) {
       flushTimer = setTimeout(() => {
         flushTimer = null;
@@ -867,6 +522,98 @@ function flush() {
   } else {
     console.log("[IRTool] Flushed", batch.length, "events");
   }
+}
+
+// ============================================================
+// 网络请求归因（chrome.webRequest）
+// ============================================================
+
+/**
+ * chrome.webRequest.onBeforeRequest 回调。
+ *
+ * 提取 initiator 字段判断归因类型，加入 Ring Buffer。
+ *
+ * 归因规则：
+ * - initiator 为 chrome-extension://<id>/ → high-confidence（扩展发起）
+ * - initiator 为 http/https → page-originated（页面发起）
+ * - 无 initiator → browser-owned（浏览器自身）
+ *
+ * 注意：webRequest 只能抓页面上下文的请求，扩展 service worker 自身发起的
+ * 请求不可见。如需抓扩展 SW 流量，使用 IRtool 的 CDP 远程调试模式。
+ */
+function onBeforeRequest(details) {
+  const { requestId, url, method, initiator, type } = details;
+
+  // 过滤：仅关注 http/https 请求
+  if (!url.startsWith("http")) return;
+
+  // 过滤：域名过滤
+  const hostname = hostnameFromUrl(url);
+  if (!matchesFilter(hostname)) return;
+
+  // MV3 service worker 唤醒后 nativePort 可能丢失，检查并重连
+  if (!nativePort) {
+    connectNative();
+  }
+
+  let attribution;
+
+  if (initiator && initiator.startsWith("chrome-extension://")) {
+    // 从 initiator 中提取 extension ID
+    // 格式：chrome-extension://<extension-id>/
+    const match = initiator.match(/^chrome-extension:\/\/([a-z]{32})/);
+    const extensionId = match ? match[1] : null;
+
+    if (extensionId) {
+      const extInfo = extensionCache.get(extensionId);
+      attribution = {
+        status: "high-confidence",
+        extensionId,
+        extensionName: extInfo ? extInfo.name : "Unknown",
+      };
+    } else {
+      attribution = {
+        status: "high-confidence",
+        extensionId: null,
+        extensionName: "Unknown",
+      };
+    }
+  } else if (initiator && initiator.startsWith("http")) {
+    // 页面 origin 发起的请求
+    attribution = {
+      status: "page-originated",
+      extensionId: null,
+      extensionName: null,
+    };
+  } else {
+    // 无 initiator 或其他情况
+    attribution = {
+      status: "browser-owned",
+      extensionId: null,
+      extensionName: null,
+    };
+  }
+
+  // 调试日志
+  console.log(
+    "[IRTool] onBeforeRequest:",
+    method,
+    url,
+    "| type:", type,
+    "| hostname:", hostname,
+    "| initiator:", initiator || "(none)",
+    "| nativePort:", nativePort ? "connected" : "disconnected"
+  );
+
+  enqueue({
+    timestamp: Date.now(),
+    requestId,
+    url,
+    method,
+    resourceType: type,  // webRequest 资源类型：main_frame/sub_frame/xmlhttprequest/script/image/...
+    initiator: initiator || null,
+    attribution,
+  });
 }
 
 // ============================================================
@@ -976,112 +723,40 @@ function startHeartbeat() {
 function init() {
   console.log("[IRTool] Service Worker starting (init)");
 
-  // 诊断：输出浏览器/环境信息，便于排查 chrome.debugger 不可用等问题
-  console.log(
-    "[IRTool] Diagnostic: UA=",
-    navigator.userAgent,
-    "| chrome.debugger type=",
-    typeof chrome.debugger,
-    "| chrome.runtime.id=",
-    chrome.runtime.id
-  );
-
   // 整体 try-catch：任何一个 chrome API 不可用（策略禁用/版本支持）不应导致 SW 求值失败。
-  // 失败的 API 会被记录，SW 仍能加载，便于排查。
   try {
     // 1. 连接 Native Messaging Host
     connectNative();
 
-    // 2. 启动 DebuggerManager：全量 attach 现有 target
-    //    用 .catch 包住，避免未捕获的 Promise rejection
-    attachAllExisting().catch((e) => {
-      console.warn("[IRTool] attachAllExisting failed during init:", e?.message || e);
-    });
+    // 2. 监听网络请求（页面上下文发起的所有 http/https 请求）
+    chrome.webRequest.onBeforeRequest.addListener(
+      onBeforeRequest,
+      { urls: ["<all_urls>"] },
+      []
+    );
 
-    // 3. 监听 target 生命周期事件（动态 attach/detach）
-    if (chrome.tabs?.onCreated) {
-      chrome.tabs.onCreated.addListener((tab) => attachTargetByTabId(tab.id));
-      chrome.tabs.onRemoved.addListener((tabId) => {
-        detachTarget(`tab:${tabId}`);
-      });
-    } else {
-      console.warn("[IRTool] chrome.tabs API unavailable, tab tracking disabled");
-    }
-
-    // 注意：onInstalled/onUninstalled/onEnabled/onDisabled 同时承担两个职责：
-    //   (a) 动态 attach/detach 该扩展的 SW target
-    //   (b) 上报扩展清单变更给 IRtool（onExtensionInstalled/onExtensionUninstalled）
-    // 两个 listener 都注册，互不干扰（Chrome 允许同一事件多个 listener）
-    // 注意：onEnabled/onDisabled 在部分 Chrome 版本不存在，需存在性检查
-    chrome.management.onInstalled.addListener((ext) => {
-      if (ext.id === chrome.runtime.id) return;
-      // 等 SW 启动，1s 后全量扫描 attach 新扩展的 SW
-      setTimeout(() => attachAllExisting(), 1000);
-    });
-    chrome.management.onUninstalled.addListener((id) => {
-      // 找到该扩展的 SW target 并 detach
-      for (const [key, info] of attachedTargets) {
-        if (info.extensionId === id) detachTarget(key);
-      }
-    });
-    if (chrome.management.onEnabled) {
-      chrome.management.onEnabled.addListener((ext) => {
-        if (ext.id === chrome.runtime.id) return;
-        setTimeout(() => attachAllExisting(), 1000);
-      });
-    }
-    if (chrome.management.onDisabled) {
-      chrome.management.onDisabled.addListener((ext) => {
-        for (const [key, info] of attachedTargets) {
-          if (info.extensionId === ext.id) detachTarget(key);
-        }
-      });
-    }
-
-    // 4. CDP 事件监听
-    //    chrome.debugger 的事件 API 是 onEvent（不是 onMessage，onMessage 是 chrome.runtime 的）
-    try {
-      chrome.debugger.onEvent.addListener(onDebuggerMessage);
-      chrome.debugger.onDetach.addListener((debuggee, reason) => {
-        const key = debuggee.tabId != null ? `tab:${debuggee.tabId}` : debuggee.targetId;
-        console.log("[IRTool] Debugger detached:", key, "reason:", reason);
-        attachedTargets.delete(key);
-        // 用户关提示条（reason="canceled_by_user"）或其他原因 → 重试 attach
-        scheduleReattach(key);
-      });
-      console.log("[IRTool] CDP event listeners registered");
-    } catch (e) {
-      console.error("[IRTool] Failed to register CDP listeners:", e?.message || e);
-    }
-
-    // 5. 定期校准（应对 SW 重启等边界场景，1 分钟一次）
-    chrome.alarms.create(RECONCILE_ALARM, { periodInMinutes: 1 });
-
-    // 6. 监听扩展安装/卸载（上报清单，与上面 attach/detach 的 listener 并存）
+    // 3. 监听扩展安装/卸载（更新缓存 + 上报清单）
     chrome.management.onInstalled.addListener(onExtensionInstalled);
     chrome.management.onUninstalled.addListener(onExtensionUninstalled);
 
-    // 7. 全量上报扩展清单
+    // 4. 全量上报扩展清单
     reportExtensionListFull();
 
-    // 8. 启动心跳
+    // 5. 启动心跳
     startHeartbeat();
 
-    // 9. 监听 alarms（reconnect + self-cleanup + reconcile）
+    // 6. 监听 alarms（reconnect + self-cleanup）
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === RECONNECT_ALARM) {
         console.log("[IRTool] Reconnect alarm fired, attempting reconnect");
         connectNative();
       } else if (alarm.name === SELF_CLEANUP_ALARM) {
         onSelfCleanupAlarmFired();
-      } else if (alarm.name === RECONCILE_ALARM) {
-        reconcile();
       }
     });
 
     console.log("[IRTool] Service Worker initialized");
   } catch (e) {
-    // 捕获同步错误，避免 SW 求值失败（status code 15）
     console.error("[IRTool] init() threw:", e?.message || e, e?.stack || "");
   }
 }
