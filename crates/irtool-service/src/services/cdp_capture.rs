@@ -102,6 +102,13 @@ fn build_payload(event: &CdpEvent, target_info: &TargetInfo) -> Result<Extension
         extension_id,
         extension_name: source_label,
         level,
+        target_type: Some(target_info.target_type.clone()),
+        target_title: if target_info.title.is_empty() {
+            None
+        } else {
+            Some(target_info.title.clone())
+        },
+        initiator_type: Some(cdp_req.initiator.init_type.clone()),
     })
 }
 
@@ -556,6 +563,10 @@ mod tests {
             payload.extension_name.as_deref(),
             Some(format!("chrome-extension://{}/_generated_background_page.html", ext_id).as_str())
         );
+        // CDP 路径独有字段
+        assert_eq!(payload.target_type.as_deref(), Some("service_worker"));
+        assert_eq!(payload.target_title.as_deref(), Some("Test"));
+        assert_eq!(payload.initiator_type.as_deref(), Some("script"));
         // high-confidence → Confirmed
         assert_eq!(payload.level, AttributionLevel::Confirmed);
     }

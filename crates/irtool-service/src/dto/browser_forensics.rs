@@ -104,6 +104,18 @@ pub struct ExtensionAttributionPayload {
     pub extension_name: Option<String>,
     /// P1.2: Helper Extension 自报归因置信度（matched → Confirmed）
     pub level: AttributionLevel,
+    /// CDP 路径独有：发起请求的 target 类型（page/service_worker/background_page）。
+    /// webRequest 路径无此信息，为 None。
+    #[serde(default)]
+    pub target_type: Option<String>,
+    /// CDP 路径独有：target 标题（页面标题或扩展名）。
+    /// webRequest 路径无此信息，为 None。
+    #[serde(default)]
+    pub target_title: Option<String>,
+    /// CDP initiator 类型（parser/script/redirect/preload/preflight/other）。
+    /// webRequest 路径无此字段，为 None。
+    #[serde(default)]
+    pub initiator_type: Option<String>,
 }
 
 /// 扫描请求参数

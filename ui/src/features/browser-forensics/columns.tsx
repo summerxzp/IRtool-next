@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-import type { ExtensionInfo, DownloadInfo, HistoryEntry, RecoveredTab } from "./types";
+import type { ExtensionInfo, DownloadInfo, HistoryEntry } from "./types";
 import { formatTimestamp } from "./utils";
 
 const RISK_VARIANT_MAP: Record<string, "danger" | "warning" | "info"> = {
@@ -206,46 +206,6 @@ export function useHistoryColumns(): ColumnDef<HistoryEntry, unknown>[] {
         accessorFn: (r) => r.visit_count,
         header: t("browser-forensics.col.visit-count"),
         size: 80,
-      },
-    ],
-    [t],
-  );
-}
-
-export function useTabColumns(): ColumnDef<RecoveredTab, unknown>[] {
-  const { t } = useTranslation();
-  return useMemo(
-    () => [
-      {
-        id: "active",
-        accessorFn: (r) => r.active,
-        header: t("browser-forensics.col.active"),
-        size: 60,
-        cell: ({ row }) =>
-          row.original.active ? (
-            <span className="text-success text-xs">✓</span>
-          ) : null,
-      },
-      {
-        id: "tab_index",
-        accessorFn: (r) => r.tab_index,
-        header: t("browser-forensics.col.tab-index"),
-        size: 60,
-      },
-      {
-        id: "title",
-        accessorFn: (r) => r.title,
-        header: t("browser-forensics.col.title"),
-        size: 250,
-      },
-      {
-        id: "url",
-        accessorFn: (r) => r.url,
-        header: "URL",
-        size: 400,
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-fg-secondary truncate">{row.original.url}</span>
-        ),
       },
     ],
     [t],

@@ -293,6 +293,10 @@ pub fn publish_native_events(event_bus: &crate::event_bus::EventBus, conn: &Exte
                                     extension_id: req.attribution.extension_id,
                                     extension_name: req.attribution.extension_name,
                                     level: compute_attribution_level(&req.attribution.status),
+                                    // webRequest 路径无 CDP target 信息
+                                    target_type: None,
+                                    target_title: None,
+                                    initiator_type: None,
                                 },
                             ));
 

@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import type {
-  BrowserKind, BrowserProfile, ExtensionInfo, DownloadInfo, RecoveredTab,
+  BrowserKind, BrowserProfile, ExtensionInfo, DownloadInfo,
   HistoryEntry, HistoryAttribution, EvidenceObject, ExtensionAttributionPayload, DomainAttribution,
 } from "./types";
 
-export type ForensicsTab = "extensions" | "history" | "downloads" | "tabs" | "context";
+export type ForensicsTab = "context";
 
 // ── P1.3: Helper Extension 归因融合辅助函数 ──────────────────────
 
@@ -58,9 +58,6 @@ interface BrowserForensicsState {
   downloads: DownloadInfo[];
   setDownloads: (d: DownloadInfo[]) => void;
 
-  tabs: RecoveredTab[];
-  setTabs: (t: RecoveredTab[]) => void;
-
   history: HistoryEntry[];
   setHistory: (h: HistoryEntry[]) => void;
 
@@ -109,6 +106,14 @@ interface BrowserForensicsState {
 
   /// 当 Helper Extension confirmed 事件到达时，升级当前 contextResult 的 extension_attribution.confidence
   upgradeContextExtensionConfidence: (domain: string) => void;
+
+  // ── 扫描缓存：按 browser:profile 缓存扫描结果，切换浏览器时恢复 ──
+  /// 缓存 key = `${browser}:${profile}`
+  scanCache: Record<string, { extensions: ExtensionInfo[]; downloads: DownloadInfo[]; history: HistoryEntry[]; historySince: string }>;
+  /// 扫描完成后保存缓存
+  saveScanCache: (browser: BrowserKind, profile: string, data: { extensions: ExtensionInfo[]; downloads: DownloadInfo[]; history: HistoryEntry[]; historySince: string }) => void;
+  /// 切换浏览器/profile 时恢复缓存，返回是否有缓存
+  loadScanCache: (browser: BrowserKind, profile: string) => boolean;
 }
 
 export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) => ({
@@ -121,7 +126,7 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
   profiles: [],
   setProfiles: (profiles) => set({ profiles }),
 
-  activeTab: "extensions",
+  activeTab: "context",
   setActiveTab: (activeTab) => set({ activeTab }),
 
   extensions: [],
@@ -129,9 +134,6 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
 
   downloads: [],
   setDownloads: (downloads) => set({ downloads }),
-
-  tabs: [],
-  setTabs: (tabs) => set({ tabs }),
 
   history: [],
   setHistory: (history) => set({ history }),
@@ -207,4 +209,34 @@ export const useBrowserForensicsStore = create<BrowserForensicsState>()((set) =>
 
   historyAttribution: null,
   setHistoryAttribution: (historyAttribution) => set({ historyAttribution }),
+
+  scanCache: {},
+  saveScanCache: (browser, profile, data) =>
+    set((state) => ({
+      scanCache: { ...state.scanCache, [`${browser}:${profile}`]: data },
+    })),
+  loadScanCache: (browser, profile) => {
+    const key = `${browser}:${profile}`;
+    let hasCache = false;
+    set((state) => {
+      const cached = state.scanCache[key];
+      if (cached) {
+        hasCache = true;
+        return {
+          extensions: cached.extensions,
+          downloads: cached.downloads,
+          history: cached.history,
+          historySince: cached.historySince,
+          selectedExtensionId: null,
+        };
+      }
+      return {
+        extensions: [],
+        downloads: [],
+        history: [],
+        selectedExtensionId: null,
+      };
+    });
+    return hasCache;
+  },
 }));

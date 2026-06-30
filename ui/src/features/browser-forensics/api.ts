@@ -1,6 +1,6 @@
 import { commands } from "@/lib/bindings";
 import type { ExtensionConnectionStatus, ReconnectDiagnostics, CdpCaptureStatus } from "@/lib/bindings";
-import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, SessionRecoveryResult, HistoryAttribution, EvidenceObject, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
+import type { BrowserKind, BrowserProfile, ExtensionInventory, DownloadInfo, HistoryAttribution, EvidenceObject, HistoryEntry, ExtensionAttribution, DomainAttribution } from "./types";
 
 export type { ExtensionConnectionStatus, ReconnectDiagnostics, CdpCaptureStatus };
 
@@ -75,19 +75,6 @@ export async function listDownloads(browser: BrowserKind, profileName: string, o
     console.error(msg);
     onError?.(msg);
     return [];
-  }
-}
-
-export async function recoverTabs(browser: BrowserKind, profile: string, onError?: (msg: string) => void): Promise<SessionRecoveryResult> {
-  try {
-    const result = await commands.cmdBrowserForensicsRecoverTabs(browser, profile);
-    if (result.status === "error") throwIrError(result.error);
-    return result.data;
-  } catch (e) {
-    const msg = `Failed to recover tabs: ${e}`;
-    console.error(msg);
-    onError?.(msg);
-    return { browser, profile, tabs: [], parse_errors: [] };
   }
 }
 

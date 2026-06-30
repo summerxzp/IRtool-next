@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useBrowserForensicsStore } from "../store";
 import * as api from "../api";
 import { ExtensionEventsView } from "./ExtensionEventsView";
+import { WatchTargetsBar } from "./WatchTargetsBar";
 import type {
   DomainAttribution, BrowserKind, MatchedExtension, CurrentTab,
   HistoryEntry, DownloadInfo,
@@ -512,6 +513,16 @@ export function ContextAttributionPanel() {
   const [inputTarget, setInputTarget] = useState("");
   const [selectedBrowser, setSelectedBrowser] = useState<BrowserKind>("chrome");
 
+  // 启动时从磁盘 config.json 同步已下发的 filterDomains 到 UI
+  const setWatchTargets = useBrowserForensicsStore((s) => s.setWatchTargets);
+  useEffect(() => {
+    api.getNativeConfig().then((domains) => {
+      if (domains.length > 0) {
+        setWatchTargets(domains);
+      }
+    });
+  }, [setWatchTargets]);
+
   const handleAnalyze = async () => {
     if (!inputTarget.trim()) return;
     setContextLoading(true);
@@ -578,8 +589,9 @@ export function ContextAttributionPanel() {
           </div>
         )}
 
-        {/* Section B: 实时扩展归因事件 */}
+        {/* Section B: 关注目标 + 实时扩展归因事件 */}
         <div className="border-t border-border mt-2">
+          <WatchTargetsBar />
           <ExtensionEventsView />
         </div>
       </div>

@@ -78,20 +78,6 @@ export interface DownloadInfo {
   evidence_type: string;
 }
 
-export interface RecoveredTab {
-  url: string;
-  title: string;
-  active: boolean;
-  tab_index: number | null;
-}
-
-export interface SessionRecoveryResult {
-  browser: BrowserKind;
-  profile: string;
-  tabs: RecoveredTab[];
-  parse_errors: string[];
-}
-
 export type TimeTier = "immediate" | "nearby" | "recent";
 
 export interface HistoryAttribution {
@@ -187,6 +173,12 @@ export interface ExtensionAttributionPayload {
   extension_id: string | null;
   extension_name: string | null;
   level: AttributionLevel;
+  /** CDP 路径独有：发起请求的 target 类型（page/service_worker/background_page）。webRequest 路径为 null。 */
+  target_type: string | null;
+  /** CDP 路径独有：target 标题（页面标题或扩展名）。webRequest 路径为 null。 */
+  target_title: string | null;
+  /** CDP initiator 类型（parser/script/redirect/preload/preflight/other）。webRequest 路径为 null。 */
+  initiator_type: string | null;
 }
 
 /// 基于域名的归因结果

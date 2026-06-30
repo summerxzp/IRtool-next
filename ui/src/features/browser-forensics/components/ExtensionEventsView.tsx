@@ -107,6 +107,20 @@ function formatTs(ts: number): string {
   return `${y}/${m}/${day} ${h}:${min}:${s}`;
 }
 
+/// 将 URL 分解为 { protocol, host, path, query }，用于分层高亮展示
+function parseUrlParts(url: string): { host: string; rest: string } | null {
+  try {
+    const u = new URL(url);
+    const host = u.host;
+    let rest = u.pathname;
+    if (u.search) rest += u.search;
+    if (u.hash) rest += u.hash;
+    return { host, rest };
+  } catch {
+    return null;
+  }
+}
+
 function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
   const { t } = useTranslation();
   const levelStyles: Record<AttributionLevel, string> = {
@@ -124,6 +138,21 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
   // 用于体现"请求是由什么发起的"
   const sourceLabel = evt.extension_name;
   const sourceTitle = evt.extension_id ? `Extension ID: ${evt.extension_id}` : undefined;
+
+  // CDP 路径独有字段：target_type（page/service_worker/background_page）+ initiator_type（script/parser/...）
+  // 用于区分请求来自"页面""扩展 SW"还是"background_page"，以及触发方式
+  const targetTypeLabel = (() => {
+    if (!evt.target_type) return null;
+    switch (evt.target_type) {
+      case "page": return "页面";
+      case "service_worker": return "扩展 SW";
+      case "background_page": return "BG Page";
+      default: return evt.target_type;
+    }
+  })();
+  const targetTypeStyle = evt.target_type === "service_worker" || evt.target_type === "background_page"
+    ? "bg-accent/15 text-accent border-accent/40"
+    : "bg-muted/30 text-muted-foreground border-border";
 
   // initiator 友好化：chrome-error://chromewebdata/ → "Chrome 错误页"
   const initiatorLabel = (() => {
@@ -144,6 +173,15 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${levelStyles[evt.level]}`}>
           {levelLabels[evt.level]}
         </span>
+        {targetTypeLabel && (
+          <span
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${targetTypeStyle} select-none`}
+            title={evt.target_title ?? undefined}
+          >
+            {targetTypeLabel}
+            {evt.target_title && <span className="ml-1 opacity-70 truncate max-w-[200px]">{evt.target_title}</span>}
+          </span>
+        )}
         <span className="text-[10px] text-muted-foreground font-mono select-none">{evt.method}</span>
         {evt.resource_type && (
           <span className="text-[10px] text-muted-foreground font-mono px-1 rounded border border-border select-none">
@@ -158,13 +196,32 @@ function ExtensionEventCard({ evt }: { evt: ExtensionAttributionPayload }) {
           </span>
         )}
       </div>
-      {/* URL：不截断，允许换行（base64 等长 URL 完整展示） */}
-      <div className="mt-0.5 text-xs text-fg-primary break-all font-mono">
-        {evt.url}
+      {/* URL：分层展示——host 高亮，path 淡化，完整不截断 */}
+      <div className="mt-0.5 text-xs break-all font-mono">
+        {(() => {
+          const parts = parseUrlParts(evt.url);
+          if (parts) {
+            return (
+              <>
+                <span className="text-muted-foreground">{new URL(evt.url).protocol}//</span>
+                <span className="text-fg-primary font-semibold">{parts.host}</span>
+                <span className="text-muted-foreground">{parts.rest}</span>
+              </>
+            );
+          }
+          return <span className="text-fg-primary">{evt.url}</span>;
+        })()}
       </div>
       {initiatorLabel && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground break-all font-mono">
-          {t("browser-forensics.events.initiator-label", { defaultValue: "源头" })}: {initiatorLabel}
+        <div className="mt-0.5 text-[10px] text-muted-foreground break-all font-mono flex items-center gap-1.5 flex-wrap">
+          {evt.initiator_type && (
+            <span className="px-1 rounded border border-border text-muted-foreground select-none">
+              {evt.initiator_type}
+            </span>
+          )}
+          <span>
+            {t("browser-forensics.events.initiator-label", { defaultValue: "源头" })}: {initiatorLabel}
+          </span>
         </div>
       )}
     </div>

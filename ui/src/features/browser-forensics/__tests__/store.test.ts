@@ -23,6 +23,9 @@ function makeAttributionEvent(
     extension_id: "ext-1",
     extension_name: "EvilExt",
     level: "confirmed",
+    target_type: null,
+    target_title: null,
+    initiator_type: null,
     ...overrides,
   };
 }
