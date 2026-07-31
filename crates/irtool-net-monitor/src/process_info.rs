@@ -83,7 +83,6 @@ impl ProcessInfoCache {
     }
 }
 
-#[cfg(windows)]
 use std::collections::HashMap;
 
 /// Result of targeted WMI query for command lines.
@@ -91,7 +90,6 @@ use std::collections::HashMap;
 /// - `exited_pids`: PIDs not found in WMI (process exited)
 /// - `failed_pids`: PIDs whose query failed or timed out
 /// - `query_failed`: true if the entire WMI query failed (connection error)
-#[cfg(windows)]
 pub struct TargetedQueryResult {
     pub cmdlines: HashMap<u32, String>,
     pub exited_pids: Vec<u32>,
@@ -219,7 +217,7 @@ pub fn targeted_query_cmdlines(pids: &[u32]) -> Option<TargetedQueryResult> {
 }
 
 #[cfg(not(windows))]
-pub fn targeted_query_cmdlines(_pids: &[u32]) -> Option<std::collections::HashMap<u32, String>> {
+pub fn targeted_query_cmdlines(_pids: &[u32]) -> Option<TargetedQueryResult> {
     None
 }
 

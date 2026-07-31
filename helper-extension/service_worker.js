@@ -114,10 +114,18 @@ function hostnameFromUrl(url) {
 function matchesFilter(hostname) {
   if (filterDomains === null) return true;
   if (filterDomains.size === 0) return true;
-  // 精确匹配或父域名匹配
   for (const domain of filterDomains) {
-    if (hostname === domain || hostname.endsWith("." + domain)) {
-      return true;
+    if (domain.startsWith("*.")) {
+      // 通配符：*.bad.net 匹配 sub.bad.net（不匹配 bad.net 本身）
+      const suffix = domain.slice(2);
+      if (hostname.endsWith("." + suffix)) {
+        return true;
+      }
+    } else {
+      // 精确匹配或父域名匹配（保持原语义）
+      if (hostname === domain || hostname.endsWith("." + domain)) {
+        return true;
+      }
     }
   }
   return false;
@@ -256,31 +264,44 @@ function onSelfCleanupAlarmFired() {
   // 防误删：先试连一次
   try {
     const testPort = chrome.runtime.connectNative(NATIVE_HOST);
+    let settled = false;
+    let timedOut = false;
+
     testPort.onDisconnect.addListener(() => {
-      // 连不上（NMH 不存在或立即断开）→ 真正卸载
-      console.log("[IRTool] IRtool confirmed offline, uninstalling self");
-      chrome.management.uninstallSelf(
-        { showConfirmDialog: false },
-        () => {
-          if (chrome.runtime.lastError) {
-            console.warn(
-              "[IRTool] uninstallSelf failed:",
-              chrome.runtime.lastError.message
-            );
+      if (settled) return;
+      settled = true;
+      if (timedOut) {
+        // 超时触发的 disconnect：NMH 可能在但没回消息 → 保守取消
+        console.log("[IRTool] Test port timed out, canceling self-cleanup");
+        cancelSelfCleanup();
+        connectNative();
+      } else {
+        // NMH 在超时前主动断开 → 确认离线，卸载
+        console.log("[IRTool] IRtool confirmed offline, uninstalling self");
+        chrome.management.uninstallSelf(
+          { showConfirmDialog: false },
+          () => {
+            if (chrome.runtime.lastError) {
+              console.warn(
+                "[IRTool] uninstallSelf failed:",
+                chrome.runtime.lastError.message
+              );
+            }
           }
-        }
-      );
+        );
+      }
     });
     testPort.onMessage.addListener(() => {
-      // 收到消息说明 NMH 在线 → 取消清理
+      if (settled) return;
+      settled = true;
       console.log("[IRTool] IRtool is back online, canceling self-cleanup");
       try { testPort.disconnect(); } catch (e) {}
       cancelSelfCleanup();
-      // 顺便恢复主连接
       connectNative();
     });
-    // 1 秒内没收到消息也没断开？保守起见也取消清理（可能 NMH 在但没消息）
+    // 1 秒内没收到消息也没断开？保守取消清理（可能 NMH 在但没消息）
     setTimeout(() => {
+      timedOut = true;
       try { testPort.disconnect(); } catch (e) {}
     }, 1000);
   } catch (e) {

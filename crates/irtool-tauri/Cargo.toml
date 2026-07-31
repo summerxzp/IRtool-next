@@ -9,6 +9,13 @@ license.workspace = true
 name = "irtool_lib"
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "irtool-tauri"
+path = "src/main.rs"
+# main binary 嵌入 requireAdministrator manifest，cargo test 运行其 test exe 时
+# 会因 UAC 提权失败（os error 740）。main.rs 无 #[test] 函数，跳过其 test target。
+test = false
+
 [build-dependencies]
 tauri-build = { workspace = true }
 

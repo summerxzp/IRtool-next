@@ -524,16 +524,18 @@ pub async fn cmd_browser_forensics_cdp_capture_start(ctx: State<'_, AppContext>)
         IrError::Internal("no CDP target discovered (browser not running with --remote-debugging-port?)".to_string())
     })?;
 
-    // 启动抓包服务
-    let service = CdpCaptureService::start(ctx.event_bus.clone()).await?;
-
-    // 存入 AppContext
+    // 先获取锁，再启动 service，避免并发启动产生孤儿 task
+    // （否则两个并发请求会在锁前各自启动 service，被覆盖的 service 无句柄可停止）
     let mut guard = ctx.cdp_capture.lock().await;
     if let Some(old) = guard.take() {
         tracing::warn!("cdp capture: previous service still running, stopping before start");
         let _ = old.stop().await;
     }
+
+    // 持锁期间启动 service
+    let service = CdpCaptureService::start(ctx.event_bus.clone()).await?;
     *guard = Some(service);
+    drop(guard); // 释放锁，避免后续日志记录期间长期持锁
 
     tracing::info!(
         port = cdp_target.port,
