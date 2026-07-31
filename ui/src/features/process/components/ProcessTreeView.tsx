@@ -140,12 +140,7 @@ export function ProcessTreeView({ processes, selectedPid, onSelect, expandAllVer
     }
   }, [expandAllVersion, expandAllCollapsed, tree]);
 
-  // Default: expand all on first render
-  useEffect(() => {
-    if (expandedPids.size === 0 && tree.length > 0) {
-      setExpandedPids(new Set(collectAllPids(tree)));
-    }
-  }, [tree]);
+  // 默认全部收起（用户点击工具栏"全部展开"才展开）
 
   const toggleExpand = useCallback((pid: number) => {
     setExpandedPids((prev) => {

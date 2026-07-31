@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useCallback, useState, type ReactNode } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
-import { ScanLine, Puzzle } from "lucide-react";
+import { ScanLine, Puzzle, ChevronRight } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,9 @@ function CollapsibleRow({
         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-bg-elev-1 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <span className={`transform transition-transform text-xs text-muted-foreground ${open ? "rotate-90" : ""}`}>▶</span>
+        <ChevronRight
+          className={`h-3.5 w-3.5 shrink-0 text-fg-tertiary transition-transform ${open ? "rotate-90" : ""}`}
+        />
         <span className="font-medium text-fg-primary select-none">{title}</span>
         {count != null && count > 0 && (
           <span className="text-xs text-muted-foreground select-none">({count})</span>
