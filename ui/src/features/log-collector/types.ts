@@ -37,12 +37,12 @@ export const EVENT_TYPE_LABELS: Record<ExtendedSysmonEventType, string> = {
   network_monitor: "网络监控",
 };
 
-export type EventSeverity = "default" | "info" | "warning" | "danger" | "critical";
+export type EventSeverity = "default" | "info" | "network" | "warning" | "danger" | "critical";
 
 export const EVENT_TYPE_SEVERITY: Record<ExtendedSysmonEventType, EventSeverity> = {
   process_create: "info",
   file_create_time: "warning",
-  network_connect: "info",
+  network_connect: "network",
   process_terminate: "default",
   driver_load: "danger",
   image_load: "warning",
@@ -63,7 +63,7 @@ export const EVENT_TYPE_SEVERITY: Record<ExtendedSysmonEventType, EventSeverity>
   unknown: "default",
   tls_sni: "info",
   dns_pcap: "info",
-  network_monitor: "info",
+  network_monitor: "network",
 };
 
 /** Tailwind class string for a badge representing the given severity. */
@@ -76,6 +76,8 @@ export function severityToBadgeClass(sev: EventSeverity): string {
       return "bg-warning-bg text-warning border-warning-border";
     case "info":
       return "bg-info-bg text-accent border-info-border";
+    case "network":
+      return "bg-success-bg text-success border-success-border";
     case "default":
     default:
       return "bg-bg-elev-2 text-fg-secondary border-border";
