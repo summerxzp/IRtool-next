@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { formatEpochMillis } from "@/lib/utils";
 import * as api from "./api";
 import { useLogCollectorStore } from "./store";
 import { DEFAULT_ENABLED_EVENT_IDS } from "./types";
@@ -22,18 +23,12 @@ interface PcapEvent {
   query_type: string;
 }
 
-function formatTimestamp(epochMs: number): string {
-  const d = new Date(epochMs);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 function pcapEventToSysmonEvent(pe: PcapEvent): SysmonEvent {
   const eventType: ExtendedSysmonEventType = pe.event_kind === "tls_sni" ? "tls_sni" : "dns_pcap";
   return {
     event_id: 0,
     event_type: eventType as SysmonEvent["event_type"],
-    timestamp: formatTimestamp(pe.timestamp),
+    timestamp: formatEpochMillis(pe.timestamp),
     timestamp_epoch: pe.timestamp / 1000,
     timestamp_valid: true,
     record_id: null,

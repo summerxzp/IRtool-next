@@ -13,7 +13,7 @@ import * as api from "@/features/log-collector/api";
 import { monitorEventToSysmonEvent } from "@/features/log-collector/pages/LogCollectorPage";
 import { useDbSearchStore, type DbSearchEvent } from "../store";
 import { exportCsv } from "@/lib/csv";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_SEVERITY, severityToBadgeClass } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type ColumnDef } from "@tanstack/react-table";
@@ -277,7 +277,7 @@ export default function DatabaseSearchPage() {
 
   const handleExportCsv = useCallback(async () => {
     const rows = events.map((e) => ({
-      timestamp: e.timestamp,
+      timestamp_utc: new Date(e.timestamp_epoch * 1000).toISOString(),
       source: e._source,
       event_type: e.event_type,
       process_id: e.process_id,
@@ -302,7 +302,7 @@ export default function DatabaseSearchPage() {
       raw_json: e._rawJson,
     }));
     await exportCsv(rows, [
-      "timestamp", "source", "event_type", "process_id", "process_name", "process_path",
+      "timestamp_utc", "source", "event_type", "process_id", "process_name", "process_path",
       "user", "source_ip", "source_port", "destination_ip", "destination_port",
       "protocol", "initiated", "is_external", "query_name", "query_results",
       "source_process_name", "source_process_path", "target_process_name",
@@ -323,7 +323,7 @@ export default function DatabaseSearchPage() {
       size: 96,
       cell: ({ getValue }) => {
         const et = getValue() as string;
-        return <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et as ExtendedSysmonEventType] || ""}`}>
+        return <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${severityToBadgeClass(EVENT_TYPE_SEVERITY[et as ExtendedSysmonEventType])}`}>
           {EVENT_TYPE_LABELS[et as ExtendedSysmonEventType] || et}
         </span>;
       },

@@ -12,6 +12,27 @@
   --warning: #f0b429;
   --danger: #ef4444;
   --critical: #b91c1c;
+
+  --background: var(--bg-base);
+  --foreground: var(--fg-primary);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --muted: var(--bg-elev-2);
+  --muted-foreground: var(--fg-secondary);
+  --input: var(--border);
+  --ring: var(--accent);
+  --card: var(--bg-elev-1);
+  --card-foreground: var(--fg-primary);
+  --destructive: var(--danger);
+
+  --success-bg: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 25%, transparent);
+  --warning-bg: color-mix(in srgb, var(--warning) 12%, transparent);
+  --warning-border: color-mix(in srgb, var(--warning) 25%, transparent);
+  --danger-bg: color-mix(in srgb, var(--danger) 12%, transparent);
+  --danger-border: color-mix(in srgb, var(--danger) 25%, transparent);
+  --info-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --info-border: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 :root[data-theme="light"] {
@@ -27,4 +48,25 @@
   --warning: #c98a07;
   --danger: #d63838;
   --critical: #911818;
+
+  --background: var(--bg-base);
+  --foreground: var(--fg-primary);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --muted: var(--bg-elev-2);
+  --muted-foreground: var(--fg-secondary);
+  --input: var(--border);
+  --ring: var(--accent);
+  --card: var(--bg-elev-1);
+  --card-foreground: var(--fg-primary);
+  --destructive: var(--danger);
+
+  --success-bg: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 25%, transparent);
+  --warning-bg: color-mix(in srgb, var(--warning) 12%, transparent);
+  --warning-border: color-mix(in srgb, var(--warning) 25%, transparent);
+  --danger-bg: color-mix(in srgb, var(--danger) 12%, transparent);
+  --danger-border: color-mix(in srgb, var(--danger) 25%, transparent);
+  --info-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --info-border: color-mix(in srgb, var(--accent) 25%, transparent);
 }

@@ -87,7 +87,7 @@ export function AutorunsToolbar({ onScan, onCancel, onBatchCalculateHash, onExpo
       </Select>
 
       <Input type="text" placeholder={t("autoruns.toolbar.search-placeholder")} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="flex-1 min-w-0" />
-      {searchInput && (<Button variant="ghost" size="icon" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
+      {searchInput && (<Button variant="ghost" size="icon" aria-label="清空搜索" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
 
       <Button variant="secondary" size="sm" onClick={onBatchCalculateHash} disabled={!hasData || calculatingHash} className="hover:shadow-sm transition-shadow">
         <Hash className="h-3.5 w-3.5 mr-1" />{calculatingHash ? t("autoruns.toolbar.calculating-hash") : t("autoruns.toolbar.batch-hash")}

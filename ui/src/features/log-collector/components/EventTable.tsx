@@ -6,7 +6,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { formatEventTimestamp } from "@/lib/utils";
 
 import { useLogCollectorStore } from "../store";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "../types";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_SEVERITY, severityToBadgeClass } from "../types";
 import type { SysmonEvent, ExtendedSysmonEventType } from "../types";
 
 interface Props {
@@ -87,11 +87,11 @@ export function EventTable({ events }: Props) {
       cell: ({ row }) => {
         const et = row.original.event_type as ExtendedSysmonEventType;
         return <div className="flex items-center gap-1">
-          <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et] || ""}`}>
+          <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${severityToBadgeClass(EVENT_TYPE_SEVERITY[et])}`}>
             {EVENT_TYPE_LABELS[et] || et}
           </span>
           {row.original.is_external && (
-            <span className="inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap bg-blue-500/15 text-blue-500 border border-blue-500/25">
+            <span className="inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap bg-info-bg text-accent border border-info-border">
               {t("log-collector.table.external")}
             </span>
           )}
@@ -124,7 +124,7 @@ export function EventTable({ events }: Props) {
       columns={columns}
       data={filtered}
       getRowId={(e) => `${e.record_id}-${e.timestamp}`}
-      onRowSelect={(row) => row && setSelectedEvent(row)}
+      onRowSelect={setSelectedEvent}
       onRowDoubleClick={handleDoubleClick}
       selectedRowId={selectedEvent ? `${selectedEvent.record_id}-${selectedEvent.timestamp}` : null}
       empty={t("log-collector.table.no-events")}

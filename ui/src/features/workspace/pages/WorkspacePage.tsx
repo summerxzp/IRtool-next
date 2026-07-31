@@ -117,13 +117,13 @@ export function WorkspacePage() {
         process: n.process_name || "",
         path: n.process_path || "",
         cmdline: n.process_cmdline || "",
-        first_seen: n.first_seen ? new Date(n.first_seen * 1000).toISOString() : "",
-        last_seen: n.last_seen ? new Date(n.last_seen * 1000).toISOString() : "",
+        first_seen_utc: n.first_seen ? new Date(n.first_seen * 1000).toISOString() : "",
+        last_seen_utc: n.last_seen ? new Date(n.last_seen * 1000).toISOString() : "",
       }));
-      await exportCsv(rows, ["protocol", "family", "local", "remote", "state", "pid", "process", "path", "cmdline", "first_seen", "last_seen"], `workspace-network-${Date.now()}.csv`);
+      await exportCsv(rows, ["protocol", "family", "local", "remote", "state", "pid", "process", "path", "cmdline", "first_seen_utc", "last_seen_utc"], `workspace-network-${Date.now()}.csv`);
     } else if (activeTab === "events" && eventItems.length > 0) {
       const rows = eventItems.map((e) => ({
-        timestamp: e.timestamp,
+        timestamp_utc: new Date(e.timestamp_epoch * 1000).toISOString(),
         event_type: e.event_type,
         process_id: e.process_id,
         process_name: e.process_name,
@@ -136,7 +136,7 @@ export function WorkspacePage() {
         initiated: e.initiated ? "是" : "否",
         is_external: e.is_external ? "是" : "否",
       }));
-      await exportCsv(rows, ["timestamp", "event_type", "process_id", "process_name", "process_path", "source", "destination", "protocol", "query_name", "user", "initiated", "is_external"], `workspace-events-${Date.now()}.csv`);
+      await exportCsv(rows, ["timestamp_utc", "event_type", "process_id", "process_name", "process_path", "source", "destination", "protocol", "query_name", "user", "initiated", "is_external"], `workspace-events-${Date.now()}.csv`);
     }
   }, [activeTab, autorunItems, networkItems, eventItems]);
 

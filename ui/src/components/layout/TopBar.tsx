@@ -87,6 +87,7 @@ export function TopBar() {
           size="icon"
           className="h-7 w-7 relative"
           data-alert-toggle
+          aria-label="告警"
           onClick={() => setAlertPanelOpen((prev) => !prev)}
         >
           <Bell className="h-4 w-4" />
@@ -108,6 +109,7 @@ export function TopBar() {
             className="h-7 w-7"
             onClick={() => setDetailPosition(detailPage, detailPosition === "bottom" ? "right" : "bottom")}
             title={detailPosition === "bottom" ? "Switch to Right" : "Switch to Bottom"}
+            aria-label={detailPosition === "bottom" ? "详情切换到右侧" : "详情切换到底部"}
           >
             {detailPosition === "bottom" ? <PanelRight className="h-4 w-4" /> : <PanelBottom className="h-4 w-4" />}
           </Button>
@@ -121,6 +123,7 @@ export function TopBar() {
             setTheme(resolvedTheme === "dark" ? "light" : "dark")
           }
           title={resolvedTheme === "dark" ? "Light" : "Dark"}
+          aria-label={resolvedTheme === "dark" ? "切换为亮色" : "切换为暗色"}
         >
           {resolvedTheme === "dark" ? (
             <Sun className="h-4 w-4" />
@@ -133,6 +136,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 hover:bg-bg-elev-2"
+          aria-label="窗口最小化"
           onClick={handleMinimize}
         >
           <Minus className="h-4 w-4" />
@@ -142,6 +146,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 hover:bg-bg-elev-2"
+          aria-label="窗口最大化"
           onClick={handleMaximize}
         >
           <Square className="h-3.5 w-3.5" />
@@ -151,6 +156,7 @@ export function TopBar() {
           variant="ghost"
           size="icon"
           className="h-7 w-7 hover:bg-danger hover:text-white"
+          aria-label="窗口关闭"
           onClick={handleClose}
         >
           <X className="h-4 w-4" />

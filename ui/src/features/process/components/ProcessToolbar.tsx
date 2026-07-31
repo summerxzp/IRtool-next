@@ -93,7 +93,7 @@ export function ProcessToolbar({ onRefresh, loading, snapshotTime }: Props) {
       </Select>
 
       <Input type="text" placeholder={t("process.toolbar.search-placeholder")} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="flex-1 min-w-0" />
-      {searchInput && (<Button variant="ghost" size="icon" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
+      {searchInput && (<Button variant="ghost" size="icon" aria-label="清空搜索" onClick={() => setSearchInput("")}><X className="h-3.5 w-3.5" /></Button>)}
 
       {snapshotTime && (
         <span className="text-xs text-fg-tertiary select-none">{snapshotTime}</span>

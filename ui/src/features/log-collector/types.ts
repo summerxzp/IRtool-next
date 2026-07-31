@@ -37,32 +37,50 @@ export const EVENT_TYPE_LABELS: Record<ExtendedSysmonEventType, string> = {
   network_monitor: "网络监控",
 };
 
-export const EVENT_TYPE_COLORS: Record<ExtendedSysmonEventType, string> = {
-  process_create: "bg-purple-500/15 text-purple-500 border-purple-500/25",
-  file_create_time: "bg-amber-500/15 text-amber-500 border-amber-500/25",
-  network_connect: "bg-green-500/15 text-green-500 border-green-500/25",
-  process_terminate: "bg-gray-500/15 text-gray-500 border-gray-500/25",
-  driver_load: "bg-red-500/15 text-red-500 border-red-500/25",
-  image_load: "bg-pink-500/15 text-pink-500 border-pink-500/25",
-  create_remote_thread: "bg-red-500/15 text-red-500 border-red-500/25",
-  raw_access_read: "bg-red-500/15 text-red-500 border-red-500/25",
-  process_access: "bg-orange-500/15 text-orange-500 border-orange-500/25",
-  file_create: "bg-orange-500/15 text-orange-500 border-orange-500/25",
-  registry_event: "bg-yellow-500/15 text-yellow-500 border-yellow-500/25",
-  file_create_stream_hash: "bg-amber-500/15 text-amber-500 border-amber-500/25",
-  pipe_event: "bg-cyan-500/15 text-cyan-500 border-cyan-500/25",
-  wmi_event: "bg-violet-500/15 text-violet-500 border-violet-500/25",
-  dns: "bg-blue-500/15 text-blue-500 border-blue-500/25",
-  dns_client: "bg-indigo-500/15 text-indigo-500 border-indigo-500/25",
-  file_delete: "bg-rose-500/15 text-rose-500 border-rose-500/25",
-  clipboard_change: "bg-teal-500/15 text-teal-500 border-teal-500/25",
-  process_tampering: "bg-red-500/15 text-red-500 border-red-500/25",
-  file_delete_detected: "bg-rose-500/15 text-rose-500/25",
-  unknown: "bg-gray-500/15 text-gray-500 border-gray-500/25",
-  tls_sni: "bg-sky-500/15 text-sky-500 border-sky-500/25",
-  dns_pcap: "bg-lime-500/15 text-lime-500 border-lime-500/25",
-  network_monitor: "bg-green-500/15 text-green-500 border-green-500/25",
+export type EventSeverity = "default" | "info" | "warning" | "danger" | "critical";
+
+export const EVENT_TYPE_SEVERITY: Record<ExtendedSysmonEventType, EventSeverity> = {
+  process_create: "info",
+  file_create_time: "warning",
+  network_connect: "info",
+  process_terminate: "default",
+  driver_load: "danger",
+  image_load: "warning",
+  create_remote_thread: "danger",
+  raw_access_read: "danger",
+  process_access: "warning",
+  file_create: "warning",
+  registry_event: "warning",
+  file_create_stream_hash: "warning",
+  pipe_event: "info",
+  wmi_event: "danger",
+  dns: "info",
+  dns_client: "info",
+  file_delete: "danger",
+  clipboard_change: "info",
+  process_tampering: "critical",
+  file_delete_detected: "danger",
+  unknown: "default",
+  tls_sni: "info",
+  dns_pcap: "info",
+  network_monitor: "info",
 };
+
+/** Tailwind class string for a badge representing the given severity. */
+export function severityToBadgeClass(sev: EventSeverity): string {
+  switch (sev) {
+    case "critical":
+    case "danger":
+      return "bg-danger-bg text-danger border-danger-border";
+    case "warning":
+      return "bg-warning-bg text-warning border-warning-border";
+    case "info":
+      return "bg-info-bg text-accent border-info-border";
+    case "default":
+    default:
+      return "bg-bg-elev-2 text-fg-secondary border-border";
+  }
+}
 
 export const DEFAULT_ENABLED_EVENT_IDS = [3008, 22, 3]; // DNS Client + DNS + Network
 

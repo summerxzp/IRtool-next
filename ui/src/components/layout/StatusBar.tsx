@@ -5,6 +5,7 @@ import { Shield, ShieldOff, Clock, Activity, Link2, Link2Off, Search, SearchX } 
 import { useNetworkStore } from "@/features/network/store";
 import { useLogCollectorStore } from "@/features/log-collector/store";
 import { useQueryClient } from "@tanstack/react-query";
+import { formatEpochMillis } from "@/lib/utils";
 import type { AutorunItem } from "@/features/autoruns/types";
 
 export function StatusBar() {
@@ -108,7 +109,7 @@ export function StatusBar() {
       <div className="flex items-center gap-1">
         <Clock className="h-3 w-3" />
         <span className="font-mono">
-          {now.toLocaleTimeString("en-GB", { hour12: false })}
+          {formatEpochMillis(now.getTime())}
         </span>
       </div>
     </footer>

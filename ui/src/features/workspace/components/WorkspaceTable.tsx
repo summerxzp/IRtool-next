@@ -3,22 +3,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceStore } from "../store";
 import { networkKey as engineNetworkKey, eventKey as engineEventKey } from "../rules/engine";
+import { formatEpochSeconds } from "@/lib/utils";
 import type { AutorunItem } from "@/features/autoruns/types";
 import type { NetConn } from "@/features/network/types";
 import type { SysmonEvent } from "@/features/log-collector/types";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_SEVERITY, severityToBadgeClass } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
-
-function formatDateTime(epoch: number): string {
-  const d = new Date(epoch * 1000);
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  const s = String(d.getSeconds()).padStart(2, "0");
-  return `${y}/${mo}/${day} ${h}:${m}:${s}`;
-}
 
 export function netConnKey(item: NetConn): string {
   return engineNetworkKey(item);
@@ -169,7 +159,7 @@ export function WorkspaceTable({ onRowSelect }: Props) {
           case "state": return n.state;
           case "pid": return String(n.pid);
           case "process_name": return n.process_name ?? "";
-          case "last_seen": return n.last_seen ? formatDateTime(n.last_seen) : "";
+          case "last_seen": return n.last_seen ? formatEpochSeconds(n.last_seen) : "";
           default: return "";
         }
       }
@@ -180,7 +170,7 @@ export function WorkspaceTable({ onRowSelect }: Props) {
           case "event_type": {
             const et = e.event_type as ExtendedSysmonEventType;
             return (
-              <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${EVENT_TYPE_COLORS[et] || ""}`}>
+              <span className={`inline-flex items-center px-1.5 py-0 rounded-sm text-[10px] font-medium whitespace-nowrap ${severityToBadgeClass(EVENT_TYPE_SEVERITY[et])}`}>
                 {EVENT_TYPE_LABELS[et] || e.event_type}
               </span>
             );

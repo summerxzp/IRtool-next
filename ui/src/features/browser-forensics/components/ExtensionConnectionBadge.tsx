@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { formatEpochMillis } from "@/lib/utils";
 import * as api from "../api";
 
 type Status = api.ExtensionConnectionStatus | null;
@@ -8,7 +9,7 @@ type Status = api.ExtensionConnectionStatus | null;
 /// 相对时间格式化（紧凑）：
 /// - < 60s → 秒级（i18n）
 /// - < 60min → 分钟级（i18n）
-/// - 否则 → 本地绝对时间
+/// - 否则 → UTC+8 绝对时间
 function formatRelative(ms: number, t: TFunction): string {
   const diff = Date.now() - ms;
   if (diff < 60_000) {
@@ -19,7 +20,7 @@ function formatRelative(ms: number, t: TFunction): string {
     const count = Math.floor(diff / 60_000);
     return t("browser-forensics.connection.last-heartbeat-minutes", { count });
   }
-  return new Date(ms).toLocaleTimeString();
+  return formatEpochMillis(ms);
 }
 
 export function ExtensionConnectionBadge() {

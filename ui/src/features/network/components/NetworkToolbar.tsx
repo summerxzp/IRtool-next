@@ -153,6 +153,7 @@ export function NetworkToolbar({
         <Button
           variant="ghost"
           size="icon"
+          aria-label="清空搜索"
           onClick={() => setSearchInput("")}
           title="clear"
         >
@@ -190,7 +191,7 @@ export function NetworkToolbar({
         <Trash2 className="h-3.5 w-3.5 mr-1" />
         {t("network.toolbar.clear-history")}
       </Button>
-      <Button variant="ghost" size="icon" disabled={loading}>
+      <Button variant="ghost" size="icon" aria-label="刷新" disabled={loading}>
         <RefreshCcw
           className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
         />

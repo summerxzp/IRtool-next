@@ -16,6 +16,7 @@ import { NetworkDetail } from "../components/NetworkDetail";
 import { NetworkStatsBar } from "../components/NetworkStatsBar";
 import { KillProcessDialog } from "../components/KillProcessDialog";
 import { exportCsv } from "@/lib/csv";
+import { formatEpochMillis } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
 import { invoke } from "@tauri-apps/api/core";
 import type { NetConn } from "../types";
@@ -104,14 +105,14 @@ export function NetworkPage() {
         process_name: c.process_name,
         process_path: c.process_path,
         process_cmdline: c.process_cmdline,
-        first_seen: new Date(c.first_seen * 1000).toISOString(),
-        last_seen: new Date(c.last_seen * 1000).toISOString(),
+        first_seen_utc: new Date(c.first_seen * 1000).toISOString(),
+        last_seen_utc: new Date(c.last_seen * 1000).toISOString(),
         is_current: c.is_current,
       })),
       [
         "proto", "family", "local_addr", "local_port", "remote_addr",
         "remote_port", "state", "pid", "process_name", "process_path",
-        "process_cmdline", "first_seen", "last_seen", "is_current",
+        "process_cmdline", "first_seen_utc", "last_seen_utc", "is_current",
       ],
       `irtool-network-${Date.now()}.csv`,
     );
@@ -144,7 +145,7 @@ export function NetworkPage() {
               )}
               {bgTelemetry.last_event_at && (
                 <span className="ml-2">
-                  {t("log-collector.background-mode.last-event")}: {new Date(bgTelemetry.last_event_at).toLocaleTimeString()}
+                  {t("log-collector.background-mode.last-event")}: {formatEpochMillis(bgTelemetry.last_event_at)}
                 </span>
               )}
             </span>

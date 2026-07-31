@@ -1,3 +1,5 @@
+import { formatEpochMillis } from "@/lib/utils";
+
 export function formatUptime(startedAt: number | null): string {
   if (!startedAt || startedAt <= 0) return "-";
   const ms = Date.now() - startedAt;
@@ -13,5 +15,5 @@ export function formatUptime(startedAt: number | null): string {
 
 export function formatTimestamp(epochMs: number | null): string {
   if (!epochMs) return "-";
-  return new Date(epochMs).toLocaleString("zh-CN");
+  return formatEpochMillis(epochMs);
 }

@@ -9,14 +9,8 @@ import { ProcessTable } from "../components/ProcessTable";
 import { ProcessTreeView } from "../components/ProcessTreeView";
 import { ProcessDetail } from "../components/ProcessDetail";
 import { preloadIcons } from "../columns";
+import { formatEpochSeconds } from "@/lib/utils";
 import type { ProcessEntry } from "../types";
-
-function formatTimestamp(ts: number): string {
-  if (!ts) return "";
-  const d = new Date(ts * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 export function ProcessPage() {
   const routeSearch = Route.useSearch();
@@ -32,7 +26,7 @@ export function ProcessPage() {
   const detailPosition = useUIStore((s) => s.detailPositions["process"] ?? "right");
 
   const data = useMemo(() => query.data?.processes ?? [], [query.data]);
-  const snapshotTime = useMemo(() => formatTimestamp(query.data?.timestamp ?? 0), [query.data]);
+  const snapshotTime = useMemo(() => formatEpochSeconds(query.data?.timestamp ?? 0), [query.data]);
 
   // Auto-refresh timer
   const refreshRef = useRef(query.refetch);

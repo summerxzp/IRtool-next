@@ -73,15 +73,27 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
           {eventTypeOptions.map((et) => (
             <div
               key={et}
-              className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-bg-elev-2 rounded px-1"
+              role="button"
+              tabIndex={0}
+              aria-pressed={filters.eventTypes.includes(et)}
+              className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-bg-elev-2 rounded px-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={() => {
                 const next = filters.eventTypes.includes(et)
                   ? filters.eventTypes.filter((v) => v !== et)
                   : [...filters.eventTypes, et];
                 setFilter("eventTypes", next);
               }}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  const next = filters.eventTypes.includes(et)
+                    ? filters.eventTypes.filter((v) => v !== et)
+                    : [...filters.eventTypes, et];
+                  setFilter("eventTypes", next);
+                }
+              }}
             >
-              <Checkbox checked={filters.eventTypes.includes(et)} />
+              <Checkbox checked={filters.eventTypes.includes(et)} aria-hidden="true" />
               <Label className="text-xs cursor-pointer">{EVENT_TYPE_LABELS[et]}</Label>
             </div>
           ))}
@@ -107,7 +119,7 @@ export function LogCollectorToolbar({ onStart, onStop, onLoadHistory, onClear, o
         className="flex-1 min-w-0"
       />
       {searchInput && (
-        <Button variant="ghost" size="icon" onClick={() => setSearchInput("")} title="clear">
+        <Button variant="ghost" size="icon" aria-label="清空搜索" onClick={() => setSearchInput("")} title="clear">
           <X className="h-3.5 w-3.5" />
         </Button>
       )}

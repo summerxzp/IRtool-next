@@ -21,7 +21,7 @@ function FieldRow({ label, value, copyable }: { label: string; value: string; co
       <span className="text-fg-tertiary w-20 shrink-0 text-right">{label}</span>
       <span className="text-fg-primary break-all flex-1">{value}</span>
       {copyable && (
-        <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => navigator.clipboard.writeText(value)}>
+        <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" aria-label="复制值" onClick={() => navigator.clipboard.writeText(value)}>
           <Copy className="h-3 w-3" />
         </Button>
       )}

@@ -179,9 +179,9 @@ export function ToolsCheckDialog({ open, onOpenChange }: Props) {
             >
               <div className="flex items-center gap-2 min-w-0">
                 {tool.installed ? (
-                  <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                  <CheckCircle className="h-4 w-4 text-success shrink-0" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
+                  <AlertCircle className="h-4 w-4 text-warning shrink-0" />
                 )}
                 <div className="min-w-0">
                   <div className="text-sm font-medium">

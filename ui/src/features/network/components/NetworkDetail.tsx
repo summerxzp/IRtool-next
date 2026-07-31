@@ -5,17 +5,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatEpochSeconds } from "@/lib/utils";
 import type { NetConn, CmdlineStatus } from "../types";
 import * as api from "../api";
 
 interface Props {
   conn: NetConn | null;
   onClose?: () => void;
-}
-
-function fmtTime(epoch: number) {
-  if (!epoch) return "-";
-  return new Date(epoch * 1000).toLocaleString("en-GB", { hour12: false });
 }
 
 function cmdlineStatusLabel(status: CmdlineStatus): string {
@@ -109,11 +105,11 @@ export function NetworkDetail({ conn, onClose }: Props) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         <div>
           <div className="text-fg-tertiary">{t("network.detail.first-seen")}</div>
-          <div className="font-mono text-fg-secondary">{fmtTime(conn.first_seen)}</div>
+          <div className="font-mono text-fg-secondary">{formatEpochSeconds(conn.first_seen)}</div>
         </div>
         <div>
           <div className="text-fg-tertiary">{t("network.detail.last-seen")}</div>
-          <div className="font-mono text-fg-secondary">{fmtTime(conn.last_seen)}</div>
+          <div className="font-mono text-fg-secondary">{formatEpochSeconds(conn.last_seen)}</div>
         </div>
       </div>
 

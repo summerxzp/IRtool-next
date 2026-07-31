@@ -92,7 +92,7 @@ pub const TABLE_ROW_SELECTED: Color32 = Color32::from_rgba_premultiplied(0x25, 0
 
 // ── Layout ──────────────────────────────────────────────────
 pub const TOPBAR_HEIGHT: f32 = 32.0;
-pub const SIDEBAR_WIDTH: f32 = 140.0;
+pub const SIDEBAR_WIDTH: f32 = 160.0;
 pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
 pub const PANEL_PADDING: f32 = 12.0;
 pub const ELEMENT_GAP: f32 = 8.0;

@@ -15,13 +15,13 @@ pub enum Page {
 impl Page {
     pub const ALL: [Page; 9] = [
         Page::Network,
-        Page::Autoruns,
         Page::Sysmon,
+        Page::Autoruns,
         Page::Process,
         Page::BrowserForensics,
+        Page::Workspace,
         Page::Monitor,
         Page::Database,
-        Page::Workspace,
         Page::Settings,
     ];
 
@@ -41,15 +41,15 @@ impl Page {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            Page::Network => "",
-            Page::Process => "",
-            Page::Autoruns => "",
-            Page::BrowserForensics => "",
-            Page::Sysmon => "",
-            Page::Monitor => "",
-            Page::Database => "",
-            Page::Workspace => "",
-            Page::Settings => "",
+            Page::Network => "[NET]",
+            Page::Autoruns => "[AUTO]",
+            Page::BrowserForensics => "[WEB]",
+            Page::Sysmon => "[LOG]",
+            Page::Process => "[PROC]",
+            Page::Monitor => "[MON]",
+            Page::Database => "[DB]",
+            Page::Workspace => "[WORK]",
+            Page::Settings => "[SET]",
         }
     }
 }

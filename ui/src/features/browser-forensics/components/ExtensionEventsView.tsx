@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatEpochMillis } from "@/lib/utils";
 import { useBrowserForensicsStore } from "../store";
 import type { AttributionLevel, ExtensionAttributionPayload } from "../types";
 
@@ -97,14 +98,7 @@ export function ExtensionEventsView() {
 }
 
 function formatTs(ts: number): string {
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  const s = String(d.getSeconds()).padStart(2, "0");
-  return `${y}/${m}/${day} ${h}:${min}:${s}`;
+  return formatEpochMillis(ts);
 }
 
 /// 将 URL 分解为 { protocol, host, path, query }，用于分层高亮展示

@@ -5,10 +5,11 @@ import { X, AlertTriangle, Globe } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useProcessChain, useNetworkByPid, useAutorunsByPath } from "../hooks";
 import { iconCache, subscribePath } from "../columns";
+import { formatEpochSeconds } from "@/lib/utils";
 import type { ProcessEntry, ProcessNode } from "../types";
 import type { NetConn, AutorunItem, SysmonEvent } from "@/lib/bindings";
 import { useLogCollectorStore } from "@/features/log-collector/store";
-import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from "@/features/log-collector/types";
+import { EVENT_TYPE_LABELS, EVENT_TYPE_SEVERITY, severityToBadgeClass } from "@/features/log-collector/types";
 import type { ExtendedSysmonEventType } from "@/features/log-collector/types";
 
 type TabId = "chain" | "network" | "sysmon" | "autoruns" | "browser";
@@ -90,14 +91,6 @@ function formatEndpoint(addr: string, port: number) {
   return `${addr}:${port}`;
 }
 
-function formatTimeOnly(ts: number) {
-  const d = new Date(ts * 1000);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
 function NetworkTab({ entry }: { entry: ProcessEntry }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -128,7 +121,7 @@ function NetworkTab({ entry }: { entry: ProcessEntry }) {
                   <td className="pr-3 py-0.5 font-mono">{formatEndpoint(conn.local.addr, conn.local.port)}</td>
                   <td className="pr-3 py-0.5 font-mono">{formatEndpoint(conn.remote.addr, conn.remote.port)}</td>
                   <td className="pr-3 py-0.5">{conn.state}</td>
-                  <td className="py-0.5 font-mono">{formatTimeOnly(conn.last_seen)}</td>
+                  <td className="py-0.5 font-mono">{formatEpochSeconds(conn.last_seen)}</td>
                 </tr>
               ))}
             </tbody>
@@ -208,7 +201,7 @@ function SysmonTab({ entry }: { entry: ProcessEntry }) {
           {filteredEvents.slice(0, 50).map((event: SysmonEvent, i: number) => {
             const eventType = event.event_type as ExtendedSysmonEventType;
             const label = EVENT_TYPE_LABELS[eventType] ?? event.event_type;
-            const colorClass = EVENT_TYPE_COLORS[eventType] ?? "bg-gray-500/15 text-gray-500 border-gray-500/25";
+            const colorClass = severityToBadgeClass(EVENT_TYPE_SEVERITY[eventType]);
             return (
               <div key={i} className="flex items-center gap-2 text-xs px-1 py-0.5 rounded hover:bg-bg-secondary">
                 <span className={`shrink-0 px-1 py-0.5 rounded border select-none ${colorClass}`}>

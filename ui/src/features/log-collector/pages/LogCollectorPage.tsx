@@ -286,7 +286,7 @@ export default function LogCollectorPage() {
 
   const handleExport = useCallback(async () => {
     const rows = events.map((e) => ({
-      timestamp: e.timestamp,
+      timestamp_utc: new Date(e.timestamp_epoch * 1000).toISOString(),
       event_type: e.event_type,
       process_id: e.process_id,
       process_name: e.process_name,
@@ -309,7 +309,7 @@ export default function LogCollectorPage() {
       target_filename: e.target_filename,
     }));
     await exportCsv(rows, [
-      "timestamp", "event_type", "process_id", "process_name", "process_path",
+      "timestamp_utc", "event_type", "process_id", "process_name", "process_path",
       "user", "source_ip", "source_port", "destination_ip", "destination_port",
       "protocol", "initiated", "is_external", "query_name", "query_results",
       "source_process_name", "source_process_path", "target_process_name",
@@ -425,7 +425,7 @@ export default function LogCollectorPage() {
               )}
               {bgTelemetry.last_event_at && (
                 <span className="ml-2">
-                  {t("log-collector.background-mode.last-event")}: {new Date(bgTelemetry.last_event_at).toLocaleTimeString()}
+                  {t("log-collector.background-mode.last-event")}: {formatEventTimestamp(bgTelemetry.last_event_at)}
                 </span>
               )}
             </span>

@@ -385,7 +385,7 @@ export default function SettingsPage() {
                       />
                       <Checkbox checked={rule.enabled} onCheckedChange={(v) => updateRule(rule.id, { enabled: v === true })} />
                       <Label className="text-[10px]">{rule.enabled ? t("settings.alert-rules.enabled") : t("settings.alert-rules.disabled")}</Label>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeRule(rule.id)}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="删除告警规则" onClick={() => removeRule(rule.id)}>
                         <Trash2 className="h-3 w-3 text-red-500" />
                       </Button>
                     </div>
@@ -542,6 +542,7 @@ export default function SettingsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0"
+                    aria-label="测试飞书 webhook"
                     onClick={testFeishu}
                     disabled={testingFeishu || !feishuWebhookUrl}
                   >

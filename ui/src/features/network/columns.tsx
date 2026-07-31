@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatEpochSeconds } from "@/lib/utils";
 import type { NetConn, ConnState, CmdlineStatus } from "./types";
 
 const STATE_VARIANT: Partial<Record<ConnState, "default" | "success" | "warning" | "danger" | "info">> = {
@@ -19,13 +20,6 @@ function fmtPort(port: number) {
   return port === 0 ? "*" : String(port);
 }
 
-function fmtTime(epoch: number) {
-  if (!epoch) return "-";
-  const d = new Date(epoch * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 function CmdlineStatusIcon({ status }: { status: CmdlineStatus }) {
   switch (status) {
     case "pending":
@@ -34,11 +28,11 @@ function CmdlineStatusIcon({ status }: { status: CmdlineStatus }) {
       );
     case "ready":
       return (
-        <span className="inline-block h-3 w-3 text-green-500" title="Ready">✓</span>
+        <span className="inline-block h-3 w-3 text-success" title="Ready">✓</span>
       );
     case "denied":
       return (
-        <span className="inline-block h-3 w-3 text-orange-500" title="Access Denied">⊘</span>
+        <span className="inline-block h-3 w-3 text-warning" title="Access Denied">⊘</span>
       );
     case "exited":
       return (
@@ -46,7 +40,7 @@ function CmdlineStatusIcon({ status }: { status: CmdlineStatus }) {
       );
     case "failed":
       return (
-        <span className="inline-block h-3 w-3 text-red-500" title="Failed">✗</span>
+        <span className="inline-block h-3 w-3 text-danger" title="Failed">✗</span>
       );
     default:
       return null;
@@ -60,7 +54,7 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     header: "First Seen",
     size: 160,
     cell: ({ row }) => (
-      <span className="font-mono text-xs">{fmtTime(row.original.first_seen)}</span>
+      <span className="font-mono text-xs">{formatEpochSeconds(row.original.first_seen)}</span>
     ),
   },
   {
@@ -171,7 +165,7 @@ export const networkColumns: ColumnDef<NetConn>[] = [
     header: "Last Seen",
     size: 160,
     cell: ({ row }) => (
-      <span className="font-mono text-xs">{fmtTime(row.original.last_seen)}</span>
+      <span className="font-mono text-xs">{formatEpochSeconds(row.original.last_seen)}</span>
     ),
   },
 ];

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAlertStore, alertKey } from "@/stores/alert-store";
+import { formatEpochMillis } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Trash2, ChevronsUpDown } from "lucide-react";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -153,7 +154,7 @@ export function AlertPanel({ onClose }: Props) {
   const formatTime = (ts: number) => {
     // If timestamp is in seconds (less than year 3000 in ms), convert to ms
     const ms = ts > 1e12 ? ts : ts * 1000;
-    return new Date(ms).toLocaleString();
+    return formatEpochMillis(ms);
   };
 
   const handleClear = () => {

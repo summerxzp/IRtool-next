@@ -203,7 +203,7 @@ export function RuleEditDialog({ open, onOpenChange, rule, onSave }: Props) {
                         </SelectContent>
                       </Select>
                       <div className="flex-1" />
-                      <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" onClick={() => handleRemoveCondition(i)} disabled={form.conditions.length <= 1}>
+                      <Button variant="ghost" size="icon" className="shrink-0 h-7 w-7" aria-label="移除条件" onClick={() => handleRemoveCondition(i)} disabled={form.conditions.length <= 1}>
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>

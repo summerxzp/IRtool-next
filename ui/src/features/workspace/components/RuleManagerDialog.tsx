@@ -176,10 +176,10 @@ export function RuleManagerDialog({ open, onOpenChange }: Props) {
                   >
                     {rule.severity}
                   </Badge>
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)}>
+                  <Button variant="ghost" size="icon" aria-label="编辑规则" onClick={() => handleEdit(rule)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(rule)}>
+                  <Button variant="ghost" size="icon" aria-label="删除规则" onClick={() => handleDelete(rule)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>

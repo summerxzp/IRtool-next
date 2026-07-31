@@ -82,6 +82,8 @@ pub struct IrtoolApp {
     exit_check_rx: std::sync::mpsc::Receiver<bool>,
     /// 为 true 时允许窗口关闭（跳过 CancelClose 拦截）。
     force_exit: bool,
+    /// 后台监控运行中关闭窗口的确认对话框是否打开。
+    exit_confirm_open: bool,
 
     // System tray
     #[allow(dead_code)]
@@ -204,6 +206,7 @@ impl IrtoolApp {
             exit_check_tx,
             exit_check_rx,
             force_exit: false,
+            exit_confirm_open: false,
             tray_icon,
             tray_show_id,
             tray_quit_id,
@@ -807,8 +810,8 @@ impl eframe::App for IrtoolApp {
             self.exit_check_pending = false;
             self.is_background_mode = is_bg;
             if is_bg {
-                // 后台监控运行中 → 隐藏窗口到托盘
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                // 后台监控运行中 → 弹确认框，不直接隐藏
+                self.exit_confirm_open = true;
             } else {
                 // 无后台监控 → 直接退出
                 self.force_exit = true;
@@ -951,6 +954,33 @@ impl eframe::App for IrtoolApp {
         // 6. Startup dialogs (fallback notice + tools check)
         self.render_fallback_notice(ctx);
         self.render_tools_check(ctx);
+
+        // 6b. Exit confirmation dialog (background monitoring running)
+        if self.exit_confirm_open {
+            egui::Window::new("后台监控运行中")
+                .collapsible(false)
+                .resizable(false)
+                .min_width(320.0)
+                .show(ctx, |ui| {
+                    ui.label("当前处于后台监控模式，数据采集仍在运行。");
+                    ui.label("关闭窗口将中断监控。请选择：");
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("后台运行").clicked() {
+                            self.exit_confirm_open = false;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        }
+                        if ui.button("彻底退出").clicked() {
+                            self.exit_confirm_open = false;
+                            self.force_exit = true;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                        if ui.button("取消").clicked() {
+                            self.exit_confirm_open = false;
+                        }
+                    });
+                });
+        }
 
         // 7. Request periodic repaint for polling updates
         ctx.request_repaint_after(Duration::from_millis(1000));
