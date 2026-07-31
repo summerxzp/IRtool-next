@@ -19,6 +19,7 @@
 use serde::Deserialize;
 use std::io::{self, Read, Write};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 
 /// Chrome Native Messaging 消息，实际取值为来自扩展的任意 JSON 对象。
@@ -135,6 +136,9 @@ pub fn append_to_queue(queue_dir: &Path, msg: &NativeMessage) -> Result<(), Nati
 
 // ── 下行通道：向扩展发送消息 ─────────────────────────────
 
+/// stdout 锁，保证多线程写入互斥（主线程 + config watcher 线程）
+static STDOUT_LOCK: std::sync::OnceLock<Arc<Mutex<()>>> = std::sync::OnceLock::new();
+
 /// 向 stdout 写入一条 Native Messaging 消息（下行通道）。
 ///
 /// Chrome Native Messaging 协议：
@@ -143,6 +147,9 @@ pub fn append_to_queue(queue_dir: &Path, msg: &NativeMessage) -> Result<(), Nati
 ///
 /// 扩展通过 `port.onMessage` 接收此消息。
 pub fn write_message_to_stdout(json_str: &str) -> Result<(), NativeMessagingError> {
+    let lock = STDOUT_LOCK.get_or_init(|| Arc::new(Mutex::new(())));
+    let _guard = lock.lock().unwrap();
+
     let json_bytes = json_str.as_bytes();
     let len = json_bytes.len() as u32;
     let mut out = io::stdout().lock();
@@ -290,15 +297,33 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
     );
 
     let mut message_count = 0u64;
-    let mut last_config_mtime: Option<std::time::SystemTime> = None;
+    let last_config_mtime: Arc<Mutex<Option<std::time::SystemTime>>> = Arc::new(Mutex::new(None));
 
     // 启动时先检查一次 config（可能在启动前就已写入）
-    // 启动检查不透传 reconnectSignal：避免 NMH 重启后读到旧信号触发
-    // "扩展重连 → NMH 重启 → 又透传 → 又重连" 死循环。
-    // 只透传 filterDomains，让扩展恢复过滤状态。
-    if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime, false) {
-        error!("failed to check config on startup: {:?}", e);
+    // 启动检查不透传 reconnectSignal：避免 NMH 重启后读到旧信号触发死循环
+    {
+        let mut guard = last_config_mtime.lock().unwrap();
+        if let Err(e) = check_and_forward_config(config_dir, &mut *guard, false) {
+            error!("failed to check config on startup: {:?}", e);
+        }
     }
+
+    // spawn 独立线程：每 1s 轮询 config mtime，变更时下发（透传一次性信号）
+    // 解决扩展无上行流量时 config 无法及时下发的问题
+    let config_dir_clone = config_dir.to_path_buf();
+    let last_mtime_for_thread = last_config_mtime.clone();
+    let config_thread = std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            let mut guard = match last_mtime_for_thread.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            if let Err(e) = check_and_forward_config(&config_dir_clone, &mut *guard, true) {
+                error!("config watcher check failed: {:?}", e);
+            }
+        }
+    });
 
     loop {
         match read_message()? {
@@ -310,9 +335,9 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
                     error!("failed to append message to queue: {:?}", e);
                 }
 
-                // 每次收到消息后检查 config 变更
-                // 运行期间透传 reconnectSignal：用户点击"重新连接"才能立即触发
-                if let Err(e) = check_and_forward_config(config_dir, &mut last_config_mtime, true) {
+                // 每次收到消息后也检查 config 变更（延迟更低，立即响应）
+                let mut guard = last_config_mtime.lock().unwrap();
+                if let Err(e) = check_and_forward_config(config_dir, &mut *guard, true) {
                     error!("failed to check/forward config: {:?}", e);
                 }
             }
@@ -326,6 +351,9 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
         }
     }
 
+    // config_thread 是 daemon 性质，进程退出时线程自动终止
+    // 不 join 是因为 stdin 关闭后主循环 break，进程即将退出
+    let _ = config_thread;
     Ok(())
 }
 
