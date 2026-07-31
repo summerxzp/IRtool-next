@@ -1695,7 +1695,7 @@ impl WorkspacePageState {
                                     egui::RichText::new(format!(
                                         "{} · {} · {} 条件",
                                         target_label(&rule.target),
-                                        &rule.family,
+                                        rule.family,
                                         rule.conditions.len()
                                     ))
                                     .color(theme::FG_TERTIARY)

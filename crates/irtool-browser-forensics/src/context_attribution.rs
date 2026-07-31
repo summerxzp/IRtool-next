@@ -394,7 +394,7 @@ fn query_history_by_domain(
     let sql = "SELECT u.url, u.title, v.visit_time, u.visit_count \
          FROM visits v \
          JOIN urls u ON v.url = u.id \
-         WHERE u.url LIKE ? \
+         WHERE u.url LIKE ? ESCAPE '\\' \
          ORDER BY v.visit_time DESC \
          LIMIT 200";
 
@@ -406,7 +406,10 @@ fn query_history_by_domain(
         }
     };
 
-    let pattern = format!("%{}%", domain);
+    // 转义 LIKE 通配符：\ → \\, % → \%, _ → \_
+    // 避免 domain 含 % 或 _ 时误匹配所有 URL
+    let escaped = domain.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let pattern = format!("%{}%", escaped);
     let rows = stmt.query_map(rusqlite::params![pattern], |row| {
         Ok((
             row.get::<_, String>(0)?,

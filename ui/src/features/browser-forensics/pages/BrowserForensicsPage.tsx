@@ -16,7 +16,7 @@ import { ContextAttributionPanel } from "../components/ContextAttributionPanel";
 import { ExtensionConnectionBadge } from "../components/ExtensionConnectionBadge";
 import { CdpCaptureControl } from "../components/CdpCaptureControl";
 import { InstallHelperExtensionDialog } from "../components/InstallHelperExtensionDialog";
-import type { BrowserKind, ExtensionInfo, BrowserMaliciousConnectionPayload, ExtensionAttributionPayload } from "../types";
+import type { BrowserKind, ExtensionInfo, DownloadInfo, HistoryEntry, BrowserMaliciousConnectionPayload, ExtensionAttributionPayload } from "../types";
 
 const BROWSERS: { kind: BrowserKind; label: string }[] = [
   { kind: "chrome", label: "Chrome" },
@@ -243,6 +243,14 @@ export function BrowserForensicsPage() {
 
     const isCurrent = () => reqId === reqIdRef.current;
 
+    // 局部快照：累积本次扫描的实际结果，避免 finally 读全局 store
+    // （扫描期间用户切换 profile 会让 store 被其他 profile 数据覆盖）
+    const snapshot = {
+      extensions: [] as ExtensionInfo[],
+      downloads: [] as DownloadInfo[],
+      history: [] as HistoryEntry[],
+    };
+
     const sinceWebKit = (() => {
       const now = Date.now();
       let sinceMs: number | undefined;
@@ -259,30 +267,38 @@ export function BrowserForensicsPage() {
 
     fetches.push(
       api.listExtensions(selectedBrowser, selectedProfile).then((inv) => {
-        if (isCurrent()) setExtensions(inv.extensions);
+        if (isCurrent()) {
+          snapshot.extensions = inv.extensions;
+          setExtensions(inv.extensions);
+        }
       }).catch((e) => { if (isCurrent()) setError(String(e)); }),
     );
     fetches.push(
       api.listDownloads(selectedBrowser, selectedProfile).then((d) => {
-        if (isCurrent()) setDownloads(d);
+        if (isCurrent()) {
+          snapshot.downloads = d;
+          setDownloads(d);
+        }
       }).catch((e) => { if (isCurrent()) setError(String(e)); }),
     );
     fetches.push(
       api.scanHistory(selectedBrowser, selectedProfile, sinceWebKit).then((h) => {
-        if (isCurrent()) setHistory(h);
+        if (isCurrent()) {
+          snapshot.history = h;
+          setHistory(h);
+        }
       }).catch((e) => { if (isCurrent()) setError(String(e)); }),
     );
 
     Promise.all(fetches).finally(() => {
       if (isCurrent()) {
         setLoading(false);
-        // 保存扫描结果到缓存，切换浏览器/profile 后可恢复
-        const state = useBrowserForensicsStore.getState();
+        // 使用局部快照，避免全局 store 被切换 profile 污染
         saveScanCache(selectedBrowser, selectedProfile, {
-          extensions: state.extensions,
-          downloads: state.downloads,
-          history: state.history,
-          historySince: state.historySince,
+          extensions: snapshot.extensions,
+          downloads: snapshot.downloads,
+          history: snapshot.history,
+          historySince,
         });
       }
     });

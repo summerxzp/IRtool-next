@@ -169,8 +169,8 @@ fn is_running_as_admin() -> bool {
 
 /// 构建包含所有已注册 Tauri 命令的 specta Builder。
 ///
-/// 抽出为独立函数以便 `run()` 和 `export_bindings` 测试共用，避免命令列表重复维护。
-fn command_builder() -> Builder<tauri::Wry> {
+/// 抽出为独立函数以便 `run()` 和 `export_bindings` example 共用，避免命令列表重复维护。
+pub fn command_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         cmd_app_info,
         cmd_log_frontend,
@@ -284,8 +284,8 @@ fn command_builder() -> Builder<tauri::Wry> {
 
 /// 将 specta 命令绑定导出到 `ui/src/lib/bindings.ts`。
 ///
-/// dev 模式下 `run()` 启动时调用一次；`export_bindings` 测试也调用以独立重新生成。
-fn export_bindings(builder: &Builder<tauri::Wry>) {
+/// dev 模式下 `run()` 启动时调用一次；`export_bindings` example 也调用以独立重新生成。
+pub fn export_bindings(builder: &Builder<tauri::Wry>) {
     builder
         .export(
             Typescript::default()
@@ -437,18 +437,4 @@ pub fn run() {
             tracing::error!("Application exited with error: {}", e);
             std::process::exit(1);
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// 重新生成 `ui/src/lib/bindings.ts`。
-    ///
-    /// 运行：`cargo test -p irtool-tauri --lib export_bindings`
-    #[test]
-    fn export_bindings() {
-        let builder = command_builder();
-        super::export_bindings(&builder);
-    }
 }

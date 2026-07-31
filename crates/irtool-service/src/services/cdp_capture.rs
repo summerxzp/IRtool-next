@@ -350,12 +350,16 @@ impl CdpCaptureService {
 ///
 /// 外层循环处理重连，内层 `select!` 多路复用事件/校准/停止信号。
 /// `stop_rx` 完成（收到信号或发送端 drop）即清理 session 后退出。
-async fn run_capture_loop(cdp_target: CdpTarget, event_bus: EventBus, mut stop_rx: oneshot::Receiver<()>) {
-    let ws_url = cdp_target.web_socket_debugger_url.clone();
-    info!("cdp capture loop started: ws_url={}", ws_url);
+async fn run_capture_loop(initial_target: CdpTarget, event_bus: EventBus, mut stop_rx: oneshot::Receiver<()>) {
+    let mut current_target = initial_target;
+    info!(
+        "cdp capture loop started: ws_url={}",
+        current_target.web_socket_debugger_url
+    );
 
     loop {
-        // 连接 CDP
+        // 连接 CDP（使用最新的 ws_url）
+        let ws_url = current_target.web_socket_debugger_url.clone();
         let client = match CdpClient::connect(&ws_url).await {
             Ok(c) => Arc::new(c),
             Err(e) => {
@@ -366,6 +370,14 @@ async fn run_capture_loop(cdp_target: CdpTarget, event_bus: EventBus, mut stop_r
                         info!("cdp capture: stop signal during connect backoff");
                         return;
                     }
+                }
+                // 重连前刷新 ws_url（浏览器可能已重启，生成新的 browser session ID）
+                if let Some(t) = discover_targets().await.into_iter().next() {
+                    current_target = t;
+                    info!(
+                        "cdp capture: refreshed ws_url: {}",
+                        current_target.web_socket_debugger_url
+                    );
                 }
                 continue;
             }
@@ -438,6 +450,14 @@ async fn run_capture_loop(cdp_target: CdpTarget, event_bus: EventBus, mut stop_r
                 info!("cdp capture: stop signal during reconnect backoff");
                 return;
             }
+        }
+        // 重连前同样刷新 ws_url（事件流断开可能是浏览器重启导致）
+        if let Some(t) = discover_targets().await.into_iter().next() {
+            current_target = t;
+            info!(
+                "cdp capture: refreshed ws_url after stream break: {}",
+                current_target.web_socket_debugger_url
+            );
         }
     }
 }

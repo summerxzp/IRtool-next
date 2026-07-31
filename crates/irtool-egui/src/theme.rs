@@ -174,13 +174,13 @@ pub fn apply_light_theme(ctx: &egui::Context) {
 
     visuals.override_text_color = Some(FG_PRIMARY);
     visuals.widgets.noninteractive.bg_fill = BG_PRIMARY;
-    visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, FG_PRIMARY);
+    visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0_f32, FG_PRIMARY);
     visuals.widgets.inactive.bg_fill = BG_SECONDARY;
-    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, FG_PRIMARY);
+    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0_f32, FG_PRIMARY);
     visuals.widgets.hovered.bg_fill = BG_ELEVATED;
-    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, ACCENT_HOVER);
+    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0_f32, ACCENT_HOVER);
     visuals.widgets.active.bg_fill = ACCENT;
-    visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, Color32::WHITE);
+    visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0_f32, Color32::WHITE);
 
     visuals.panel_fill = BG_PRIMARY;
     visuals.window_fill = BG_PRIMARY;

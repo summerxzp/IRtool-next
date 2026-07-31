@@ -180,26 +180,30 @@ fn native_queue_path() -> PathBuf {
 
 /// 读取 Native Messaging 队列文件中的消息并清空队列。
 ///
-/// 使用原子 rename 策略避免并发丢失：将队列文件 rename 为 .processing 后缀，
-/// 读取并解析完成后再删除 .processing 文件。Host 端继续写入新的队列文件。
+/// 使用 truncate 策略：直接读取原文件后清空内容，不再 rename+delete。
+/// 之前的 rename 策略存在竞态：NMH 已打开 handle 期间的写入会落到重命名后的 inode，
+/// 被 remove 一并删除。truncate 把 race 窗口缩短到单次 truncate 调用本身。
 pub fn read_native_messaging_queue() -> Vec<NativeQueueMessage> {
     let queue_path = native_queue_path();
     if !queue_path.exists() {
         return vec![];
     }
 
-    // 原子 rename：queue → queue.processing，Host 端会创建新的 queue 文件
-    let processing_path = queue_path.with_extension("jsonl.processing");
-    if let Err(e) = std::fs::rename(&queue_path, &processing_path) {
-        // rename 失败可能是因为 Host 端刚删除/重建了文件，回退到直接读取
-        tracing::debug!("rename queue failed, falling back to direct read: {}", e);
-        return read_queue_file(&queue_path);
+    // 直接读取原文件（NMH 下次 append 仍写入同一文件）
+    let messages = read_queue_file(&queue_path);
+
+    // 清空文件内容，保留文件本身
+    // race 窗口：read 与 truncate 之间 NMH 的写入会丢失
+    // 为缩小窗口，truncate 用 OpenOptions::truncate(true) 在 open 时立即生效
+    if !messages.is_empty()
+        && std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&queue_path)
+            .is_ok()
+    {
+        // truncate 已在 open 时生效，drop file handle
     }
-
-    let messages = read_queue_file(&processing_path);
-
-    // 处理完成后删除 .processing 文件
-    let _ = std::fs::remove_file(&processing_path);
 
     messages
 }

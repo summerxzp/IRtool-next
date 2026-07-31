@@ -141,7 +141,19 @@ impl CdpClient {
                 // 尝试解析为事件（有 method，无 id）
                 // CdpEvent 的 session_id 由 serde 直接从消息 JSON 顶层 sessionId 字段反序列化
                 if let Ok(evt) = serde_json::from_str::<CdpEvent>(&msg) {
-                    let _ = event_tx.send(evt).await;
+                    // 用 try_send 避免事件通道满时阻塞 reader task
+                    // reader 阻塞会导致命令响应也无法读取，引发命令超时
+                    // CDP 事件允许丢失，下游有 60s 周期校准兜底
+                    match event_tx.try_send(evt) {
+                        Ok(()) => {}
+                        Err(mpsc::error::TrySendError::Full(_)) => {
+                            warn!("cdp event channel full, dropping event (downstream saturated)");
+                        }
+                        Err(mpsc::error::TrySendError::Closed(_)) => {
+                            debug!("cdp event channel closed, stopping reader");
+                            break;
+                        }
+                    }
                 }
             }
         });
