@@ -20,7 +20,6 @@ use irtool_service::context::AppContext;
 use irtool_service::dto::app::AppInfo;
 use irtool_service::services::app::AppService;
 use irtool_service::services::network::NetworkService;
-#[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri::{Emitter, Manager, State};
 use tauri_specta::{collect_commands, Builder};
