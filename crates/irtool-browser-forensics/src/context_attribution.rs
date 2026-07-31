@@ -408,10 +408,7 @@ fn query_history_by_domain(
 
     // 转义 LIKE 通配符：\ → \\, % → \%, _ → \_
     // 避免 domain 含 % 或 _ 时误匹配所有 URL
-    let escaped = domain
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
+    let escaped = domain.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     let pattern = format!("%{}%", escaped);
     let rows = stmt.query_map(rusqlite::params![pattern], |row| {
         Ok((

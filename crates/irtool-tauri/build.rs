@@ -13,8 +13,8 @@ fn main() {
         // TaskDialogIndirect（Tauri/windows crate 静态导入）导致 0xc0000139。
         // 给 example 嵌入 Common-Controls v6 manifest 修复。
         // 不影响 main binary（已通过 app_manifest 嵌入）和 cdylib。
-        let manifest = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-            .join("common-controls.manifest");
+        let manifest =
+            std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("common-controls.manifest");
         let manifest_str = manifest.to_str().unwrap();
         println!("cargo:rustc-link-arg-examples=/MANIFEST:EMBED");
         println!("cargo:rustc-link-arg-examples=/MANIFESTINPUT:{}", manifest_str);

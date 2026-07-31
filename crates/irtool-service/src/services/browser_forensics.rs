@@ -195,14 +195,14 @@ pub fn read_native_messaging_queue() -> Vec<NativeQueueMessage> {
     // 清空文件内容，保留文件本身
     // race 窗口：read 与 truncate 之间 NMH 的写入会丢失
     // 为缩小窗口，truncate 用 OpenOptions::truncate(true) 在 open 时立即生效
-    if !messages.is_empty() {
-        if let Ok(_) = std::fs::OpenOptions::new()
+    if !messages.is_empty()
+        && std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
             .open(&queue_path)
-        {
-            // truncate 已在 open 时生效，drop file handle
-        }
+            .is_ok()
+    {
+        // truncate 已在 open 时生效，drop file handle
     }
 
     messages

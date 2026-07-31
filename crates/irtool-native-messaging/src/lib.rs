@@ -303,7 +303,7 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
     // 启动检查不透传 reconnectSignal：避免 NMH 重启后读到旧信号触发死循环
     {
         let mut guard = last_config_mtime.lock().unwrap();
-        if let Err(e) = check_and_forward_config(config_dir, &mut *guard, false) {
+        if let Err(e) = check_and_forward_config(config_dir, &mut guard, false) {
             error!("failed to check config on startup: {:?}", e);
         }
     }
@@ -312,16 +312,14 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
     // 解决扩展无上行流量时 config 无法及时下发的问题
     let config_dir_clone = config_dir.to_path_buf();
     let last_mtime_for_thread = last_config_mtime.clone();
-    let config_thread = std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            let mut guard = match last_mtime_for_thread.lock() {
-                Ok(g) => g,
-                Err(_) => return,
-            };
-            if let Err(e) = check_and_forward_config(&config_dir_clone, &mut *guard, true) {
-                error!("config watcher check failed: {:?}", e);
-            }
+    let config_thread = std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let mut guard = match last_mtime_for_thread.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if let Err(e) = check_and_forward_config(&config_dir_clone, &mut guard, true) {
+            error!("config watcher check failed: {:?}", e);
         }
     });
 
@@ -337,7 +335,7 @@ pub fn run_event_loop(queue_dir: &Path, config_dir: &Path) -> Result<(), NativeM
 
                 // 每次收到消息后也检查 config 变更（延迟更低，立即响应）
                 let mut guard = last_config_mtime.lock().unwrap();
-                if let Err(e) = check_and_forward_config(config_dir, &mut *guard, true) {
+                if let Err(e) = check_and_forward_config(config_dir, &mut guard, true) {
                     error!("failed to check/forward config: {:?}", e);
                 }
             }

@@ -352,7 +352,10 @@ impl CdpCaptureService {
 /// `stop_rx` 完成（收到信号或发送端 drop）即清理 session 后退出。
 async fn run_capture_loop(initial_target: CdpTarget, event_bus: EventBus, mut stop_rx: oneshot::Receiver<()>) {
     let mut current_target = initial_target;
-    info!("cdp capture loop started: ws_url={}", current_target.web_socket_debugger_url);
+    info!(
+        "cdp capture loop started: ws_url={}",
+        current_target.web_socket_debugger_url
+    );
 
     loop {
         // 连接 CDP（使用最新的 ws_url）
@@ -371,7 +374,10 @@ async fn run_capture_loop(initial_target: CdpTarget, event_bus: EventBus, mut st
                 // 重连前刷新 ws_url（浏览器可能已重启，生成新的 browser session ID）
                 if let Some(t) = discover_targets().await.into_iter().next() {
                     current_target = t;
-                    info!("cdp capture: refreshed ws_url: {}", current_target.web_socket_debugger_url);
+                    info!(
+                        "cdp capture: refreshed ws_url: {}",
+                        current_target.web_socket_debugger_url
+                    );
                 }
                 continue;
             }
@@ -448,7 +454,10 @@ async fn run_capture_loop(initial_target: CdpTarget, event_bus: EventBus, mut st
         // 重连前同样刷新 ws_url（事件流断开可能是浏览器重启导致）
         if let Some(t) = discover_targets().await.into_iter().next() {
             current_target = t;
-            info!("cdp capture: refreshed ws_url after stream break: {}", current_target.web_socket_debugger_url);
+            info!(
+                "cdp capture: refreshed ws_url after stream break: {}",
+                current_target.web_socket_debugger_url
+            );
         }
     }
 }
