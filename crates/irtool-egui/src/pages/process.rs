@@ -1206,7 +1206,7 @@ fn render_tree_node(
     }
 
     // 在分配的区域内绘制内容
-    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         ui.horizontal_centered(|ui| {
             ui.add_space(depth as f32 * 16.0 + 4.0);
 

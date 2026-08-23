@@ -28,7 +28,7 @@ pub fn badge(ui: &mut egui::Ui, text: &str, variant: BadgeVariant) {
     let bg = variant.color();
     let fg = Color32::WHITE;
     let font = egui::TextStyle::Small.resolve(ui.style());
-    let galley = ui.fonts(|f| f.layout_no_wrap(text.to_uppercase(), font, fg));
+    let galley = ui.fonts_mut(|f| f.layout_no_wrap(text.to_uppercase(), font, fg));
     let size = galley.size() + Vec2::new(8.0, 4.0);
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     ui.painter().rect_filled(rect, 3.0, bg);

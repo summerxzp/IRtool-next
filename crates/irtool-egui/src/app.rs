@@ -696,7 +696,10 @@ fn tool_label(id: &str) -> &str {
 }
 
 impl eframe::App for IrtoolApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // eframe 0.36: App::update(ctx) -> App::ui(&mut Ui)，Context 从 Ui 取。
+        let ctx = ui.ctx().clone();
+
         // 拦截窗口关闭请求：检查后台模式后决定隐藏到托盘或退出
         if ctx.input(|i| i.viewport().close_requested()) && !self.force_exit {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -744,19 +747,19 @@ impl eframe::App for IrtoolApp {
 
         // Apply theme on first update (when we have the real egui context)
         if !self.theme_applied {
-            theme::apply_light_theme(ctx);
+            theme::apply_light_theme(&ctx);
             self.theme_applied = true;
             self.event_bridge.attach_context(ctx.clone());
         }
 
         // 0. 全屏白色底层：防止 Panel 之间因 DPI 缩放/对齐产生缝隙，露出 eframe 默认深色背景。
-        let screen = ctx.screen_rect();
+        let screen = ctx.viewport_rect();
         ctx.layer_painter(egui::LayerId::background())
             .rect_filled(screen, 0.0, theme::BG_PRIMARY);
 
         // 1. Drain events from EventBus
         for event in self.event_bridge.drain() {
-            self.handle_event(event, ctx);
+            self.handle_event(event, &ctx);
         }
 
         // 1b. Drain autoruns data refresh results
@@ -820,16 +823,16 @@ impl eframe::App for IrtoolApp {
         }
 
         // 2. Top bar
-        egui::TopBottomPanel::top("topbar")
+        egui::Panel::top("topbar")
             .frame(theme::panel_frame(egui::Margin::symmetric(8, 6)))
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 self.render_topbar(ui);
             });
 
         // 3. Sidebar
-        egui::SidePanel::left("sidebar")
+        egui::Panel::left("sidebar")
             .resizable(false)
-            .exact_width(theme::SIDEBAR_WIDTH)
+            .exact_size(theme::SIDEBAR_WIDTH)
             .frame(theme::panel_frame(egui::Margin {
                 left: 4,
                 right: 0,
@@ -837,7 +840,7 @@ impl eframe::App for IrtoolApp {
                 bottom: 4,
             }))
             .show_separator_line(false)
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 self.render_sidebar(ui);
             });
 
@@ -846,9 +849,9 @@ impl eframe::App for IrtoolApp {
             self.current_page,
             Page::Network | Page::Autoruns | Page::Sysmon | Page::Database | Page::Workspace
         ) {
-            egui::TopBottomPanel::bottom("stats_bar")
+            egui::Panel::bottom("stats_bar")
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| match self.current_page {
+                .show(ui, |ui| match self.current_page {
                     Page::Autoruns => self.autoruns.render_stats_bar(ui),
                     Page::Sysmon => self.sysmon.render_stats_bar(ui),
                     Page::Database => self.database.render_stats_bar(ui),
@@ -861,22 +864,22 @@ impl eframe::App for IrtoolApp {
 
         // 4b. Detail panel (bottom, above stats bar — declared after so it stacks above)
         if self.current_page == Page::Network && self.network.detail_visible && self.network.selected_pid.is_some() {
-            egui::TopBottomPanel::bottom("detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.network.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         } else if self.current_page == Page::Process
             && self.process.detail_visible
             && self.process.selected_pid.is_some()
         {
-            egui::TopBottomPanel::bottom("process_detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("process_detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.process
                         .render_detail_panel(ui, &self.ctx, self.rt.handle(), &self.sysmon.events);
                 });
@@ -884,35 +887,35 @@ impl eframe::App for IrtoolApp {
             && self.autoruns.detail_visible
             && self.autoruns.selected_id.is_some()
         {
-            egui::TopBottomPanel::bottom("autoruns_detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("autoruns_detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.autoruns.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         } else if self.current_page == Page::Sysmon && self.sysmon.detail_visible {
-            egui::TopBottomPanel::bottom("sysmon_detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("sysmon_detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.sysmon.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         } else if self.current_page == Page::Database && self.database.detail_visible {
-            egui::TopBottomPanel::bottom("database_detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("database_detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.database.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         } else if self.current_page == Page::Workspace && self.workspace.detail_visible {
-            egui::TopBottomPanel::bottom("workspace_detail_panel")
-                .default_height(theme::DETAIL_PANEL_HEIGHT)
+            egui::Panel::bottom("workspace_detail_panel")
+                .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     self.workspace.render_detail_panel(ui, &self.ctx, self.rt.handle());
                 });
         }
@@ -920,7 +923,7 @@ impl eframe::App for IrtoolApp {
         // 5. Content area
         egui::CentralPanel::default()
             .frame(theme::panel_frame(egui::Margin::ZERO))
-            .show(ctx, |ui| match self.current_page {
+            .show(ui, |ui| match self.current_page {
                 Page::Network => {
                     self.network.render(ui, &self.ctx, self.rt.handle());
                 }
@@ -952,8 +955,8 @@ impl eframe::App for IrtoolApp {
             });
 
         // 6. Startup dialogs (fallback notice + tools check)
-        self.render_fallback_notice(ctx);
-        self.render_tools_check(ctx);
+        self.render_fallback_notice(&ctx);
+        self.render_tools_check(&ctx);
 
         // 6b. Exit confirmation dialog (background monitoring running)
         if self.exit_confirm_open {
@@ -961,7 +964,7 @@ impl eframe::App for IrtoolApp {
                 .collapsible(false)
                 .resizable(false)
                 .min_width(320.0)
-                .show(ctx, |ui| {
+                .show(&ctx, |ui| {
                     ui.label("当前处于后台监控模式，数据采集仍在运行。");
                     ui.label("关闭窗口将中断监控。请选择：");
                     ui.add_space(8.0);
@@ -986,7 +989,7 @@ impl eframe::App for IrtoolApp {
         ctx.request_repaint_after(Duration::from_millis(1000));
     }
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self) {
         tracing::info!("egui frontend exiting");
         // 重置后台模式，防止下次启动时状态不一致
         let ctx = self.ctx.clone();

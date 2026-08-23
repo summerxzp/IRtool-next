@@ -13,9 +13,9 @@ irtool-net-monitor = { path = "../irtool-net-monitor" }
 irtool-autoruns = { path = "../irtool-autoruns" }
 irtool-browser-forensics = { path = "../irtool-browser-forensics" }
 
-eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts"] }
-egui_extras = "0.31"
-egui = "0.31"
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "accesskit"] }
+egui_extras = "0.36"
+egui = "0.36"
 
 arboard = "3"
 regex = { workspace = true }

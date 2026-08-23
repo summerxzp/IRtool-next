@@ -1297,7 +1297,7 @@ impl WorkspacePageState {
                                     }
                                 });
                             }
-                            ui.close_menu();
+                            // egui 0.36: 菜单默认 CloseOnClick，点击后自动关闭，无需 close_menu()
                         }
                         if ui.button("获取所有权").clicked() {
                             if let Some(ref path) = image_path {
@@ -1308,7 +1308,6 @@ impl WorkspacePageState {
                                     }
                                 });
                             }
-                            ui.close_menu();
                         }
                         if ui.button("取样").clicked() {
                             if let Some(ref path) = image_path {
@@ -1323,7 +1322,6 @@ impl WorkspacePageState {
                                     }
                                 });
                             }
-                            ui.close_menu();
                         }
                     });
                 });

@@ -277,10 +277,11 @@ impl SettingsPageState {
         }
 
         // 左侧导航 + 右侧内容
-        egui::SidePanel::left("settings_sidebar")
-            .default_width(160.0)
+        // egui 0.36: SidePanel/CentralPanel 统一为 Panel 形态，show_inside -> show。
+        egui::Panel::left("settings_sidebar")
+            .default_size(160.0)
             .resizable(false)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new("设置")
@@ -313,7 +314,7 @@ impl SettingsPageState {
                 }
             });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().id_salt("settings_scroll").show(ui, |ui| {
                 ui.add_space(4.0);
 
