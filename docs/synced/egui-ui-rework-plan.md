@@ -87,7 +87,8 @@
 
 ### P2 design 模块入库（不动任何页面）
 
-- [ ] `crates/irtool-egui/src/design/` 新模块：`tokens.rs`（dark/light 双主题，翻译 `ui/src/styles/tokens.css` 的 72 行 CSS 变量）、`fonts.rs`（msyh/consolas 兜底链，从 demo main.rs 搬）、`widgets.rs` 扩展（组件清单见 §5.4）
+- [ ] 前置：按 [ui-design-spec.md](ui-design-spec.md) 校准 demo 色值（demo 与 tokens.css 的偏差以 tokens.css 为准），补齐语义角色三件套（demo 现有 fg/bg 对，缺 border 变体）
+- [ ] `crates/irtool-egui/src/design/` 新模块：`tokens.rs`（dark/light 双主题，翻译 `ui/src/styles/tokens.css` 的 72 行 CSS 变量 + 角色三件套派生）、`fonts.rs`（msyh/consolas 兜底链 + 字号阶梯，从 demo main.rs 搬）、`widgets.rs` 扩展（组件清单见 spec §4）
 - [ ] demo 与主项目渲染同一测试页，截图逐像素对照一致
 - 验收：模块可独立使用，9 个现有页面行为零变化（此阶段不接线）
 
@@ -146,6 +147,15 @@
 - 验收：发布 IRTool vNext portable
 
 ## 5. 风格探索与定稿流程
+
+### 5.0 规范前置（已建立，见 ui-design-spec.md）
+
+先行固化结构与约束（令牌三层架构、语义角色三件套、字体阶梯、组件公共样式、图标颜色分级、硬约束），具体值以 React 版为基准源，经 §5.2 流程在 demo 定稿后回填 spec §7。**页面迁移（P5+）开始前 spec 必须达 v1.0**（色值对齐 + role 枚举映射全表 + 字号校准）。
+
+方法论框架沿用作者 UI 知识库（审计→原则→视觉探索→token→页面生产→多页演化）：
+
+- "先复刻后演化"对应：审计（tokens.css/截图）→ token（翻译）→ 生产（逐页迁移）→ 演化（统一一轮风格升级）。
+- Pattern 目录（Table / Investigation / Work Queue / State 三态 / 图表一图一问）作为页面结构选型参考——IRtool 9 页全部落在 Table 为主 Pattern、Investigation 为详情面板辅助、State Pattern 全局适用的组合上。
 
 ### 5.1 原则：先复刻，后演化
 
@@ -206,6 +216,12 @@ Button / IconButton / Badge(severity 五级，对齐主项目 severity 规范) /
 | P1 完成 | RDP/VM 实测通过，体积基线记录 |
 | P5 完成 | network 页与 React 版并排对照通过，范式文档回填 |
 | P8 完成 | 单 exe ≤15MB、启动 <1s、万条滚动 ≥60fps、VT 误报抽查通过 |
+
+## 9. 文档体系
+
+重构期间长出的文档按 [INDEX.md](INDEX.md) 的结构分布（synced 进库方案规范 / wiki 领域知识 / superpowers 过程产物 / archived 归档）；AI 协作红线沉淀在根目录 AGENTS.md。新增文档必须登记 INDEX.md。
+
+重构相关核心文档链：本方案（总控）→ [ui-design-spec.md](ui-design-spec.md)（设计规范）→ demo 仓库 `POLISH-PLAN.md`（风格迭代现场）。
 
 ---
 
