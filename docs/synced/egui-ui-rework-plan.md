@@ -18,7 +18,7 @@
 | 维度 | 结论 |
 |---|---|
 | 兼容性 | eframe wgpu 后端走 D3D12，Win10 全系 + RDP 实测可用（glow/OpenGL 在 RDP 下崩溃，egui issue #2573） |
-| 体积 | 纯 egui 单 exe 预计 8–14MB（现 20.2MB 含双前端资产） |
+| 体积 | 纯 egui 单 exe 实测 19.7MB（wgpu 版，P1）；参照：旧 glow 双前端便携 exe 19.2MB |
 | 性能 | demo 实测 500 行滚动流畅，--stress 连续重绘 207FPS；数据量级（万条缓冲、百条/秒）远低于 egui 验证上限（rerun.io 百万点级） |
 | 表格生态 | `egui_extras::TableBuilder` 内建虚拟化/固定表头/列宽拖拽，与工具形态（多列大表格）完全匹配 |
 | 复用资产 | 主项目已有 14.2k 行、9 页全覆盖，业务层 `irtool-service` 与 UI 解耦 |
@@ -36,7 +36,7 @@
 
 **目标**
 
-1. 单 exe ≤15MB，零外部运行时依赖，Win10 全系 + RDP + 无 GPU 虚拟机可用。
+1. 单 exe ≤25MB（实测锚定 ~20MB，P1 实测纯 egui 入口 19.7MB 含 wgpu），零外部运行时依赖，Win10 全系 + RDP + 无 GPU 虚拟机可用（P1 已实测通过）。
 2. 视觉与交互对齐现 React 版水准：复刻为起点，满意后统一演化出自有风格。
 3. 功能对齐 React 版清单（见 §6 范式与附录 B），含深浅主题、zh/en 双语、告警弹窗、表格高级能力。
 4. 工具链收敛为纯 cargo（退役 Node/pnpm/Vite/Tauri 链）。
@@ -80,12 +80,12 @@
 一次性吸收版本 breaking（demo 已验证 0.36 可行）。**这是后续一切搬运的前置条件。**
 
 - [x] `irtool-egui` 依赖升级到 0.36 系，feature 从 glow 切 wgpu，逐页修 API 编译错误（提交 `dd3c24e`，egui/eframe/egui_extras 0.36.1 + wgpu 30.0.1，`egui_glow` 已移出依赖图）
-- [ ] RDP 会话实测（远程桌面打开全 9 页，确认无崩溃）**← 待用户**
-- [ ] 无 GPU 虚拟机实测（wgpu WARP 软件回退）**← 待用户**
-- [x] 记录 release 体积基线：`irtool-egui.exe`（纯 egui 独立入口）19.7MB；`irtool-tauri.exe`（双前端含 wgpu）27.5MB（原 glow 双前端 20.2MB，wgpu 增重约 7MB，P8 删 tauri 后预期回落）
-- 已验收：release 双目标构建零警告、diff review 无行为/样式变更、运行冒烟 8s 无 panic（wgpu 初始化成功）
+- [x] RDP 会话实测（2026-08-23 用户实测通过：Win10 VM 未开 VT-x/未开 3D 加速，RDP 远程执行，9 页点击/滚动无闪退）
+- [x] 无 GPU 虚拟机实测（wgpu WARP 软件回退可用，同上环境）
+- [x] 记录 release 体积基线：`irtool-egui.exe`（纯 egui 独立入口）19.7MB ← **P8 目标形态实测锚点**；`irtool-tauri.exe`（双前端含 wgpu）27.5MB；参照系：旧 glow 双前端便携 exe 19.2MB（dist/IRTool-v2.0.3-portable），wgpu 增重约 7MB，P8 删 tauri 后预计 ~20MB（方案早期"8–14MB"预期偏乐观，以实测为准）
+- 已验收：release 双目标构建零警告、diff review 无行为/样式变更、运行冒烟 8s 无 panic、RDP/VM 实测通过 ✅（2026-08-23 P1 完结）
 - 已知行为差异（0.31→0.36，观察即可）：默认字号 12.5→13.0（未补偿，P2 字号阶梯统一处理）；面板出现动画；pixels_per_point→zoom 映射基准微差
-- 验收：release 构建通过 + RDP/VM 实测通过 + 全页功能不回归
+- P1 实测发现的功能问题（转 P7）：① autoruns 采集"扫描中"卡住（VM 普通权限复现，疑似无提权相关，UAC 落地后复测）；② egui 独立入口无 UAC manifest（requireAdministrator 仅嵌在 tauri exe）
 
 ### P2 design 模块入库（不动任何页面）
 
@@ -138,6 +138,8 @@
 - [ ] 独立告警弹窗（eframe viewport 多窗口，替代现 banner；行为对齐 React 版 10s 自动关、点击跳页）
 - [ ] 表格列宽/列序 localStorage 等价持久化（exe 目录 JSON）
 - [ ] CSV 导出路径统一（rfd 系统对话框，对齐 `ui/src/lib/csv.ts` 行为）
+- [ ] UAC 自提升：manifest 改 asInvoker + 启动检测非提权则 ShellExecuteW runas 重启提权；用户拒绝 UAC 则普通模式继续运行（P1 实测发现的既定期望行为）
+- [ ] autoruns 采集"扫描中"卡住排查（P1 VM 实测发现；先在提权环境复测排除权限因素）
 - [ ] deferred 审查遗留清零（docs/archived/ 两轮审查剩余项）
 
 ### P8 切换默认前端与退役
@@ -216,8 +218,9 @@ Button / IconButton / Badge(severity 五级，对齐主项目 severity 规范) /
 | 里程碑 | 度量 |
 |---|---|
 | P1 完成 | RDP/VM 实测通过，体积基线记录 |
+| P1 完成 | RDP/VM 实测通过，体积基线记录 ✅（2026-08-23，见 §4-P1） |
 | P5 完成 | network 页与 React 版并排对照通过，范式文档回填 |
-| P8 完成 | 单 exe ≤15MB、启动 <1s、万条滚动 ≥60fps、VT 误报抽查通过 |
+| P8 完成 | 单 exe ≤25MB（实测锚定 ~20MB）、启动 <1s、万条滚动 ≥60fps、VT 误报抽查通过 |
 
 ## 9. 文档体系
 
