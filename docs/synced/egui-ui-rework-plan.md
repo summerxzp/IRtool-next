@@ -75,14 +75,16 @@
 - [x] 建立 `egui-ui` 分支
 - [x] 方案文档评审通过
 
-### P1 渲染底座升级（egui 0.31.1 → 0.36+，glow → wgpu）
+### P1 渲染底座升级（egui 0.31.1 → 0.36+，glow → wgpu）— 技术项完成，实测待用户
 
 一次性吸收版本 breaking（demo 已验证 0.36 可行）。**这是后续一切搬运的前置条件。**
 
-- [ ] `irtool-egui` 依赖升级到 0.36 系，feature 从 glow 切 wgpu，逐页修 API 编译错误
-- [ ] RDP 会话实测（远程桌面打开全 9 页，确认无崩溃）
-- [ ] 无 GPU 虚拟机实测（wgpu WARP 软件回退）
-- [ ] 记录 release 体积基线（当前 20.2MB）
+- [x] `irtool-egui` 依赖升级到 0.36 系，feature 从 glow 切 wgpu，逐页修 API 编译错误（提交 `dd3c24e`，egui/eframe/egui_extras 0.36.1 + wgpu 30.0.1，`egui_glow` 已移出依赖图）
+- [ ] RDP 会话实测（远程桌面打开全 9 页，确认无崩溃）**← 待用户**
+- [ ] 无 GPU 虚拟机实测（wgpu WARP 软件回退）**← 待用户**
+- [x] 记录 release 体积基线：`irtool-egui.exe`（纯 egui 独立入口）19.7MB；`irtool-tauri.exe`（双前端含 wgpu）27.5MB（原 glow 双前端 20.2MB，wgpu 增重约 7MB，P8 删 tauri 后预期回落）
+- 已验收：release 双目标构建零警告、diff review 无行为/样式变更、运行冒烟 8s 无 panic（wgpu 初始化成功）
+- 已知行为差异（0.31→0.36，观察即可）：默认字号 12.5→13.0（未补偿，P2 字号阶梯统一处理）；面板出现动画；pixels_per_point→zoom 映射基准微差
 - 验收：release 构建通过 + RDP/VM 实测通过 + 全页功能不回归
 
 ### P2 design 模块入库（不动任何页面）
