@@ -1,3 +1,5 @@
+pub mod design;
+
 mod app;
 mod event_bridge;
 mod icon_cache;

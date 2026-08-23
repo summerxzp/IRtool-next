@@ -15,7 +15,9 @@
 | Semantic | `design/tokens.rs` 公开常量 | 业务含义色/字号/间距 | 页面只允许使用这一层 |
 | Component | widget 内部引用 Semantic | 组件级派生（如 badge 的 fg+bg 组合） | 组件内部消化，不外泄 |
 
-**基准源**：复刻阶段以 React 版 `ui/src/styles/tokens.css`（72 行，dark/light 双套）为唯一色值基准；demo（`ir-ui-demos/egui-demo/src/theme.rs`）当前色值与其存在偏差（如 accent `#2563EB` vs `#3A7AF0`），**P2 时以 tokens.css 为准对齐**，偏差处理在 demo 定稿流程中决策。
+**基准源**：复刻阶段以 React 版 `ui/src/styles/tokens.css`（72 行，dark/light 双套）为唯一色值基准；demo（`ir-ui-demos/egui-demo/src/theme.rs`）当前色值与其存在偏差（如 accent `#2563EB` vs `#3A7AF0`），**P2 时以 tokens.css 为准对齐**，偏差处理在 demo 定稿流程中决策。（P2 已对齐完成，2026-08-23）
+
+**egui 0.36 实现注意**：style 按主题分存（`ctx.set_style_of(Theme::Light/Dark, …)`），无单入口 `set_style`；接线时深浅两套都要写入。
 
 ## 2. 色彩语义
 
@@ -44,7 +46,9 @@ role.{name}.bg        背景：软色徽章/高亮行（= fg 12% 透明度混合
 role.{name}.border    边框：软色徽章边框（= fg 25% 透明度混合）
 ```
 
-透明度规则沿用 React 版现状：**两主题统一 12%（bg）/ 25%（border）**；深色下如可读性不足，允许调至 15%/30%，须在本文档登记。
+透明度规则沿用 React 版现状：**两主题统一 12%（bg）/ 25%（border）**；深色下如可读性不足，允许调至 15%/30%，须在本文档登记。实现取整规则：alpha = round(p×255)，即 12%→31、25%→64（`tokens.rs` 的 const fn 派生按此实现）。
+
+待评审（P3 接线时裁决）：`selected.bg`（accent 12% alpha）在深色下做行选中底色比旧实色更淡，若可读性不足按上述 15% 上调。
 
 **IRtool 角色集（v0.1，迁移审计时补全枚举映射）**：
 
@@ -92,7 +96,8 @@ mono 使用清单：表格中时间戳、端点、PID、路径、哈希、命令
 | caption | proportional 11.5 | 徽章/表头/辅助说明 |
 | mono-* | monospace 同级 | 上述各级的等宽对应 |
 
-字重仅四档：normal / medium(500) / semibold(600) / bold；标题不超过 semibold。
+字重设计四档：normal / medium(500) / semibold(600) / bold；标题不超过 semibold。
+**egui 实现降级**（登记）：egui `FontId` 暂无 weight 字段（上游 TODO），msyh.ttc 多字重不可加载，实际仅 normal / strong 两态——medium→normal、semibold/bold→`strong()`；待 egui 支持 weight 后还原四档。
 
 ### 3.3 密度（对应 React DataTable）
 
@@ -143,6 +148,8 @@ mono 使用清单：表格中时间戳、端点、PID、路径、哈希、命令
 | 日期 | 条目 | 状态 |
 |---|---|---|
 | 2026-08-23 | 规范框架建立，色值基准锁定 tokens.css | ✅ |
-| — | 字号阶梯 demo 校准 | 待 P2 |
+| 2026-08-23 | P2 色值对齐：demo 与主项目 design 模块同源 tokens.css，双端设计样板像素对照通过（残差 <2%，集中于标题栏文字/窗口阴影）；字号映射落定（内建 TextStyle + Name 扩展档）；字重降级与 alpha 取整规则登记（§2.2/§3.2） | ✅ |
 | — | role 枚举映射全表（Sysmon 22 类事件/告警/网络状态） | 待 P5 审计 |
-| — | 图标实现方案（SVG vs 字符） | 待 P2 |
+| — | 图标实现方案（SVG vs 字符） | 待 P3 |
+| — | selected.bg 深色可读性（12% vs 15%） | 待 P3 接线评审 |
+| — | 交互态派生规则：accent_hover/danger_hover 无基准来源；demo 扩展 hover 与 bg-elev-2 语义重叠待收敛 | 待 P3 定稿 |

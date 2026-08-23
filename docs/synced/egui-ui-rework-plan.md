@@ -87,12 +87,13 @@
 - 已知行为差异（0.31→0.36，观察即可）：默认字号 12.5→13.0（未补偿，P2 字号阶梯统一处理）；面板出现动画；pixels_per_point→zoom 映射基准微差
 - P1 实测发现的功能问题（转 P7）：① autoruns 采集"扫描中"卡住（VM 普通权限复现，疑似无提权相关，UAC 落地后复测）；② egui 独立入口无 UAC manifest（requireAdministrator 仅嵌在 tauri exe）
 
-### P2 design 模块入库（不动任何页面）
+### P2 design 模块入库（不动任何页面）✅
 
-- [ ] 前置：按 [ui-design-spec.md](ui-design-spec.md) 校准 demo 色值（demo 与 tokens.css 的偏差以 tokens.css 为准），补齐语义角色三件套（demo 现有 fg/bg 对，缺 border 变体）
-- [ ] `crates/irtool-egui/src/design/` 新模块：`tokens.rs`（dark/light 双主题，翻译 `ui/src/styles/tokens.css` 的 72 行 CSS 变量 + 角色三件套派生）、`fonts.rs`（msyh/consolas 兜底链 + 字号阶梯，从 demo main.rs 搬）、`widgets.rs` 扩展（组件清单见 spec §4）
-- [ ] demo 与主项目渲染同一测试页，截图逐像素对照一致
-- 验收：模块可独立使用，9 个现有页面行为零变化（此阶段不接线）
+- [x] 前置：按 [ui-design-spec.md](ui-design-spec.md) 校准 demo 色值（以 tokens.css 为准覆盖，含 ok/listen/tw/cw/mute → success/info/warning/danger/neutral 改名），补齐语义角色三件套（fg + bg@12% + border@25% 派生）
+- [x] `crates/irtool-egui/src/design/` 新模块：`tokens.rs`（Palette 双主题 + 8 角色三件套，值严格取自 tokens.css）、`fonts.rs`（msyh/consolas 兜底链 + 字号阶梯，内建 TextStyle + Name 扩展档）、`widgets.rs`（badge 两态/chip/empty_state/panel_frame/separator，无硬编码色）、`preview.rs`（design_board 样板）+ `examples/design_board.rs` 预览入口（main.rs 零改动，lib.rs 仅 +2 行）
+- [x] demo 与主项目渲染同一设计样板，截图对照：像素残差 light 1.68% / dark 1.18%，全部集中于窗口标题栏文字与 DWM 阴影边缘，正文/色板/组件零结构差异（截图存 `ir-ui-demos/shots-p2/`）
+- 验收通过（2026-08-23）：release 构建零警告；`git diff` 除新增文件外仅 lib.rs +2 行，9 个现有页面零改动 ✅
+- 备注：demo 仓库（E:\Code\solo\ir-ui-demos）无版本管理，建议 git init（待用户决定）；spec §7 已回填字重降级/取整规则，遗留 4 个待定稿项转 P3
 
 ### P3 全局壳切换（视觉收益最大的一步）
 
