@@ -17,17 +17,17 @@ pub enum Page {
 }
 
 impl Page {
-    /// 主导航项（rail 上部；设置项单独沉底，与 demo side_rail 一致）。
-    pub const MAIN: [Page; 8] = [
+    /// 主导航项（rail 上部，对齐 React 版顺序）。
+    pub const MAIN: [Page; 5] = [
         Page::Network,
-        Page::Sysmon,
         Page::Autoruns,
-        Page::Process,
         Page::BrowserForensics,
-        Page::Workspace,
-        Page::Monitor,
-        Page::Database,
+        Page::Sysmon,
+        Page::Process,
     ];
+
+    /// 次级组（沉底区上方：后台监控 / 数据库检索，对齐 React 版分组）。
+    pub const SECONDARY: [Page; 2] = [Page::Monitor, Page::Database];
 
     /// 导航名（i18n：键名与 React ui/src/locales nav.* 一致，P4 起 t! 动态取）。
     pub fn label(&self) -> Cow<'static, str> {
@@ -47,6 +47,7 @@ impl Page {
     /// 导航图标（lucide 线性图标，spec §4.1；颜色规则见 spec §2.2-3）。
     pub fn icon(&self) -> Icon {
         match self {
+            Page::Settings => Icon::Settings,
             Page::Network => Icon::Activity,
             Page::Autoruns => Icon::Shield,
             Page::BrowserForensics => Icon::Search,
@@ -55,7 +56,6 @@ impl Page {
             Page::Monitor => Icon::Bell,
             Page::Database => Icon::Database,
             Page::Workspace => Icon::Briefcase,
-            Page::Settings => Icon::Sliders,
         }
     }
 }

@@ -62,17 +62,6 @@ impl IrtoolApp {
                 crate::widgets::badge::badge(ui, &fallback_badge, crate::widgets::badge::BadgeVariant::Warning);
             }
 
-            // ── 拖拽区（标题栏空白）：拖动移动窗口，双击切换最大化 ──
-            let (drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
-            let _ = drag_rect;
-            if drag_resp.drag_started() {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-            }
-            if drag_resp.double_clicked() {
-                let maximized = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
-            }
-
             // ── 窗口控制（右到左：关闭/最大化/最小化/主题）──
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
@@ -133,6 +122,18 @@ impl IrtoolApp {
                     self.persist_theme();
                 }
             });
+            // ── 拖拽区（标题栏空白）：拖动移动窗口，双击切换最大化 ──
+            let (drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+            let _ = drag_rect;
+            if drag_resp.dragged() {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+            }
+            if drag_resp.double_clicked() {
+                let maximized = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+            }
+
+
         });
     }
 
@@ -189,58 +190,81 @@ impl IrtoolApp {
             .on_hover_cursor(egui::CursorIcon::PointingHand)
     }
 
-    /// Render the navigation rail (P3 起替代旧 160px 文字侧栏).
-    /// 视觉基准：demo side_rail —— rail 底色 / 38px 图标钮 / hover 软底 /
-    /// 当前页 selected.bg + accent 左缘指示条 / 设置项沉底。
+    /// Render the navigation rail（P5 视觉返工）：
+    /// - 整行响应 + 视觉块以整行中心绘制（数学绝对居中，不依赖 available_width 垫片）
+    /// - 展开/收起两态（展开 = 图标 + 文字；收起 = 纯图标 + tooltip）
+    /// - 分组对齐 React 版：主导航 5 项 / 次级组（后台监控、数据库检索）/ 设置沉底
     pub fn render_sidebar(&mut self, ui: &mut egui::Ui) {
         let pal = dtheme::palette();
-        ui.add_space(14.0);
+        let expanded = self.sidebar_expanded;
+        ui.add_space(10.0);
+
+        // 展开 / 收起 toggle（panel-left 图标）
+        let toggle_icon = if expanded { Icon::PanelLeftOpen } else { Icon::PanelLeft };
+        let toggle_tip = if expanded { rust_i18n::t!("shell.sidebar.collapse") } else { rust_i18n::t!("shell.sidebar.expand") };
+        if Self::rail_row(ui, &pal, toggle_icon, toggle_tip.as_ref(), false, expanded).clicked() {
+            self.sidebar_expanded = !self.sidebar_expanded;
+        }
+        ui.add_space(6.0);
 
         for page in Page::MAIN {
-            Self::rail_centered(ui);
-            if Self::rail_btn(ui, &pal, page.icon(), &page.label(), self.current_page == page).clicked() {
-                self.current_page = page;
-            }
+            self.rail_item_page(ui, &pal, page, expanded);
+            ui.add_space(4.0);
         }
 
-        // 设置项沉底 + 与主导航之间的分隔线（demo 布局）
+        // 沉底区（bottom_up 逆序渲染）：设置 ← 分隔线 ← 次级组 ← 分隔线
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-            ui.add_space(14.0);
-            Self::rail_centered(ui);
-            if Self::rail_btn(ui, &pal, Page::Settings.icon(), &Page::Settings.label(), self.current_page == Page::Settings)
-                .clicked()
-            {
-                self.current_page = Page::Settings;
-            }
             ui.add_space(10.0);
-            Self::rail_centered(ui);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(30.0, 1.0), Sense::hover());
-            ui.painter().rect_filled(rect, 0.0, pal.border);
+            self.rail_item_page(ui, &pal, Page::Settings, expanded);
+            ui.add_space(4.0);
+            Self::rail_sep(ui, &pal);
+            ui.add_space(4.0);
+            for page in Page::SECONDARY.iter().rev() {
+                self.rail_item_page(ui, &pal, *page, expanded);
+                ui.add_space(4.0);
+            }
+            Self::rail_sep(ui, &pal);
         });
     }
 
-    /// 水平居中垫片（demo centered()：把 38px 内容在 rail 内居中）。
-    fn rail_centered(ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            let pad = ((ui.available_width() - RAIL_BTN) / 2.0).max(0.0);
-            ui.add_space(pad);
-        });
+    fn rail_item_page(&mut self, ui: &mut egui::Ui, pal: &Palette, page: Page, expanded: bool) {
+        let active = self.current_page == page;
+        let label = page.label().to_string();
+        if Self::rail_row(ui, pal, page.icon(), &label, active, expanded).clicked() {
+            self.current_page = page;
+        }
     }
 
-    /// 导航钮：38×38 / glyph 18 / radius 10，active 左缘竖指示条，hover 提示文案。
-    fn rail_btn(ui: &mut egui::Ui, pal: &Palette, icon: Icon, tip: &str, active: bool) -> egui::Response {
-        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(RAIL_BTN), Sense::click());
-        let p = ui.painter();
+    fn rail_sep(ui: &mut egui::Ui, pal: &Palette) {
+        let w = (ui.available_width() - 24.0).max(0.0);
+        let (rect, _) = ui.allocate_exact_size(egui::Vec2::new(w, 1.0), Sense::hover());
+        ui.painter().rect_filled(rect, 0.0, pal.border);
+    }
+
+    /// 导航行：整行响应（宽 = rail 内容宽），视觉块 42×42 以整行中心绘制；
+    /// 展开态图标固定左侧 42px 区 + 文字跟随。返回 Response 供调用方处理点击。
+    fn rail_row(
+        ui: &mut egui::Ui,
+        pal: &Palette,
+        icon: Icon,
+        label: &str,
+        active: bool,
+        expanded: bool,
+    ) -> egui::Response {
+        let full_w = ui.available_width();
+        let (full, resp) = ui.allocate_exact_size(egui::Vec2::new(full_w, RAIL_BTN), Sense::click());
+        let btn = egui::Rect::from_center_size(full.center(), egui::Vec2::splat(RAIL_BTN));
         if active {
-            p.rect_filled(rect, 10.0, pal.selected.bg);
+            ui.painter().rect_filled(btn, egui::CornerRadius::same(10), pal.selected.bg);
         } else if resp.hovered() {
-            p.rect_filled(rect, 10.0, pal.hover);
+            ui.painter().rect_filled(btn, egui::CornerRadius::same(10), pal.hover);
         }
         if active {
-            p.rect_filled(
+            // 左缘指示条（贴 rail 左缘）
+            ui.painter().rect_filled(
                 egui::Rect::from_min_size(
-                    Pos2::new(rect.left() - 9.0, rect.center().y - 10.0),
-                    Vec2::new(3.0, 20.0),
+                    egui::pos2(full.left() + 3.0, full.center().y - 10.0),
+                    egui::Vec2::new(3.0, 20.0),
                 ),
                 2.0,
                 pal.accent,
@@ -253,8 +277,26 @@ impl IrtoolApp {
         } else {
             pal.fg_secondary
         };
-        design_icon::draw(ui, icon, rect.center(), 20.0, col);
-        resp.on_hover_text(tip)
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
+        let icon_center = if expanded {
+            egui::pos2(full.left() + RAIL_BTN / 2.0, full.center().y)
+        } else {
+            full.center()
+        };
+        design_icon::draw(ui, icon, icon_center, 20.0, col);
+        if expanded {
+            ui.painter().text(
+                egui::pos2(full.left() + RAIL_BTN + 10.0, full.center().y),
+                egui::Align2::LEFT_CENTER,
+                label,
+                fonts::control(),
+                col,
+            );
+        }
+        if expanded {
+            resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+        } else {
+            resp.on_hover_text(label)
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+        }
     }
 }

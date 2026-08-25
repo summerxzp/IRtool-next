@@ -331,8 +331,17 @@ enum MenuAction {
 
 // ── 页面状态 ───────────────────────────────────────────────────
 
+/// 详情面板停靠位（session 内记忆；对齐 React 版可切换右/下）。
+#[derive(Clone, Copy, PartialEq)]
+pub enum DetailDock {
+    Right,
+    Bottom,
+}
+
 pub struct NetworkPageState {
     // 数据层：store + 主键索引 + 视图缓存
+    /// 详情面板停靠位（右/底可切换）。
+    pub detail_dock: DetailDock,
     store: VecDeque<NetRow>,
     index: HashMap<ConnKey, u32>,
     index_dirty: bool,
@@ -393,6 +402,7 @@ impl Default for NetworkPageState {
             selected: None,
             sel_store_idx: None,
             detail_visible: false,
+            detail_dock: DetailDock::Right,
             paused: false,
             interval_ms: 1000,
             kill_confirm_open: false,
@@ -795,27 +805,6 @@ impl NetworkPageState {
                 self.shell.save_table_state(&ctx.app_dirs.config_dir());
             }
             density_resp.on_hover_text(density_tip);
-
-            // 计数（右侧）
-            let total = self.store.len();
-            let history_count = self.store.iter().filter(|r| !r.is_current).count();
-            let count_text = if history_count > 0 {
-                t!(
-                    "network.stats.count-history",
-                    total = total.to_string(),
-                    history = history_count.to_string()
-                )
-                .to_string()
-            } else {
-                t!("network.stats.count", total = total.to_string()).to_string()
-            };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    egui::RichText::new(count_text)
-                        .font(crate::design::fonts::caption())
-                        .color(pal.fg_tertiary),
-                );
-            });
         });
     }
 
@@ -1020,6 +1009,29 @@ impl NetworkPageState {
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(8.0);
+                // 停靠切换（右 ↔ 底）
+                let (drect, dresp) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
+                let dp = ui.painter();
+                if dresp.hovered() {
+                    dp.rect_filled(drect, 4.0, pal.hover);
+                }
+                let dock_icon = match self.detail_dock {
+                    DetailDock::Right => crate::design::icon::Icon::PanelLeft,
+                    DetailDock::Bottom => crate::design::icon::Icon::PanelLeftOpen,
+                };
+                crate::design::icon::draw(
+                    ui,
+                    dock_icon,
+                    drect.center(),
+                    12.0,
+                    if dresp.hovered() { pal.fg_primary } else { pal.fg_secondary },
+                );
+                if dresp.clicked() {
+                    self.detail_dock = match self.detail_dock {
+                        DetailDock::Right => DetailDock::Bottom,
+                        DetailDock::Bottom => DetailDock::Right,
+                    };
+                }
                 let (xrect, xresp) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
                 let p = ui.painter();
                 if xresp.hovered() {
@@ -1120,6 +1132,12 @@ impl NetworkPageState {
                     }
                 });
             });
+    }
+
+    /// 当前行数与历史行数（底栏计数用）。
+    pub fn row_counts(&self) -> (usize, usize) {
+        let hist = self.store.iter().filter(|r| !r.is_current).count();
+        (self.store.len(), hist)
     }
 
     /// 选中行的 store 下标（缓存失效则全量扫描兜底）。

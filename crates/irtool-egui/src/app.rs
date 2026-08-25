@@ -17,7 +17,7 @@ use crate::pages::{
     browser_forensics::BrowserForensicsPageState,
     database::{DatabasePageState, DbRefresh},
     monitor::{MonitorPageState, MonitorRefresh},
-    network::NetworkPageState,
+    network::{DetailDock, NetworkPageState},
     process::ProcessPageState,
     settings::{SettingsPageState, SettingsRefresh},
     sysmon::{SysmonPageState, SysmonRefresh},
@@ -39,6 +39,8 @@ pub struct IrtoolApp {
 
     // Navigation
     pub current_page: Page,
+    /// 侧栏展开态（图标+文字 / 纯图标；session 内记忆）。
+    pub sidebar_expanded: bool,
 
     // Global state
     pub is_admin: bool,
@@ -186,6 +188,7 @@ impl IrtoolApp {
             rt,
             event_bridge,
             current_page: Page::Network,
+            sidebar_expanded: false,
             is_admin,
             is_fallback: mode == StartupMode::Fallback,
             theme_applied: false,
@@ -854,9 +857,10 @@ impl eframe::App for IrtoolApp {
             });
 
         // 3. Navigation rail（壳：rail 底色，demo side_rail 基准）
+        let rail_w = if self.sidebar_expanded { 168.0 } else { theme::RAIL_WIDTH };
         egui::Panel::left("sidebar")
             .resizable(false)
-            .exact_size(theme::RAIL_WIDTH)
+            .exact_size(rail_w)
             .frame(
                 egui::Frame::new()
                     .fill(dtheme::palette().rail)
@@ -880,6 +884,24 @@ impl eframe::App for IrtoolApp {
                 .frame(dtheme::shell_panel_frame(egui::Margin::symmetric(16, 6)))
                 .show_separator_line(true)
                 .show(ui, |ui| match self.current_page {
+                    Page::Network => {
+                        // 计数靠左侧导航栏（用户反馈：工具栏右侧与按钮重叠）
+                        let (total, hist) = self.network.row_counts();
+                        let text = if hist > 0 {
+                            rust_i18n::t!(
+                                "network.stats.count-history",
+                                total = total.to_string(),
+                                history = hist.to_string()
+                            )
+                        } else {
+                            rust_i18n::t!("network.stats.count", total = total.to_string())
+                        };
+                        ui.label(
+                            egui::RichText::new(text.as_ref())
+                                .font(crate::design::fonts::caption())
+                                .color(dtheme::palette().fg_tertiary),
+                        );
+                    }
                     Page::Autoruns => self.autoruns.render_stats_bar(ui),
                     Page::Sysmon => self.sysmon.render_stats_bar(ui),
                     Page::Database => self.database.render_stats_bar(ui),
@@ -892,15 +914,30 @@ impl eframe::App for IrtoolApp {
 
         // 4b. Detail panel (bottom, above stats bar — declared after so it stacks above)
         if self.current_page == Page::Network && self.network.detail_visible {
-            // 详情右侧化（对齐 React 版左右分割）；egui panel 宽度存 Memory，session 内每页独立记忆
-            egui::Panel::right("detail_panel")
-                .default_size(420.0)
-                .size_range(320.0..=680.0)
-                .resizable(true)
-                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
-                .show(ui, |ui| {
-                    self.network.render_detail_panel(ui, &self.ctx, self.rt.handle());
-                });
+            // 详情可切右/底（header 内切换钮）；egui panel 尺寸 session 内记忆，每页独立
+            let frame = theme::panel_frame(egui::Margin::symmetric(8, 4));
+            match self.network.detail_dock {
+                DetailDock::Right => {
+                    egui::Panel::right("detail_panel_right")
+                        .default_size(420.0)
+                        .size_range(320.0..=680.0)
+                        .resizable(true)
+                        .frame(frame)
+                        .show(ui, |ui| {
+                            self.network.render_detail_panel(ui, &self.ctx, self.rt.handle());
+                        });
+                }
+                DetailDock::Bottom => {
+                    egui::Panel::bottom("detail_panel_bottom")
+                        .default_size(280.0)
+                        .size_range(160.0..=520.0)
+                        .resizable(true)
+                        .frame(frame)
+                        .show(ui, |ui| {
+                            self.network.render_detail_panel(ui, &self.ctx, self.rt.handle());
+                        });
+                }
+            }
         } else if self.current_page == Page::Process
             && self.process.detail_visible
             && self.process.selected_pid.is_some()
