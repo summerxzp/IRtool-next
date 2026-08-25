@@ -129,17 +129,6 @@ impl IrtoolApp {
                     self.persist_theme();
                 }
             });
-            // ── 拖拽区（标题栏空白）：拖动移动窗口，双击切换最大化 ──
-            let (_drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
-            // 官方文档（egui viewport.rs StartDrag）："除非调用前左键被立即按下，否则不保证
-            // 生效"——egui 的 dragged() 带移动阈值不可靠，改为按下+悬停即发（每帧重发无害）。
-            if drag_resp.contains_pointer() && ui.input(|i| i.pointer.primary_down()) {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-            }
-            if drag_resp.double_clicked() {
-                let maximized = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
-            }
 
 
         });
