@@ -113,13 +113,17 @@
 - 验收记录（2026-08-25）：双目标 release 构建零警告；写 en-US → 重启 → 全英文壳（顶栏/工具栏/状态栏）截图验证通过（`target/shots-p4/`）；其余 8 页零 diff（P6 迁移时接线）
 - 备注：React locale 自身有键不齐现象（如 ioc-matches 缺 en），搬运时已修补；后续 React 侧补键建议同步回脚本源
 
-### P5 reference 页迁移：network（1,292 行）
+### P5 reference 页迁移：network（1,292 行）✅
 
 定死迁移范式（§6），产出范式文档片段回填本文档。
 
-- [ ] 表格新组件 `design/table.rs` 首次实战：列宽拖拽、表头排序、密度切换（28/34px）、键盘 ↑↓ 导航、行选中/右键、条件行样式（risk 高亮）
-- [ ] 数据侧增量更新（事件到达改 store，禁止全量重建）
-- 验收：与 React 版 network 页并排截图对照 + 滚动/过滤/导出功能清单逐项打勾
+- [x] 表格新组件 `design/table.rs`（481 行）首次实战：TableShell（列定义/表头点击排序 asc→desc→无/列宽拖拽/密度 28·34px/键盘 ↑↓+Enter+scroll 跟随/行选中/右键菜单挂载点）+ 列宽/密度/排序持久化（ui-state.json `tables.{id}`，serde default 向后兼容）
+- [x] 数据侧增量更新：VecDeque 环形（10000 上限）+ index/view 双脏标记，行显示字符串进 store 时格式化一次，行闭包零分配（paint_row review 通过）
+- [x] i18n 全量接线（network.* 键）；risk 行高亮（role.bg 软色）；右键菜单（复制行/终止进程/工作台搜索禁用项）
+- [x] 视觉返工（用户反馈驱动）：工具栏移植 demo 胶囊组件语言（flat_button/dropdown/icon_button/vsep 入 design/widgets.rs；暂停蓝底/终止红底/导出清空描边+图标/弹性搜索框），侧栏对齐 React 规格（64px rail/42px 钮/20px 图标），图标集扩至 20 个 lucide
+- [x] kittest 无头渲染集成测试（`tests/p5_network_table.rs`）：密度/排序/选中/详情/右键菜单/确认框/键盘导航/搜索过滤全链路自动化 ✅；自绘控件经 `Response::widget_info` 注册无障碍 label（kittest/读屏可寻址——自绘组件必须遵循的范式约束，已补入 §6）
+- 验收记录（2026-08-25）：双目标构建零警告；kittest 全绿；实机截图 `target/shots-p5/`（深色实机 + kittest 系列）；迁移中发现并修复：右键未选行未开详情（迁移遗漏）、表头 accesskit label 随排序态漂移
+- 验收：与 React 版并排对照由用户复验（基准图 `crates/原tarui-ui参考/网络监控/`）
 
 ### P6 逐页迁移（按使用频率排序，复杂度递增）
 
@@ -207,6 +211,14 @@ Button / IconButton / Badge(severity 五级，对齐主项目 severity 规范) /
   5. 查询解析结果缓存（修 W11 类问题）。
 - i18n：键名 `page.widget.key` 对齐 React locale 文件，迁移该页时同步接线。
 - 交互对齐清单（每页核对 React 版）：排序/过滤/搜索/右键菜单/详情面板/导出/空状态/加载态/键盘导航。
+
+### P5 定稿的范式细则（P6 各页照抄）
+
+1. **标准步骤**：① 读 React 对应 feature 目录，列列集/工具栏/详情能力清单 → ② store 化数据层（VecDeque 环形 + index/view 双脏标记，显示字符串进 store 时格式化）→ ③ `design::table::TableShell` 接表格（列 id 用 React columns 键名）→ ④ 工具栏用 `design::widgets::{flat_button, dropdown, icon_button, vsep}` 组装（顺序对照 React 版）→ ⑤ i18n 全量 t! → ⑥ kittest 交互测试（抄 `tests/p5_network_table.rs` 骨架）→ ⑦ 实机截图对照。
+2. **自绘控件无障碍约束**：凡 `allocate_exact_size + painter` 自绘的控件，必须 `resp.widget_info(|| WidgetInfo::labeled(..))` 注册 label——kittest 自动化与读屏都靠它寻址；egui 内建 widget（Button 等）自带可忽略。
+3. **accesskit label 稳定性**：可点击节点的 label 不得随状态拼接变化（如表头"列名 ▲▼"），状态指示用独立节点渲染。
+4. **同名节点**：工具栏与右键菜单/详情面板可能出现同名按钮，kittest 用 `get_all_by_label` + rect 位置区分，新页测试注意。
+5. **工具栏互斥下拉**：页面状态持 `open_menu: Option<u8>` 槽传给 `widgets::dropdown`，同屏只开一个。
 
 ## 7. 风险与对策
 

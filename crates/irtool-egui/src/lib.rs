@@ -9,7 +9,8 @@ mod event_bridge;
 mod icon_cache;
 mod layout;
 mod nav;
-mod pages;
+// pub：供集成测试（tests/p5_network_table.rs kittest 交互验证）访问页面状态类型
+pub mod pages;
 mod single_instance;
 mod theme;
 mod widgets;

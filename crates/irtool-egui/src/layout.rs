@@ -8,6 +8,9 @@ use crate::design::tokens::Palette;
 use crate::nav::Page;
 use crate::theme;
 
+/// 导航钮边长（rail_btn / rail_centered 共用）。
+const RAIL_BTN: f32 = 42.0;
+
 impl IrtoolApp {
     /// Non-selectable label helper.
     fn ui_label(&self, ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
@@ -180,14 +183,14 @@ impl IrtoolApp {
     /// 水平居中垫片（demo centered()：把 38px 内容在 rail 内居中）。
     fn rail_centered(ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let pad = ((ui.available_width() - 38.0) / 2.0).max(0.0);
+            let pad = ((ui.available_width() - RAIL_BTN) / 2.0).max(0.0);
             ui.add_space(pad);
         });
     }
 
     /// 导航钮：38×38 / glyph 18 / radius 10，active 左缘竖指示条，hover 提示文案。
     fn rail_btn(ui: &mut egui::Ui, pal: &Palette, icon: Icon, tip: &str, active: bool) -> egui::Response {
-        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(38.0), Sense::click());
+        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(RAIL_BTN), Sense::click());
         let p = ui.painter();
         if active {
             p.rect_filled(rect, 10.0, pal.selected.bg);
@@ -197,8 +200,8 @@ impl IrtoolApp {
         if active {
             p.rect_filled(
                 egui::Rect::from_min_size(
-                    Pos2::new(rect.left() - 8.0, rect.center().y - 9.0),
-                    Vec2::new(3.0, 18.0),
+                    Pos2::new(rect.left() - 9.0, rect.center().y - 10.0),
+                    Vec2::new(3.0, 20.0),
                 ),
                 2.0,
                 pal.accent,
@@ -211,7 +214,7 @@ impl IrtoolApp {
         } else {
             pal.fg_secondary
         };
-        design_icon::draw(ui, icon, rect.center(), 18.0, col);
+        design_icon::draw(ui, icon, rect.center(), 20.0, col);
         resp.on_hover_text(tip)
             .on_hover_cursor(egui::CursorIcon::PointingHand)
     }

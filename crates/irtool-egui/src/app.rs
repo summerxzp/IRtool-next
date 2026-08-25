@@ -162,6 +162,10 @@ impl IrtoolApp {
             ..Default::default()
         };
 
+        // network 页（P5 范式页）：启动时恢复表格持久化状态（列宽/密度/排序）
+        let mut network = NetworkPageState::default();
+        network.load_table_state(&ctx.app_dirs.config_dir());
+
         // 启动时检测外部工具是否缺失（参考主 UI AppShell 的逻辑）
         let (tools_refresh_tx, tools_refresh_rx) = std::sync::mpsc::channel::<Vec<ToolStatus>>();
         let ctx_for_tools = ctx.clone();
@@ -194,7 +198,7 @@ impl IrtoolApp {
             tools_download_done: false,
             tools_refresh_tx,
             tools_refresh_rx,
-            network: NetworkPageState::default(),
+            network,
             process,
             autoruns,
             browser_forensics: BrowserForensicsPageState::default(),
@@ -887,7 +891,7 @@ impl eframe::App for IrtoolApp {
         }
 
         // 4b. Detail panel (bottom, above stats bar — declared after so it stacks above)
-        if self.current_page == Page::Network && self.network.detail_visible && self.network.selected_pid.is_some() {
+        if self.current_page == Page::Network && self.network.detail_visible {
             egui::Panel::bottom("detail_panel")
                 .default_size(theme::DETAIL_PANEL_HEIGHT)
                 .resizable(true)
@@ -1017,6 +1021,9 @@ impl eframe::App for IrtoolApp {
 
     fn on_exit(&mut self) {
         tracing::info!("egui frontend exiting");
+        // 持久化 network 表格状态（列宽/密度/排序；P5 范式）
+        self.network
+            .save_table_state(&self.ctx.app_dirs.config_dir());
         // 重置后台模式，防止下次启动时状态不一致
         let ctx = self.ctx.clone();
         self.rt.block_on(async move {

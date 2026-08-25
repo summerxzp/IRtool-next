@@ -171,7 +171,7 @@ pub const TOPBAR_HEIGHT: f32 = 32.0;
 #[allow(dead_code)]
 pub const SIDEBAR_WIDTH: f32 = 160.0;
 /// 导航 rail 宽度（demo side_rail 基准）。
-pub const RAIL_WIDTH: f32 = 58.0;
+pub const RAIL_WIDTH: f32 = 64.0;
 pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
 /// 旧壳内边距（P3 壳改造后闲置，保留数值常量）。
 #[allow(dead_code)]

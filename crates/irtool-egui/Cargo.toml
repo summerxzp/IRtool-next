@@ -45,3 +45,6 @@ windows = { workspace = true, features = [
     "Win32_System_Registry",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }

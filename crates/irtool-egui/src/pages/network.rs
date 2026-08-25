@@ -1,33 +1,58 @@
-use std::collections::HashSet;
+//! 网络监控页 —— P5 范式页（TableShell + 增量数据流 + i18n + risk 高亮 + 右键菜单）。
+//!
+//! 数据流（rework-plan §6 范式）：
+//! ```text
+//! EventBus ─ event_bridge drain ─▶ handle_snapshot / handle_enrichment
+//!   ├─ 只改数据：store（VecDeque 环形，MAX_ROWS 弹头）
+//!   ├─ 显示串（时间戳/端点等）在进 store 时格式化一次（行闭包零分配的前提）
+//!   └─ 置 view_dirty
+//! 渲染帧：view_dirty 才重建视图索引（过滤+排序后的 store 下标），TableShell 按索引渲染
+//! ```
+//!
+//! 行底色优先级：选中（selected.bg）＞ risk（role.bg 软色）＞ 键盘焦点（hover）。
+
+use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
+use std::collections::VecDeque;
 
 use eframe::egui;
-use egui_extras::{Column, TableBuilder};
+use irtool_net_monitor::Family;
 use irtool_service::context::AppContext;
-use irtool_service::dto::network::{NetworkEnrichmentPayload, NetworkPollingControl, NetworkSnapshotPayload};
+use irtool_service::dto::network::{
+    NetworkEnrichmentPayload, NetworkPollingControl, NetworkSnapshotPayload,
+};
 use irtool_service::services::network::NetworkService;
-use irtool_service::types::{ConnState, NetConn, Proto};
+use irtool_service::types::{CmdlineStatus, ConnState, NetConn, Proto};
+use rust_i18n::t;
 
+use crate::design::table::{self, RowCtx, TableColumn, TableShell};
+use crate::design::icon::Icon;
+use crate::design::{theme as dtheme, tokens::Palette, widgets};
 use crate::theme;
-use crate::widgets::badge::{self, BadgeVariant};
-use crate::widgets::detail_row::detail_row;
-use crate::widgets::table::{self, SortDir};
+use crate::widgets::banner;
 
-// ── Sort Column ────────────────────────────────────────────
+// 注：Family 暂从业务 crate 引入（irtool-service::types 未转发该类型，
+// 业务层禁改；P6 可在 service 补一行 re-export 后换回统一入口）。
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum SortColumn {
-    FirstSeen,
-    Pid,
-    Process,
-    Local,
-    Remote,
-    State,
-    Proto,
-    Family,
-    Path,
-    Cmdline,
-    LastSeen,
-}
+/// 环形缓冲上限（沿用 MAX_EVENTS = 10000 量级语义，超限弹头丢弃）。
+const MAX_ROWS: usize = 10000;
+
+/// 已知恶意 IP 列表（与工作台默认规则 default-malicious-ip-network 同源；
+/// S7「恶意 IP 配置化」落地后改为读配置）。
+const MALICIOUS_IPS: &[&str] = &[
+    "82.23.246.148",
+    "161.248.87.175",
+    "202.79.169.50",
+    "47.76.246.88",
+    "202.95.16.13",
+    "47.242.90.146",
+    "202.79.171.236",
+    "143.92.57.157",
+    "137.220.135.15",
+    "206.238.115.137",
+];
+
+// ── 过滤器 ─────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ProtoFilter {
@@ -36,7 +61,7 @@ pub enum ProtoFilter {
     Udp,
 }
 
-/// All ConnState variants used for multi-select filter.
+/// 连接状态多选过滤的全集。
 const ALL_STATES: &[ConnState] = &[
     ConnState::Established,
     ConnState::Listen,
@@ -52,84 +77,323 @@ const ALL_STATES: &[ConnState] = &[
     ConnState::DeleteTcb,
 ];
 
-/// Parse "addr:port" into (addr, port). Uses rfind(':') to handle IPv6 addresses like "[::1]:8080".
-fn parse_endpoint(s: &str) -> Option<(&str, u16)> {
-    let idx = s.rfind(':')?;
-    let addr = &s[..idx];
-    let port = s[idx + 1..].parse().ok()?;
-    Some((addr, port))
+// ── 风险分级（spec §2.2 role：danger/warning 软色行高亮）────────
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Risk {
+    None,
+    /// 可疑（warning.role）：CLOSE_WAIT 挂起残留。
+    Warn,
+    /// 危险（danger.role）：命中恶意 IP 列表。
+    Danger,
 }
 
-// ── NetworkPageState ───────────────────────────────────────
+fn risk_of(state: ConnState, remote_addr: &str) -> Risk {
+    if MALICIOUS_IPS.contains(&remote_addr) {
+        Risk::Danger
+    } else if state == ConnState::CloseWait {
+        Risk::Warn
+    } else {
+        Risk::None
+    }
+}
+
+fn risk_bg(risk: Risk, pal: &Palette) -> Option<eframe::egui::Color32> {
+    match risk {
+        Risk::None => None,
+        Risk::Warn => Some(pal.warning.bg),
+        Risk::Danger => Some(pal.danger.bg),
+    }
+}
+
+// ── 行记录（store 存储单元，显示串预格式化）────────────────────
+
+/// 行身份键（对齐 React rowKey：proto|family|local|remote|pid）。
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ConnKey {
+    proto: Proto,
+    family: Family,
+    local_addr: String,
+    local_port: u16,
+    remote_addr: String,
+    remote_port: u16,
+    pid: u32,
+}
+
+impl ConnKey {
+    fn of_conn(c: &NetConn) -> Self {
+        ConnKey {
+            proto: c.proto,
+            family: c.family,
+            local_addr: c.local.addr.clone(),
+            local_port: c.local.port,
+            remote_addr: c.remote.addr.clone(),
+            remote_port: c.remote.port,
+            pid: c.pid,
+        }
+    }
+
+    fn of_row(r: &NetRow) -> Self {
+        ConnKey {
+            proto: r.proto,
+            family: r.family,
+            local_addr: r.local_addr.clone(),
+            local_port: r.local_port,
+            remote_addr: r.remote_addr.clone(),
+            remote_port: r.remote_port,
+            pid: r.pid,
+        }
+    }
+
+    fn matches(&self, r: &NetRow) -> bool {
+        self.proto == r.proto
+            && self.family == r.family
+            && self.local_addr == r.local_addr
+            && self.local_port == r.local_port
+            && self.remote_addr == r.remote_addr
+            && self.remote_port == r.remote_port
+            && self.pid == r.pid
+    }
+}
+
+/// 一条连接记录。原始字段用于排序/导出/详情；`d_*` 为进店时一次性格式化的
+/// 显示串（表格行闭包只引用这些 &str，零分配）；`search_blob` 为小写检索串。
+#[derive(Clone)]
+struct NetRow {
+    // 身份
+    pid: u32,
+    proto: Proto,
+    family: Family,
+    local_addr: String,
+    local_port: u16,
+    remote_addr: String,
+    remote_port: u16,
+
+    // 载荷
+    state: ConnState,
+    process_name: Option<String>,
+    process_path: Option<String>,
+    process_cmdline: Option<String>,
+    cmdline_status: CmdlineStatus,
+    first_seen: u64,
+    last_seen: u64,
+    is_current: bool,
+
+    // 派生（refresh_derived 维护）
+    risk: Risk,
+    d_pid: String,
+    d_process: String,
+    d_local: String,
+    d_remote: String,
+    d_proto: String,
+    d_family: String,
+    d_first_seen: String,
+    d_last_seen: String,
+    search_blob: String,
+}
+
+impl NetRow {
+    fn from_conn(c: &NetConn) -> Self {
+        let mut row = NetRow {
+            pid: c.pid,
+            proto: c.proto,
+            family: c.family,
+            local_addr: c.local.addr.clone(),
+            local_port: c.local.port,
+            remote_addr: c.remote.addr.clone(),
+            remote_port: c.remote.port,
+            state: c.state,
+            process_name: c.process_name.clone(),
+            process_path: c.process_path.clone(),
+            process_cmdline: c.process_cmdline.clone(),
+            cmdline_status: c.cmdline_status,
+            first_seen: c.first_seen,
+            last_seen: c.last_seen,
+            is_current: c.is_current,
+            risk: Risk::None,
+            d_pid: String::new(),
+            d_process: String::new(),
+            d_local: String::new(),
+            d_remote: String::new(),
+            d_proto: String::new(),
+            d_family: String::new(),
+            d_first_seen: String::new(),
+            d_last_seen: String::new(),
+            search_blob: String::new(),
+        };
+        row.refresh_derived();
+        row
+    }
+
+    /// 用快照项原地更新载荷字段（身份字段按构造约定一致）。返回是否有变化。
+    fn absorb(&mut self, c: &NetConn) -> bool {
+        let mut changed = false;
+        if self.state != c.state {
+            self.state = c.state;
+            changed = true;
+        }
+        if self.first_seen != c.first_seen {
+            self.first_seen = c.first_seen;
+            changed = true;
+        }
+        if self.last_seen != c.last_seen {
+            self.last_seen = c.last_seen;
+            changed = true;
+        }
+        if self.is_current != c.is_current {
+            self.is_current = c.is_current;
+            changed = true;
+        }
+        if self.cmdline_status != c.cmdline_status {
+            self.cmdline_status = c.cmdline_status;
+            changed = true;
+        }
+        if self.process_name != c.process_name {
+            self.process_name.clone_from(&c.process_name);
+            changed = true;
+        }
+        if self.process_path != c.process_path {
+            self.process_path.clone_from(&c.process_path);
+            changed = true;
+        }
+        if self.process_cmdline != c.process_cmdline {
+            self.process_cmdline.clone_from(&c.process_cmdline);
+            changed = true;
+        }
+        changed
+    }
+
+    /// 重算全部派生字段（原始字段变更后调用；仅发生在事件写入路径，不在渲染帧）。
+    fn refresh_derived(&mut self) {
+        self.risk = risk_of(self.state, &self.remote_addr);
+        self.d_pid = self.pid.to_string();
+        self.d_process = self.process_name.clone().unwrap_or_else(|| "-".into());
+        self.d_local = format_endpoint(&self.local_addr, self.local_port);
+        self.d_remote = format_endpoint(&self.remote_addr, self.remote_port);
+        self.d_proto = match self.proto {
+            Proto::Tcp => "TCP".into(),
+            Proto::Udp => "UDP".into(),
+        };
+        self.d_family = format!("{:?}", self.family).to_uppercase();
+        self.d_first_seen = theme::fmt_time(self.first_seen);
+        self.d_last_seen = theme::fmt_time(self.last_seen);
+        self.search_blob = format!(
+            "{} {} {} {}:{} {}:{} {}",
+            self.pid,
+            self.process_name.as_deref().unwrap_or(""),
+            self.process_path.as_deref().unwrap_or(""),
+            self.local_addr,
+            self.local_port,
+            self.remote_addr,
+            self.remote_port,
+            self.state.as_str(),
+        )
+        .to_lowercase();
+    }
+}
+
+fn format_endpoint(addr: &str, port: u16) -> String {
+    let a = if addr.is_empty() || addr == "0.0.0.0" || addr == "::" {
+        "*"
+    } else {
+        addr
+    };
+    let p = if port == 0 { "*".to_string() } else { port.to_string() };
+    format!("{}:{}", a, p)
+}
+
+// ── 表格列定义（列 id/顺序/初始宽 对齐 React columns.tsx 默认值）──
+
+fn columns_def() -> Vec<TableColumn> {
+    vec![
+        TableColumn { id: "first_seen", title_key: "network.columns.first-seen", width: 160.0, min_width: 90.0, max_width: 260.0 },
+        TableColumn { id: "pid", title_key: "network.columns.pid", width: 55.0, min_width: 35.0, max_width: 120.0 },
+        TableColumn { id: "process", title_key: "network.columns.process", width: 160.0, min_width: 80.0, max_width: 320.0 },
+        TableColumn { id: "local", title_key: "network.columns.local", width: 200.0, min_width: 100.0, max_width: 360.0 },
+        TableColumn { id: "remote", title_key: "network.columns.remote", width: 200.0, min_width: 100.0, max_width: 360.0 },
+        TableColumn { id: "state", title_key: "network.columns.state", width: 110.0, min_width: 60.0, max_width: 200.0 },
+        TableColumn { id: "proto", title_key: "network.columns.proto", width: 60.0, min_width: 36.0, max_width: 120.0 },
+        TableColumn { id: "family", title_key: "network.columns.family", width: 50.0, min_width: 30.0, max_width: 120.0 },
+        TableColumn { id: "path", title_key: "network.columns.path", width: 280.0, min_width: 100.0, max_width: 520.0 },
+        TableColumn { id: "cmdline", title_key: "network.columns.cmdline", width: 200.0, min_width: 100.0, max_width: 520.0 },
+        TableColumn { id: "last_seen", title_key: "network.columns.last-seen", width: 160.0, min_width: 90.0, max_width: 260.0 },
+    ]
+}
+
+// ── 右键菜单动作（闭包内收集，show 之后执行）──────────────────
+
+#[derive(Clone, Copy)]
+enum MenuAction {
+    None,
+    CopyRow,
+    Kill(u32),
+}
+
+// ── 页面状态 ───────────────────────────────────────────────────
 
 pub struct NetworkPageState {
-    // Data
-    pub snapshot: Option<NetworkSnapshotPayload>,
-    pub last_error: Option<String>,
+    // 数据层：store + 主键索引 + 视图缓存
+    store: VecDeque<NetRow>,
+    index: HashMap<ConnKey, u32>,
+    index_dirty: bool,
+    view: Vec<u32>,
+    view_dirty: bool,
+    got_snapshot: bool,
+    /// 工具栏下拉互斥开合槽（widgets::dropdown）。
+    open_menu: Option<u8>,
 
-    // Filters
-    pub search: String,
-    pub proto_filter: ProtoFilter,
-    pub state_filter: HashSet<ConnState>,
-    pub state_dropdown_open: bool,
+    // 错误横幅
+    last_error: Option<String>,
 
-    // Table
-    pub sort_column: SortColumn,
-    pub sort_dir: SortDir,
-    pub selected_pid: Option<u32>,
-    pub selected_local: Option<String>,
-    pub selected_remote: Option<String>,
+    // 过滤器（变化即置 view_dirty）
+    search: String,
+    proto_filter: ProtoFilter,
+    state_filter: HashSet<ConnState>,
+    state_dropdown_open: bool,
+    show_history: bool,
+
+    // 表格组件
+    shell: TableShell,
+
+    // 选中与详情面板
+    selected: Option<ConnKey>,
+    /// 选中行在 store 中的下标缓存（视图重建时解析；详情面板快速路径）。
+    sel_store_idx: Option<u32>,
     pub detail_visible: bool,
 
-    // Context menu
-    pub ctx_menu_visible: bool,
-    pub ctx_menu_pos: Option<egui::Pos2>,
-    /// 标记菜单刚在本帧打开，跳过点击外部关闭检查。
-    pub ctx_menu_just_opened: bool,
+    // 轮询控制
+    paused: bool,
+    interval_ms: u64,
 
-    // Polling
-    pub paused: bool,
-    pub interval_ms: u64,
-
-    // History
-    pub show_history: bool,
-
-    // B2: filtered+sorted cache
-    cached_items: Vec<NetConn>,
-    cache_dirty: bool,
-
-    // B3: cached selected connection
-    selected_conn: Option<NetConn>,
-
-    // Kill confirmation dialog (DESIGN.md 4.10)
+    // 终止进程确认框
     kill_confirm_open: bool,
     pending_kill_pid: Option<u32>,
 }
 
 impl Default for NetworkPageState {
     fn default() -> Self {
+        let mut shell = TableShell::new("network", columns_def());
+        shell.sort = Some(("first_seen", false)); // 默认按首次出现降序（旧版行为）
         Self {
-            snapshot: None,
+            store: VecDeque::new(),
+            index: HashMap::new(),
+            index_dirty: false,
+            view: Vec::new(),
+            view_dirty: true,
+            got_snapshot: false,
+            open_menu: None,
             last_error: None,
             search: String::new(),
             proto_filter: ProtoFilter::All,
             state_filter: ALL_STATES.iter().copied().collect(),
             state_dropdown_open: false,
-            sort_column: SortColumn::FirstSeen,
-            sort_dir: SortDir::Desc,
-            selected_pid: None,
-            selected_local: None,
-            selected_remote: None,
+            show_history: true,
+            shell,
+            selected: None,
+            sel_store_idx: None,
             detail_visible: false,
-            ctx_menu_visible: false,
-            ctx_menu_pos: None,
-            ctx_menu_just_opened: false,
             paused: false,
             interval_ms: 1000,
-            show_history: true,
-            cached_items: Vec::new(),
-            cache_dirty: true,
-            selected_conn: None,
             kill_confirm_open: false,
             pending_kill_pid: None,
         }
@@ -137,28 +401,58 @@ impl Default for NetworkPageState {
 }
 
 impl NetworkPageState {
-    // ── Event handling ─────────────────────────────────────
+    // ── 表格持久化（转发 TableShell；启动恢复 / 退出保存由 app.rs 调用，
+    //    渲染期变更在 render_table 内即时写盘）──────────────────────
+
+    pub fn load_table_state(&mut self, config_dir: &std::path::Path) {
+        self.shell.load_table_state(config_dir);
+    }
+
+    pub fn save_table_state(&self, config_dir: &std::path::Path) {
+        self.shell.save_table_state(config_dir);
+    }
+
+    // ── 数据接入（EventBus → store，只改数据不碰 UI）────────────
 
     pub fn handle_snapshot(&mut self, payload: NetworkSnapshotPayload) {
-        // B3: refresh selected_conn cache from new snapshot
-        if let (Some(pid), Some(ref local), Some(ref remote)) =
-            (self.selected_pid, &self.selected_local, &self.selected_remote)
-        {
-            let local_ep = parse_endpoint(local);
-            let remote_ep = parse_endpoint(remote);
-            self.selected_conn = payload
-                .items
-                .iter()
-                .find(|c| {
-                    c.pid == pid
-                        && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
-                        && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
-                })
-                .cloned();
-        }
-        self.snapshot = Some(payload);
+        self.got_snapshot = true;
         self.last_error = None;
-        self.cache_dirty = true; // B2
+        self.ensure_index();
+
+        // 本轮快照命中的 store 下标（用于把消失连接翻转为历史）
+        let mut touched: HashSet<u32> = HashSet::with_capacity(payload.items.len());
+
+        for conn in &payload.items {
+            let key = ConnKey::of_conn(conn);
+            if let Some(idx) = self.index.get(&key).copied() {
+                touched.insert(idx);
+                if let Some(row) = self.store.get_mut(idx as usize) {
+                    if row.absorb(conn) {
+                        row.refresh_derived();
+                    }
+                }
+            } else {
+                let idx = self.store.len() as u32;
+                self.store.push_back(NetRow::from_conn(conn));
+                self.index.insert(key, idx);
+            }
+        }
+
+        // 快照中消失的连接 → 翻转为历史（必须在弹头前，下标才与 touched 对齐）
+        for (i, row) in self.store.iter_mut().enumerate() {
+            let i = i as u32;
+            if row.is_current && !touched.contains(&i) {
+                row.is_current = false;
+            }
+        }
+
+        // 环形上限：超限弹头丢弃（索引整体失效，下轮快照前惰性重建）
+        while self.store.len() > MAX_ROWS {
+            self.store.pop_front();
+            self.index_dirty = true;
+        }
+
+        self.view_dirty = true;
     }
 
     pub fn handle_error(&mut self, error: String) {
@@ -166,234 +460,302 @@ impl NetworkPageState {
     }
 
     pub fn handle_enrichment(&mut self, enrichment: NetworkEnrichmentPayload) {
-        if let Some(ref mut snap) = self.snapshot {
-            for conn in &mut snap.items {
-                if conn.pid == enrichment.pid {
-                    conn.cmdline_status = enrichment.cmdline_status;
-                    if let Some(ref cmdline) = enrichment.process_cmdline {
-                        conn.process_cmdline = Some(cmdline.clone());
-                    }
+        for row in self.store.iter_mut() {
+            if row.pid == enrichment.pid {
+                row.cmdline_status = enrichment.cmdline_status;
+                if let Some(ref cmdline) = enrichment.process_cmdline {
+                    row.process_cmdline = Some(cmdline.clone());
                 }
+                row.refresh_derived();
             }
         }
-        // B3: refresh selected_conn cache if it matches the enriched pid
-        if let Some(ref sel) = self.selected_conn {
-            if sel.pid == enrichment.pid {
-                if let (Some(ref snap), Some(ref local), Some(ref remote)) =
-                    (&self.snapshot, &self.selected_local, &self.selected_remote)
-                {
-                    let local_ep = parse_endpoint(local);
-                    let remote_ep = parse_endpoint(remote);
-                    self.selected_conn = snap
-                        .items
-                        .iter()
-                        .find(|c| {
-                            c.pid == enrichment.pid
-                                && local_ep.is_some_and(|(addr, port)| c.local.addr == addr && c.local.port == port)
-                                && remote_ep.is_some_and(|(addr, port)| c.remote.addr == addr && c.remote.port == port)
-                        })
-                        .cloned();
-                }
-            }
-        }
-        self.cache_dirty = true; // B2
+        self.view_dirty = true;
     }
 
-    // ── Rendering ──────────────────────────────────────────
+    /// 「清空历史」按钮：本地 store 同步清空（服务端由 NetworkService.clear_history 处理）。
+    fn clear_local_history(&mut self) {
+        self.store.clear();
+        self.index.clear();
+        self.index_dirty = false; // 已清空即一致
+        self.sel_store_idx = None;
+        self.shell.focused = None;
+        self.view_dirty = true;
+    }
+
+    /// 惰性重建主键索引（弹头/插入后失效一次，重建 O(n)）。
+    fn ensure_index(&mut self) {
+        if !self.index_dirty {
+            return;
+        }
+        self.index.clear();
+        self.index.extend(
+            self.store
+                .iter()
+                .enumerate()
+                .map(|(i, r)| (ConnKey::of_row(r), i as u32)),
+        );
+        self.index_dirty = false;
+    }
+
+    // ── 视图缓存（dirty 才重建：过滤 + 排序后的 store 下标）────
+
+    fn rebuild_view(&mut self) {
+        if !self.view_dirty {
+            return;
+        }
+        let q = self.search.trim().to_lowercase();
+        let want_history = self.show_history;
+        let proto_f = self.proto_filter;
+
+        self.view.clear();
+        for (i, r) in self.store.iter().enumerate() {
+            if !want_history && !r.is_current {
+                continue;
+            }
+            let proto_ok = match proto_f {
+                ProtoFilter::All => true,
+                ProtoFilter::Tcp => r.proto == Proto::Tcp,
+                ProtoFilter::Udp => r.proto == Proto::Udp,
+            };
+            if !proto_ok {
+                continue;
+            }
+            // 无状态（NONE/空）始终放行，其余按多选集合过滤（沿用旧语义）
+            if r.state != ConnState::None && !self.state_filter.contains(&r.state) {
+                continue;
+            }
+            if !q.is_empty() && !r.search_blob.contains(&q) {
+                continue;
+            }
+            self.view.push(i as u32);
+        }
+
+        // 排序：按列原始值比较（零格式化），稳定排序保持插入序并列
+        if let Some((col, asc)) = self.shell.sort_state() {
+            let store = &self.store;
+            let cmp = |a: &u32, b: &u32| -> std::cmp::Ordering {
+                let a = &store[*a as usize];
+                let b = &store[*b as usize];
+                match col {
+                    "first_seen" => a.first_seen.cmp(&b.first_seen),
+                    "pid" => a.pid.cmp(&b.pid),
+                    "process" => a.process_name.as_deref().unwrap_or("").cmp(b.process_name.as_deref().unwrap_or("")),
+                    "local" => a.local_addr.cmp(&b.local_addr).then(a.local_port.cmp(&b.local_port)),
+                    "remote" => a.remote_addr.cmp(&b.remote_addr).then(a.remote_port.cmp(&b.remote_port)),
+                    "state" => a.state.as_str().cmp(b.state.as_str()),
+                    "proto" => proto_rank(a.proto).cmp(&proto_rank(b.proto)),
+                    "family" => fam_rank(a.family).cmp(&fam_rank(b.family)),
+                    "path" => a.process_path.as_deref().unwrap_or("").cmp(b.process_path.as_deref().unwrap_or("")),
+                    "cmdline" => a.process_cmdline.as_deref().unwrap_or("").cmp(b.process_cmdline.as_deref().unwrap_or("")),
+                    "last_seen" => a.last_seen.cmp(&b.last_seen),
+                    _ => std::cmp::Ordering::Equal,
+                }
+            };
+            if asc {
+                self.view.sort_by(cmp);
+            } else {
+                self.view.sort_by(|a, b| cmp(a, b).reverse());
+            }
+        }
+
+        // 解析选中行的 store 下标（被过滤掉也能在详情面板显示——扫全量兜底）
+        self.sel_store_idx = self.selected.as_ref().and_then(|k| {
+            self.store
+                .iter()
+                .position(|r| k.matches(r))
+                .map(|p| p as u32)
+        });
+
+        // 视图长度变化后收敛键盘焦点
+        let len = self.view.len();
+        if self.shell.focused.is_some_and(|f| f >= len) {
+            self.shell.focused = None;
+        }
+        if self.shell.selected.is_some_and(|f| f >= len) {
+            self.shell.selected = None;
+        }
+
+        self.view_dirty = false;
+    }
+
+    // ── 渲染 ───────────────────────────────────────────────────
 
     pub fn render(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         self.render_toolbar(ui, ctx, rt);
         ui.separator();
 
-        // Error banner
         if let Some(ref err) = self.last_error {
             let err = err.clone();
-            if crate::widgets::banner::error_banner(ui, &err) {
+            if banner::error_banner(ui, &err) {
                 self.last_error = None;
             }
             ui.add_space(4.0);
         }
 
-        // Table
-        self.render_table(ui);
+        self.rebuild_view();
 
-        // Context menu overlay (using stored position)
-        if self.ctx_menu_visible {
-            self.render_context_menu(ui, ctx, rt);
+        if self.view.is_empty() {
+            self.render_empty(ui);
+        } else {
+            self.render_table(ui, ctx);
         }
 
-        // Kill confirmation dialog (DESIGN.md 4.10)
         if self.kill_confirm_open {
             self.render_kill_confirm(ui, ctx, rt);
         }
     }
 
-    // ── Toolbar ────────────────────────────────────────────
+    fn render_empty(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(40.0);
+        if !self.got_snapshot {
+            ui.vertical_centered(|ui| {
+                ui.spinner();
+                ui.label(
+                    egui::RichText::new(t!("network.empty.waiting").to_string())
+                        .font(crate::design::fonts::body())
+                        .color(dtheme::palette().fg_secondary),
+                );
+            });
+        } else {
+            let pal = dtheme::palette();
+            table_empty_state(ui, &pal);
+        }
+    }
+
+    // ── 工具栏 ────────────────────────────────────────────────
 
     fn render_toolbar(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
+        let pal = dtheme::palette();
+
         ui.horizontal(|ui| {
-            // Polling status — clickable to toggle pause/resume
-            let polling_status = if self.paused { "‖ 已暂停" } else { "▶ 轮询中" };
-            let polling_color = if self.paused {
-                theme::semantic_warning()
+            // 暂停 / 恢复（主按钮：accent 底 + 图标，对齐 React 版）
+            let (pause_label, pause_icon) = if self.paused {
+                (t!("network.toolbar.resume").to_string(), Icon::Play)
             } else {
-                theme::semantic_success()
+                (t!("network.toolbar.pause").to_string(), Icon::Pause)
             };
-            let polling_resp = ui.add(
-                egui::Label::new(egui::RichText::new(polling_status).size(11.0).color(polling_color))
-                    .sense(egui::Sense::click()),
-            );
-            if polling_resp.clicked() {
-                self.paused = !self.paused;
-                let svc_ctx = ctx.clone();
-                let paused = self.paused;
-                let interval = self.interval_ms;
-                rt.spawn(async move {
-                    let svc = NetworkService { ctx: &svc_ctx };
-                    let _ = svc
-                        .set_polling(NetworkPollingControl {
-                            interval_ms: Some(interval),
-                            paused: Some(paused),
-                            retention: None,
-                        })
-                        .await;
-                });
+            if widgets::flat_button(
+                ui,
+                Some(pause_icon),
+                &pause_label,
+                pal.accent,
+                pal.accent_hover(),
+                pal.on_accent,
+                None,
+                true,
+            )
+            .clicked()
+            {
+                let new_paused = !self.paused;
+                self.set_paused(new_paused, ctx, rt);
             }
 
-            ui.separator();
+            // 协议下拉（对齐 React「全部协议」）
+            let proto_labels = [
+                t!("network.toolbar.proto-all").to_string(),
+                "TCP".to_string(),
+                "UDP".to_string(),
+            ];
+            let proto_idx = match self.proto_filter {
+                ProtoFilter::All => 0,
+                ProtoFilter::Tcp => 1,
+                ProtoFilter::Udp => 2,
+            };
+            if let Some(i) = widgets::dropdown(
+                ui,
+                "network_dd_proto",
+                0,
+                &mut self.open_menu,
+                &proto_labels,
+                proto_idx,
+                104.0,
+                &pal,
+            ) {
+                self.proto_filter = match i {
+                    1 => ProtoFilter::Tcp,
+                    2 => ProtoFilter::Udp,
+                    _ => ProtoFilter::All,
+                };
+                self.view_dirty = true;
+            }
 
-            // Search box
-            ui.label(egui::RichText::new("搜索:").size(14.0));
+            // 状态多选下拉（保留多选语义）
+            self.render_state_dropdown(ui, &pal);
+
+            // 弹性搜索框（surface 底 + border 描边 + focus accent）
+            {
+                let v = &mut ui.style_mut().visuals;
+                v.extreme_bg_color = pal.bg_elev1;
+                v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, pal.border);
+                v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, pal.border_strong);
+                v.widgets.active.bg_stroke = egui::Stroke::new(1.0, pal.accent);
+            }
+            let placeholder = t!("network.toolbar.search-placeholder");
+            let reserved = (ui.available_width() * 0.42).min(560.0);
+            let search_w = (ui.available_width() - reserved).clamp(180.0, 300.0);
             let search_resp = ui.add(
                 egui::TextEdit::singleline(&mut self.search)
-                    .desired_width(200.0)
-                    .hint_text("PID / IP / 端口 / 进程名"),
+                    .desired_width(search_w)
+                    .hint_text(placeholder.as_ref()),
             );
             if search_resp.changed() {
-                self.cache_dirty = true; // B2
-            }
-            if !self.search.is_empty() && ui.small_button("×").clicked() {
-                self.search.clear();
-                self.cache_dirty = true; // B2
+                self.view_dirty = true;
             }
 
-            ui.separator();
+            widgets::vsep(ui, &pal);
 
-            // Protocol filter
-            if filter_button(ui, "全部", self.proto_filter == ProtoFilter::All) {
-                self.proto_filter = ProtoFilter::All;
-                self.cache_dirty = true; // B2
-            }
-            if filter_button(ui, "TCP", self.proto_filter == ProtoFilter::Tcp) {
-                self.proto_filter = ProtoFilter::Tcp;
-                self.cache_dirty = true; // B2
-            }
-            if filter_button(ui, "UDP", self.proto_filter == ProtoFilter::Udp) {
-                self.proto_filter = ProtoFilter::Udp;
-                self.cache_dirty = true; // B2
-            }
-
-            ui.separator();
-
-            // ── State multi-select dropdown ──
-            let all_selected = ALL_STATES.iter().all(|s| self.state_filter.contains(s));
-            let state_label = if all_selected {
-                "状态: 全部".to_string()
-            } else {
-                format!("状态: {}", self.state_filter.len())
-            };
-
-            let state_btn = ui.add(egui::Button::new(
-                egui::RichText::new(&state_label).color(theme::fg_primary()),
-            ));
-            if state_btn.clicked() {
-                self.state_dropdown_open = !self.state_dropdown_open;
-            }
-            let btn_rect = state_btn.rect;
-
-            if self.state_dropdown_open {
-                let popup_id = egui::Id::new("net_state_popup");
-                let popup_pos = egui::pos2(btn_rect.left(), btn_rect.bottom() + 2.0);
-
-                let response = egui::Area::new(popup_id)
-                    .order(egui::Order::Foreground)
-                    .fixed_pos(popup_pos)
-                    .constrain(true)
-                    .show(ui.ctx(), |ui| {
-                        egui::Frame::popup(ui.style()).show(ui, |ui| {
-                            ui.set_min_width(btn_rect.width().max(150.0));
-                            ui.set_max_height(280.0);
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                // Select All / Deselect All
-                                ui.horizontal(|ui| {
-                                    if ui.small_button("全选").clicked() {
-                                        self.state_filter = ALL_STATES.iter().copied().collect();
-                                        self.cache_dirty = true; // B2
-                                    }
-                                    if ui.small_button("取消全选").clicked() {
-                                        self.state_filter.clear();
-                                        self.cache_dirty = true; // B2
-                                    }
-                                });
-                                ui.separator();
-
-                                // Per-state checkboxes
-                                for state in ALL_STATES {
-                                    let mut checked = self.state_filter.contains(state);
-                                    let text = state.as_str();
-                                    let resp = ui.checkbox(&mut checked, text);
-                                    if resp.changed() {
-                                        if checked {
-                                            self.state_filter.insert(*state);
-                                        } else {
-                                            self.state_filter.remove(state);
-                                        }
-                                        self.cache_dirty = true; // B2
-                                    }
-                                }
-                            });
-                        })
-                    });
-
-                // Close when clicking outside
-                if ui.input(|i| i.pointer.any_click()) && !response.response.hovered() && !state_btn.hovered() {
-                    self.state_dropdown_open = false;
+            // 终止进程（危险按钮，需选中行）
+            let sel_pid = self
+                .sel_store_idx
+                .and_then(|i| self.store.get(i as usize))
+                .map(|r| r.pid);
+            if widgets::flat_button(
+                ui,
+                Some(Icon::X),
+                &t!("network.toolbar.kill-process").to_string(),
+                pal.danger.fg,
+                pal.danger_hover(),
+                pal.on_accent,
+                None,
+                sel_pid.is_some(),
+            )
+            .clicked()
+            {
+                if let Some(pid) = sel_pid {
+                    self.request_kill(pid);
                 }
             }
 
-            ui.separator();
-
-            // Pause / Resume
-            let pause_label = if self.paused { "▶ 恢复" } else { "‖ 暂停" };
-            let pause_color = if self.paused {
-                theme::semantic_success()
-            } else {
-                theme::fg_secondary()
-            };
-            if ui
-                .add(egui::Button::new(egui::RichText::new(pause_label).color(pause_color)))
-                .clicked()
+            // 导出 CSV（描边按钮 + 图标）
+            if widgets::flat_button(
+                ui,
+                Some(Icon::Download),
+                &t!("network.toolbar.export-csv").to_string(),
+                pal.bg_elev1,
+                pal.hover,
+                pal.fg_primary,
+                Some(pal.border),
+                !self.store.is_empty(),
+            )
+            .clicked()
             {
-                self.paused = !self.paused;
-                let svc_ctx = ctx.clone();
-                let paused = self.paused;
-                let interval = self.interval_ms;
-                rt.spawn(async move {
-                    let svc = NetworkService { ctx: &svc_ctx };
-                    let _ = svc
-                        .set_polling(NetworkPollingControl {
-                            interval_ms: Some(interval),
-                            paused: Some(paused),
-                            retention: None,
-                        })
-                        .await;
-                });
+                self.export_csv(ctx, rt);
             }
 
-            ui.separator();
-
-            // Clear history
-            if ui.button("清空历史").clicked() {
+            // 清空历史（描边按钮 + 图标）
+            if widgets::flat_button(
+                ui,
+                Some(Icon::Trash),
+                &t!("network.toolbar.clear-history").to_string(),
+                pal.bg_elev1,
+                pal.hover,
+                pal.fg_primary,
+                Some(pal.border),
+                true,
+            )
+            .clicked()
+            {
+                self.clear_local_history();
                 let svc_ctx = ctx.clone();
                 rt.spawn(async move {
                     let svc = NetworkService { ctx: &svc_ctx };
@@ -401,407 +763,270 @@ impl NetworkPageState {
                 });
             }
 
-            // History toggle
-            let hist_label = if self.show_history {
-                "历史: 开"
-            } else {
-                "历史: 关"
-            };
-            let hist_color = if self.show_history {
-                theme::accent()
-            } else {
-                theme::fg_tertiary()
-            };
-            if ui
-                .add(egui::Button::new(egui::RichText::new(hist_label).color(hist_color)))
-                .clicked()
-            {
-                self.show_history = !self.show_history;
-                self.cache_dirty = true; // B2
-            }
+            widgets::vsep(ui, &pal);
 
-            // Export CSV
-            if ui
-                .add_enabled(self.snapshot.is_some(), egui::Button::new("导出 CSV"))
-                .clicked()
+            // 显示历史（描边 toggle，开 = accent 文字）
             {
-                self.export_csv(ctx, rt);
-            }
-
-            // Snapshot count (includes history count)
-            if let Some(ref snap) = self.snapshot {
-                let total = snap.items.len();
-                let history_count = snap.items.iter().filter(|c| !c.is_current).count();
-                let count_text = if history_count > 0 {
-                    format!("{} 连接 ([{}] 历史)", total, history_count)
+                let hist_label = t!("network.toolbar.show-history").to_string();
+                let (rest, fg) = if self.show_history {
+                    (pal.selected.bg, pal.accent)
                 } else {
-                    format!("{} 连接", total)
+                    (pal.bg_elev1, pal.fg_primary)
                 };
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui_label(ui, egui::RichText::new(count_text).size(12.0).color(theme::fg_tertiary()));
-                });
+                if widgets::flat_button(ui, None, &hist_label, rest, pal.hover, fg, Some(pal.border), true)
+                    .clicked()
+                {
+                    self.show_history = !self.show_history;
+                    self.view_dirty = true;
+                }
             }
+
+            // 密度切换（28/34px，spec §3.3）
+            // 密度切换（文字胶囊，点击循环紧凑/标准；React DataTable 同形态）
+            let density_label = t!(self.shell.density.title_key()).to_string();
+            let density_tip = t!("design.table.density").to_string();
+            let density_resp = widgets::flat_button(ui, None, &density_label, pal.bg_elev1, pal.hover, pal.fg_primary, Some(pal.border), true);
+            if density_resp.clicked() {
+                self.shell.density = match self.shell.density {
+                    crate::design::table::TableDensity::Compact => crate::design::table::TableDensity::Standard,
+                    crate::design::table::TableDensity::Standard => crate::design::table::TableDensity::Compact,
+                };
+                self.shell.save_table_state(&ctx.app_dirs.config_dir());
+            }
+            density_resp.on_hover_text(density_tip);
+
+            // 计数（右侧）
+            let total = self.store.len();
+            let history_count = self.store.iter().filter(|r| !r.is_current).count();
+            let count_text = if history_count > 0 {
+                t!(
+                    "network.stats.count-history",
+                    total = total.to_string(),
+                    history = history_count.to_string()
+                )
+                .to_string()
+            } else {
+                t!("network.stats.count", total = total.to_string()).to_string()
+            };
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(count_text)
+                        .font(crate::design::fonts::caption())
+                        .color(pal.fg_tertiary),
+                );
+            });
         });
     }
 
-    // ── Table ──────────────────────────────────────────────
-
-    fn render_table(&mut self, ui: &mut egui::Ui) {
-        // B2: extract fields before borrowing self via get_filtered_sorted_items
-        let sc = self.sort_column;
-        let sd = self.sort_dir;
-        let snapshot_is_none = self.snapshot.is_none();
-        let sel_pid = self.selected_pid;
-        let sel_local = self.selected_local.clone();
-        let sel_remote = self.selected_remote.clone();
-        let sel_local_ep = sel_local.as_deref().and_then(parse_endpoint);
-        let sel_remote_ep = sel_remote.as_deref().and_then(parse_endpoint);
-
-        let items = self.get_filtered_sorted_items();
-
-        if items.is_empty() {
-            ui.add_space(40.0);
-            ui.vertical_centered(|ui| {
-                if snapshot_is_none {
-                    ui.spinner();
-                    ui_label(ui, egui::RichText::new("等待网络数据...").color(theme::fg_secondary()));
-                } else {
-                    ui_label(
-                        ui,
-                        egui::RichText::new("没有匹配当前过滤条件的连接").color(theme::fg_tertiary()),
-                    );
-                }
-            });
-            return;
-        }
-
-        let mut sort_toggle: Option<SortColumn> = None;
-        let mut row_click: Option<(u32, String, String)> = None;
-        let mut row_right_click: Option<(u32, String, String)> = None;
-        // Capture the right-click position locally to avoid the menu
-        // following the cursor (interact_pos() changes every frame).
-        let mut capture_ctx_pos: Option<egui::Pos2> = None;
-
-        // Capture Context before TableBuilder borrows ui mutably
-        let egui_ctx = ui.ctx().clone();
-        let table = TableBuilder::new(ui)
-            .striped(false)
-            .resizable(true)
-            .sense(egui::Sense::click())
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .min_scrolled_height(0.0)
-            .column(Column::initial(140.0).clip(true)) // First Seen
-            .column(Column::initial(55.0).clip(true)) // PID
-            .column(Column::initial(140.0).clip(true)) // Process
-            .column(Column::initial(180.0).clip(true)) // Local
-            .column(Column::initial(180.0).clip(true)) // Remote
-            .column(Column::initial(100.0).clip(true)) // State
-            .column(Column::initial(50.0).clip(true)) // Proto
-            .column(Column::initial(45.0).clip(true)) // Fam
-            .column(Column::initial(200.0).clip(true)) // Path
-            .column(Column::initial(160.0).clip(true)) // Cmdline
-            .column(Column::initial(140.0).clip(true)); // Last Seen
-
-        table
-            .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
-                header.col(|ui| {
-                    if table::sortable_header(ui, "首次出现", sc == SortColumn::FirstSeen, sd) {
-                        sort_toggle = Some(SortColumn::FirstSeen);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "PID", sc == SortColumn::Pid, sd) {
-                        sort_toggle = Some(SortColumn::Pid);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "进程名", sc == SortColumn::Process, sd) {
-                        sort_toggle = Some(SortColumn::Process);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "本地地址", sc == SortColumn::Local, sd) {
-                        sort_toggle = Some(SortColumn::Local);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "远程地址", sc == SortColumn::Remote, sd) {
-                        sort_toggle = Some(SortColumn::Remote);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "状态", sc == SortColumn::State, sd) {
-                        sort_toggle = Some(SortColumn::State);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "协议", sc == SortColumn::Proto, sd) {
-                        sort_toggle = Some(SortColumn::Proto);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "族", sc == SortColumn::Family, sd) {
-                        sort_toggle = Some(SortColumn::Family);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "路径", sc == SortColumn::Path, sd) {
-                        sort_toggle = Some(SortColumn::Path);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "命令行", sc == SortColumn::Cmdline, sd) {
-                        sort_toggle = Some(SortColumn::Cmdline);
-                    }
-                });
-                header.col(|ui| {
-                    if table::sortable_header(ui, "最近出现", sc == SortColumn::LastSeen, sd) {
-                        sort_toggle = Some(SortColumn::LastSeen);
-                    }
-                });
-            })
-            .body(|body| {
-                body.rows(theme::TABLE_ROW_HEIGHT, items.len(), |mut row| {
-                    let conn = &items[row.index()];
-                    // B2: use extracted fields to avoid borrowing self
-                    let is_selected = (sel_pid == Some(conn.pid))
-                        && sel_local_ep.is_none_or(|(addr, port)| conn.local.addr == addr && conn.local.port == port)
-                        && sel_remote_ep
-                            .is_none_or(|(addr, port)| conn.remote.addr == addr && conn.remote.port == port);
-                    let is_history = !conn.is_current;
-                    let local_ep = format!("{}:{}", conn.local.addr, conn.local.port);
-                    let remote_ep = format!("{}:{}", conn.remote.addr, conn.remote.port);
-
-                    // ── Render cells with history gray ──
-                    let _ = cell_first_seen(&mut row, conn, is_history);
-                    let _ = cell_pid(&mut row, conn, is_history);
-                    let _ = cell_process(&mut row, conn, is_history);
-                    let _ = cell_local(&mut row, conn, is_history);
-                    let _ = cell_remote(&mut row, conn, is_history);
-                    let _ = cell_state(&mut row, conn, is_history);
-                    let _ = cell_proto(&mut row, conn, is_history);
-                    let _ = cell_family(&mut row, conn, is_history);
-                    let _ = cell_path(&mut row, conn, is_history);
-                    let _ = cell_cmdline(&mut row, conn, is_history);
-                    let _ = cell_last_seen(&mut row, conn, is_history);
-
-                    // ── Row interaction ──
-                    let row_resp = row.response();
-
-                    // Selected highlight
-                    if is_selected {
-                        row.set_selected(true);
-                    }
-
-                    // Left click → select/deselect
-                    if row_resp.clicked() {
-                        if is_selected {
-                            row_click = Some((0, String::new(), String::new()));
-                        } else {
-                            row_click = Some((conn.pid, local_ep.clone(), remote_ep.clone()));
-                        }
-                    }
-
-                    // Right click → context menu (capture position at click time)
-                    if row_resp.secondary_clicked() {
-                        // Pre-select the row if not already selected
-                        if !is_selected {
-                            row_click = Some((conn.pid, local_ep.clone(), remote_ep.clone()));
-                        }
-                        row_right_click = Some((conn.pid, local_ep, remote_ep));
-
-                        // Capture the click position NOW, when the click happens
-                        if let Some(pos) = egui_ctx.input(|i| i.pointer.interact_pos()) {
-                            capture_ctx_pos = Some(pos);
-                        }
-                    }
-                });
-            });
-
-        // Store captured position into state (after body closure)
-        if let Some(pos) = capture_ctx_pos {
-            self.ctx_menu_pos = Some(pos);
-        }
-
-        // Apply interactions after table render
-        if let Some((pid, local, remote)) = row_click {
-            if pid == 0 {
-                self.selected_pid = None;
-                self.selected_local = None;
-                self.selected_remote = None;
-                self.selected_conn = None; // B3
-                self.detail_visible = false;
-            } else {
-                // B3: cache the selected conn from cached_items
-                self.selected_conn = self.cached_items.iter().find(|c| c.pid == pid).cloned();
-                self.selected_pid = Some(pid);
-                self.selected_local = Some(local);
-                self.selected_remote = Some(remote);
-                self.detail_visible = true;
-            }
-        }
-        if row_right_click.is_some() {
-            self.ctx_menu_visible = true;
-            self.ctx_menu_just_opened = true;
-        }
-
-        if let Some(col) = sort_toggle {
-            self.toggle_sort(col);
-        }
+    fn set_paused(&mut self, paused: bool, ctx: &AppContext, rt: &tokio::runtime::Handle) {
+        self.paused = paused;
+        let svc_ctx = ctx.clone();
+        let interval = self.interval_ms;
+        rt.spawn(async move {
+            let svc = NetworkService { ctx: &svc_ctx };
+            let _ = svc
+                .set_polling(NetworkPollingControl {
+                    interval_ms: Some(interval),
+                    paused: Some(paused),
+                    retention: None,
+                })
+                .await;
+        });
     }
 
-    // ── Context Menu ───────────────────────────────────────
-
-    fn render_context_menu(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
-        // Use the stored position captured at right-click time
-        let Some(pos) = self.ctx_menu_pos else {
-            // If no stored position, fall back to current pointer (shouldn't normally happen)
-            self.ctx_menu_visible = false;
-            return;
+    fn render_state_dropdown(&mut self, ui: &mut egui::Ui, pal: &Palette) {
+        let all_selected = ALL_STATES.iter().all(|s| self.state_filter.contains(s));
+        let state_label = if all_selected {
+            t!("network.toolbar.state-all").to_string()
+        } else {
+            format!(
+                "{} ({})",
+                t!("network.toolbar.state-label"),
+                self.state_filter.len()
+            )
         };
 
-        // B3: clone selected conn to avoid borrowing self inside the closure
-        let conn = self.find_selected_conn().cloned();
+        let state_btn = ui.add(egui::Button::new(
+            egui::RichText::new(state_label).color(pal.fg_primary),
+        ));
+        if state_btn.clicked() {
+            self.state_dropdown_open = !self.state_dropdown_open;
+        }
+        let btn_rect = state_btn.rect;
 
-        let menu_id = egui::Id::new("net_ctx_menu");
-        let mut should_close = false;
+        if self.state_dropdown_open {
+            let popup_id = egui::Id::new("net_state_popup");
+            let popup_pos = egui::pos2(btn_rect.left(), btn_rect.bottom() + 2.0);
 
-        let _response = egui::Area::new(menu_id)
-            .order(egui::Order::Foreground)
-            .fixed_pos(pos)
-            .constrain(true)
-            .show(ui.ctx(), |ui| {
-                egui::Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_min_width(160.0);
-                    ui.style_mut().spacing.button_padding = egui::vec2(8.0, 4.0);
-
-                    if ui.button("复制详情").clicked() {
-                        if let Some(ref conn) = conn {
-                            let text = format!(
-                                "PID: {}\nProcess: {}\nLocal: {}:{}\nRemote: {}:{}\nState: {}\nProto: {:?}",
-                                conn.pid,
-                                conn.process_name.as_deref().unwrap_or("-"),
-                                conn.local.addr,
-                                conn.local.port,
-                                conn.remote.addr,
-                                conn.remote.port,
-                                conn.state.as_str(),
-                                conn.proto,
-                            );
-                            ui.ctx().copy_text(text.clone());
-                        }
-                        should_close = true;
-                    }
-
-                    if ui.button("复制 IP:Port").clicked() {
-                        if let Some(ref conn) = conn {
-                            let text = format!("{}:{}", conn.remote.addr, conn.remote.port);
-                            ui.ctx().copy_text(text.clone());
-                        }
-                        should_close = true;
-                    }
-
-                    ui.separator();
-
-                    if ui.button("刷新命令行").clicked() {
-                        if let Some(ref conn) = conn {
-                            let pid = conn.pid;
-                            let svc_ctx = ctx.clone();
-                            rt.spawn(async move {
-                                let svc = NetworkService { ctx: &svc_ctx };
-                                let _ = svc.refresh_cmdline(pid).await;
+            let response = egui::Area::new(popup_id)
+                .order(egui::Order::Foreground)
+                .fixed_pos(popup_pos)
+                .constrain(true)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.set_min_width(btn_rect.width().max(150.0));
+                        ui.set_max_height(280.0);
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                if ui.small_button(t!("network.toolbar.select-all").as_ref()).clicked() {
+                                    self.state_filter = ALL_STATES.iter().copied().collect();
+                                    self.view_dirty = true;
+                                }
+                                if ui.small_button(t!("network.toolbar.clear-all").as_ref()).clicked() {
+                                    self.state_filter.clear();
+                                    self.view_dirty = true;
+                                }
                             });
-                        }
-                        should_close = true;
-                    }
+                            ui.separator();
 
-                    ui.separator();
+                            for state in ALL_STATES {
+                                let mut checked = self.state_filter.contains(state);
+                                let resp = ui.checkbox(&mut checked, state.as_str());
+                                if resp.changed() {
+                                    if checked {
+                                        self.state_filter.insert(*state);
+                                    } else {
+                                        self.state_filter.remove(state);
+                                    }
+                                    self.view_dirty = true;
+                                }
+                            }
+                        });
+                    });
+                });
 
-                    let kill_btn = ui.add(egui::Button::new(
-                        egui::RichText::new("终止进程").color(theme::semantic_danger()),
-                    ));
-                    if kill_btn.clicked() {
-                        if let Some(ref conn) = conn {
-                            self.pending_kill_pid = Some(conn.pid);
-                            self.kill_confirm_open = true;
-                        }
-                        should_close = true;
-                    }
-                })
-            });
-
-        // Close when clicking outside or after action.
-        // Skip close check on the frame the menu was just opened, because
-        // the right-click that opened the menu also triggers any_click().
-        if self.ctx_menu_just_opened {
-            self.ctx_menu_just_opened = false;
-        } else if should_close {
-            self.ctx_menu_visible = false;
-            self.ctx_menu_pos = None;
-        } else if ui.input(|i| i.pointer.any_click()) {
-            if let Some(rect) = ui.ctx().memory(|m| m.area_rect(egui::Id::new("net_ctx_menu"))) {
-                if !rect.contains(ui.input(|i| i.pointer.interact_pos()).unwrap_or(pos)) {
-                    self.ctx_menu_visible = false;
-                    self.ctx_menu_pos = None;
-                }
+            // 点击外部关闭
+            if ui.input(|i| i.pointer.any_click()) && !response.response.hovered() && !state_btn.hovered() {
+                self.state_dropdown_open = false;
             }
         }
     }
 
-    // ── Detail Panel ───────────────────────────────────────
+    // ── 表格 ──────────────────────────────────────────────────
+
+    fn render_table(&mut self, ui: &mut egui::Ui, ctx: &AppContext) {
+        let pal = dtheme::palette();
+        let config_dir = ctx.app_dirs.config_dir();
+
+        // 字段级解构：shell 可变借用与 store/view/selected 等不可变借用并存
+        let NetworkPageState {
+            store,
+            view,
+            shell,
+            selected,
+            detail_visible,
+            sel_store_idx,
+            view_dirty,
+            kill_confirm_open,
+            pending_kill_pid,
+            ..
+        } = self;
+
+        let menu_action = Cell::new(MenuAction::None);
+
+        let out = shell.show(
+            ui,
+            view.len(),
+            |row, rctx| paint_row(row, rctx, store, view, selected.as_ref(), &pal),
+            |menu_ui, vidx| build_context_menu(menu_ui, store, view, vidx, &menu_action),
+        );
+
+        // ── show 后统一处理交互 ──
+        if let Some(vi) = out.clicked.or(out.activated) {
+            let item = &store[view[vi] as usize];
+            let already = selected.as_ref().is_some_and(|k| k.matches(item));
+            if already {
+                // 点击已选行 → 取消选中并收起详情（旧行为）
+                *selected = None;
+                *detail_visible = false;
+                *sel_store_idx = None;
+                shell.selected = None;
+            } else {
+                *selected = Some(ConnKey::of_row(item));
+                *detail_visible = true;
+                *sel_store_idx = Some(view[vi]);
+            }
+        }
+        if out.secondary_clicked.is_some() {
+            // 右键未选行时先选中并打开详情（旧行为）
+            if let Some(vi) = out.secondary_clicked {
+                let item = &store[view[vi] as usize];
+                if !selected.as_ref().is_some_and(|k| k.matches(item)) {
+                    *selected = Some(ConnKey::of_row(item));
+                    *sel_store_idx = Some(view[vi]);
+                    *detail_visible = true;
+                }
+            }
+        }
+
+        // 排序变化 → 视图重建；持久化字段变化 → 写盘
+        if out.sort_changed {
+            *view_dirty = true;
+        }
+        if out.persist_dirty || out.sort_changed {
+            shell.save_table_state(&config_dir);
+        }
+
+        // 右键菜单动作（菜单闭包内只收集，此处执行）
+        match menu_action.get() {
+            MenuAction::None => {}
+            MenuAction::CopyRow => {
+                copy_row_text(store, selected.as_ref(), ui);
+            }
+            MenuAction::Kill(pid) => {
+                *pending_kill_pid = Some(pid);
+                *kill_confirm_open = true;
+            }
+        }
+    }
+
+    // ── 详情面板（app.rs 在 detail_visible 时调用）─────────────
 
     pub fn render_detail_panel(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
-        // B3: clone selected conn to avoid borrowing self for subsequent mutations
-        let conn = self.find_selected_conn().cloned();
-        let Some(conn) = conn else {
+        let pal = dtheme::palette();
+        let Some(row_idx) = self.resolve_selected_idx() else {
             self.detail_visible = false;
+            self.selected = None;
             return;
         };
+        // 克隆一条供渲染（面板内容少，且避免跨闭包借用冲突）
+        let conn = self.store[row_idx as usize].clone();
 
         egui::ScrollArea::vertical()
             .id_salt("network_detail_scroll")
             .show(ui, |ui| {
                 ui.add_space(4.0);
 
-                // Header with close button at top-right (right_to_left, DESIGN.md 4.7)
+                // 头部：PID + 徽章 + 关闭按钮（右上角）
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                        // Right margin so close button doesn't overlap with scrollbar
                         ui.allocate_space(egui::vec2(8.0, 0.0));
                         if ui
                             .add(egui::Button::new(egui::RichText::new("×").size(16.0)).frame(false))
                             .clicked()
                         {
-                            self.detail_visible = false;
-                            self.selected_pid = None;
-                            self.selected_local = None;
-                            self.selected_remote = None;
-                            self.selected_conn = None;
+                            self.close_detail();
                         }
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(format!("PID {}", conn.pid))
-                                    .color(theme::fg_primary())
+                                    .font(crate::design::fonts::body())
                                     .strong()
-                                    .size(13.0),
+                                    .color(pal.fg_primary),
                             );
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 if !conn.is_current {
-                                    badge::badge(ui, "历史", BadgeVariant::Warning);
-                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                    soft_badge(ui, t!("network.stats.history").as_ref(), pal.warning);
+                                    ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
                                 }
                                 ui.label(
                                     egui::RichText::new(conn.state.as_str())
-                                        .color(theme::fg_tertiary())
-                                        .size(11.0),
+                                        .font(crate::design::fonts::caption())
+                                        .color(pal.fg_tertiary),
                                 );
-                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
-                                ui.label(
-                                    egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                                        .color(theme::fg_tertiary())
-                                        .size(11.0),
-                                );
+                                ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
+                                soft_badge(ui, &conn.d_proto, pal.info);
                             });
                         });
                     });
@@ -811,44 +1036,72 @@ impl NetworkPageState {
                 ui.separator();
                 ui.add_space(4.0);
 
-                // Detail rows with click-to-copy (DESIGN.md 4.4)
-                detail_row(ui, "进程", conn.process_name.as_deref(), false);
-                detail_row(ui, "状态", Some(conn.state.as_str()), false);
-                detail_row(ui, "协议", Some(&format!("{:?}", conn.proto)), false);
-                detail_row(
-                    ui,
-                    "本地地址",
-                    Some(&format_endpoint(&conn.local.addr, conn.local.port)),
-                    true,
-                );
-                detail_row(
-                    ui,
-                    "远程地址",
-                    Some(&format_endpoint(&conn.remote.addr, conn.remote.port)),
-                    true,
-                );
-                detail_row(ui, "首次出现", Some(&theme::fmt_time(conn.first_seen)), true);
-                detail_row(ui, "最近出现", Some(&theme::fmt_time(conn.last_seen)), true);
-                detail_row(ui, "路径", conn.process_path.as_deref(), true);
-                detail_row(ui, "命令行", conn.process_cmdline.as_deref(), true);
+                // 明细行（点击复制）
+                let hint = t!("network.detail.click-to-copy");
+                detail_row(ui, t!("network.detail.process").as_ref(), Some(&conn.d_process), false, &hint);
+                detail_row(ui, t!("network.columns.state").as_ref(), Some(conn.state.as_str()), false, &hint);
+                detail_row(ui, t!("network.columns.proto").as_ref(), Some(&conn.d_proto), false, &hint);
+                detail_row(ui, t!("network.columns.local").as_ref(), Some(&conn.d_local), true, &hint);
+                detail_row(ui, t!("network.columns.remote").as_ref(), Some(&conn.d_remote), true, &hint);
+                detail_row(ui, t!("network.detail.first-seen").as_ref(), Some(&conn.d_first_seen), true, &hint);
+                detail_row(ui, t!("network.detail.last-seen").as_ref(), Some(&conn.d_last_seen), true, &hint);
+                detail_row(ui, t!("network.columns.path").as_ref(), conn.process_path.as_deref(), true, &hint);
 
-                // Actions (DESIGN.md 4.9 — not full width, danger button red)
+                // 命令行段：状态徽章 + 刷新按钮 + 内容
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(t!("network.detail.command-line").to_string())
+                            .font(crate::design::fonts::caption())
+                            .color(pal.fg_tertiary),
+                    );
+                    cmdline_status_badge(ui, &pal, conn.cmdline_status);
+                    if ui
+                        .small_button(t!("network.detail.refresh-cmdline").as_ref())
+                        .clicked()
+                    {
+                        let svc_ctx = ctx.clone();
+                        let pid = conn.pid;
+                        rt.spawn(async move {
+                            let svc = NetworkService { ctx: &svc_ctx };
+                            let _ = svc.refresh_cmdline(pid).await;
+                        });
+                    }
+                });
+                match conn.process_cmdline.as_deref() {
+                    Some(cmd) if !cmd.is_empty() => {
+                        ui.label(
+                            egui::RichText::new(cmd)
+                                .font(crate::design::fonts::mono_caption())
+                                .color(pal.fg_secondary),
+                        );
+                    }
+                    _ => {
+                        let pending = t!("network.detail.command-line-pending");
+                        ui.label(
+                            egui::RichText::new(pending.as_ref())
+                                .font(crate::design::fonts::mono_caption())
+                                .color(pal.fg_tertiary),
+                        );
+                    }
+                }
+
+                // 动作区
                 ui.add_space(8.0);
                 ui.separator();
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("终止进程").color(theme::semantic_danger()),
+                            egui::RichText::new(t!("network.context-menu.kill").as_ref())
+                                .color(pal.danger.fg),
                         ))
                         .clicked()
                     {
-                        self.pending_kill_pid = Some(conn.pid);
-                        self.kill_confirm_open = true;
+                        self.request_kill(conn.pid);
                     }
-                    if ui.button("刷新命令行").clicked() {
-                        let pid = conn.pid;
+                    if ui.button(t!("network.detail.refresh-cmdline").as_ref()).clicked() {
                         let svc_ctx = ctx.clone();
+                        let pid = conn.pid;
                         rt.spawn(async move {
                             let svc = NetworkService { ctx: &svc_ctx };
                             let _ = svc.refresh_cmdline(pid).await;
@@ -858,31 +1111,66 @@ impl NetworkPageState {
             });
     }
 
-    // ── Kill Confirmation Dialog (DESIGN.md 4.10) ──────────
+    /// 选中行的 store 下标（缓存失效则全量扫描兜底）。
+    fn resolve_selected_idx(&self) -> Option<u32> {
+        let key = self.selected.as_ref()?;
+        if let Some(i) = self.sel_store_idx {
+            if let Some(r) = self.store.get(i as usize) {
+                if key.matches(r) {
+                    return Some(i);
+                }
+            }
+        }
+        self.store.iter().position(|r| key.matches(r)).map(|p| p as u32)
+    }
+
+    fn close_detail(&mut self) {
+        self.detail_visible = false;
+        self.selected = None;
+        self.sel_store_idx = None;
+        self.shell.selected = None;
+    }
+
+    fn request_kill(&mut self, pid: u32) {
+        self.pending_kill_pid = Some(pid);
+        self.kill_confirm_open = true;
+    }
+
+    // ── 终止进程确认框 ────────────────────────────────────────
 
     fn render_kill_confirm(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         let mut open = self.kill_confirm_open;
         let mut confirmed = false;
         let mut cancelled = false;
 
-        egui::Window::new("确认终止进程")
+        let title = t!("network.kill-confirm.title");
+        let message = t!(
+            "network.kill-confirm.message",
+            pid = self.pending_kill_pid.map(|p| p.to_string()).unwrap_or_default(),
+            name = "-".to_string()
+        );
+        let confirm = t!("network.kill-confirm.confirm");
+        let cancel = t!("network.kill-confirm.cancel");
+        let pal = dtheme::palette();
+
+        egui::Window::new(title.as_ref())
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
             .show(ui.ctx(), |ui| {
                 ui.add_space(4.0);
-                ui.label("确定要终止此进程吗？此操作不可撤销。");
+                ui.label(message.as_ref());
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("确认终止").color(theme::semantic_danger()),
+                            egui::RichText::new(confirm.as_ref()).color(pal.danger.fg),
                         ))
                         .clicked()
                     {
                         confirmed = true;
                     }
-                    if ui.button("取消").clicked() {
+                    if ui.button(cancel.as_ref()).clicked() {
                         cancelled = true;
                     }
                 });
@@ -910,13 +1198,13 @@ impl NetworkPageState {
         }
     }
 
-    // ── CSV Export ────────────────────────────────────────
+    // ── CSV 导出（后台线程写盘，列集沿用旧版）──────────────────
 
     fn export_csv(&self, ctx: &AppContext, rt: &tokio::runtime::Handle) {
-        let items = match &self.snapshot {
-            Some(snap) => snap.items.clone(),
-            None => return,
-        };
+        let items: Vec<NetRow> = self.store.iter().cloned().collect();
+        if items.is_empty() {
+            return;
+        }
         let dir = ctx.app_dirs.root().to_path_buf();
         let secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -924,358 +1212,272 @@ impl NetworkPageState {
             .unwrap_or(0);
         let path = dir.join(format!("network_export_{}.csv", secs));
         rt.spawn_blocking(move || match write_csv(&path, &items) {
-            Ok(()) => {
-                tracing::info!("exported {} connections to {}", items.len(), path.display())
-            }
+            Ok(()) => tracing::info!("exported {} connections to {}", items.len(), path.display()),
             Err(e) => tracing::error!("csv export failed: {}", e),
         });
     }
+}
 
-    // ── Helpers ─────────────────────────────────────────────
+// ── 表格行绘制（零分配热路径）──────────────────────────────────
 
-    fn toggle_sort(&mut self, col: SortColumn) {
-        if self.sort_column == col {
-            self.sort_dir = self.sort_dir.toggle();
+/// 行背景优先级：选中 ＞ risk ＞ 键盘焦点。
+fn paint_row(
+    row: &mut egui_extras::TableRow<'_, '_>,
+    rctx: RowCtx,
+    store: &VecDeque<NetRow>,
+    view: &[u32],
+    selected: Option<&ConnKey>,
+    pal: &Palette,
+) {
+    let item = &store[view[rctx.index] as usize];
+    let is_sel = selected.is_some_and(|k| k.matches(item));
+    let history = !item.is_current;
+
+    let fg_main = if history { pal.fg_tertiary } else { pal.fg_primary };
+    let fg_sec = if history { pal.fg_tertiary } else { pal.fg_secondary };
+
+    let bg = if is_sel {
+        Some(pal.selected.bg)
+    } else {
+        risk_bg(item.risk, pal)
+    };
+    let focus_bg = if rctx.focused && !is_sel { Some(pal.hover) } else { None };
+    let fill = bg.or(focus_bg);
+
+    macro_rules! cell {
+        ($row:expr, $body:expr) => {{
+            $row.col(|ui| {
+                if let Some(c) = fill {
+                    table::paint_row_bg(ui, c);
+                }
+                table::cell_pad(ui);
+                $body(ui)
+            });
+        }};
+    }
+
+    // 1 first_seen / 11 last_seen（时间戳 mono，spec §3.1）
+    cell!(row, |ui: &mut egui::Ui| table::cell_mono_label(ui, &item.d_first_seen, fg_sec));
+    // 2 pid
+    cell!(row, |ui: &mut egui::Ui| table::cell_mono_label(ui, &item.d_pid, fg_main));
+    // 3 process
+    cell!(row, |ui: &mut egui::Ui| table::cell_label(ui, &item.d_process, fg_main));
+    // 4 local / 5 remote
+    cell!(row, |ui: &mut egui::Ui| table::cell_mono_label(ui, &item.d_local, fg_main));
+    cell!(row, |ui: &mut egui::Ui| table::cell_mono_label(ui, &item.d_remote, fg_main));
+    // 6 state：无状态 "-"、历史灰字、当前软色徽章（spec §2.2 role 映射）
+    cell!(row, |ui: &mut egui::Ui| {
+        if item.state == ConnState::None || item.state.as_str().is_empty() {
+            table::cell_label(ui, "-", pal.fg_tertiary);
+        } else if history {
+            table::cell_label(ui, item.state.as_str(), pal.fg_tertiary);
         } else {
-            self.sort_column = col;
-            self.sort_dir = SortDir::Desc;
+            let roles = state_roles(&item.state, pal);
+            crate::design::widgets::badge(ui, item.state.as_str(), roles.fg, roles.bg, roles.border);
         }
-        self.cache_dirty = true; // B2
-    }
-
-    #[allow(dead_code)]
-    fn is_selected(&self, conn: &NetConn) -> bool {
-        (self.selected_pid == Some(conn.pid))
-            && self
-                .selected_local
-                .as_deref()
-                .is_none_or(|l| l == format!("{}:{}", conn.local.addr, conn.local.port))
-            && self
-                .selected_remote
-                .as_deref()
-                .is_none_or(|r| r == format!("{}:{}", conn.remote.addr, conn.remote.port))
-    }
-
-    fn find_selected_conn(&self) -> Option<&NetConn> {
-        self.selected_conn.as_ref()
-    }
-
-    fn get_filtered_sorted_items(&mut self) -> &[NetConn] {
-        if self.cache_dirty {
-            self.cached_items = self.compute_filtered_sorted();
-            self.cache_dirty = false;
+    });
+    // 7 proto / 8 family
+    cell!(row, |ui: &mut egui::Ui| table::cell_label(ui, &item.d_proto, fg_main));
+    cell!(row, |ui: &mut egui::Ui| table::cell_label(ui, &item.d_family, fg_main));
+    // 9 path（截断 + 悬停全文）
+    {
+        let (_, r) = row.col(|ui| {
+            if let Some(c) = fill {
+                table::paint_row_bg(ui, c);
+            }
+            table::cell_pad(ui);
+            table::cell_mono_label(ui, item.process_path.as_deref().unwrap_or(""), fg_sec);
+        });
+        if let Some(path) = item.process_path.as_deref() {
+            table::row_hover(r, path);
         }
-        &self.cached_items
     }
-
-    fn compute_filtered_sorted(&self) -> Vec<NetConn> {
-        let Some(ref snap) = self.snapshot else {
-            return vec![];
-        };
-
-        let mut items: Vec<NetConn> = snap
-            .items
-            .iter()
-            .filter(|c| {
-                // History toggle: hide non-current connections when show_history is false
-                self.show_history || c.is_current
-            })
-            .filter(|c| match self.proto_filter {
-                ProtoFilter::All => true,
-                ProtoFilter::Tcp => c.proto == Proto::Tcp,
-                ProtoFilter::Udp => c.proto == Proto::Udp,
-            })
-            .filter(|c| {
-                // State filter: include if connection has no state or state is in filter
-                if c.state == ConnState::None {
-                    true
-                } else {
-                    self.state_filter.contains(&c.state)
+    // 10 cmdline（状态图标 + 内容，截断 + 悬停全文）
+    {
+        let cmd = item.process_cmdline.as_deref().unwrap_or("");
+        let (_, r) = row.col(|ui| {
+            if let Some(c) = fill {
+                table::paint_row_bg(ui, c);
+            }
+            table::cell_pad(ui);
+            if cmd.is_empty() {
+                if item.cmdline_status != CmdlineStatus::Unknown && !history {
+                    let (icon, icol) = cmdline_icon(item.cmdline_status, pal);
+                    ui.label(egui::RichText::new(icon).font(crate::design::fonts::caption()).color(icol));
                 }
-            })
-            .filter(|c| {
-                if self.search.is_empty() {
-                    return true;
+                table::cell_label(ui, "-", pal.fg_tertiary);
+            } else {
+                if !history {
+                    let (icon, icol) = cmdline_icon(item.cmdline_status, pal);
+                    ui.label(egui::RichText::new(icon).font(crate::design::fonts::caption()).color(icol));
                 }
-                let q = self.search.to_lowercase();
-                c.process_name.as_deref().unwrap_or("").to_lowercase().contains(&q)
-                    || c.pid.to_string().contains(&q)
-                    || c.local.addr.to_lowercase().contains(&q)
-                    || c.local.port.to_string().contains(&q)
-                    || c.remote.addr.to_lowercase().contains(&q)
-                    || c.remote.port.to_string().contains(&q)
-                    || c.process_path.as_deref().unwrap_or("").to_lowercase().contains(&q)
-                    || c.state.as_str().to_lowercase().contains(&q)
-            })
-            .cloned()
-            .collect();
-
-        items.sort_by(|a, b| {
-            let cmp = match self.sort_column {
-                SortColumn::FirstSeen => a.first_seen.cmp(&b.first_seen),
-                SortColumn::Pid => a.pid.cmp(&b.pid),
-                SortColumn::Process => a
-                    .process_name
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(b.process_name.as_deref().unwrap_or("")),
-                SortColumn::Local => a.local.addr.cmp(&b.local.addr).then(a.local.port.cmp(&b.local.port)),
-                SortColumn::Remote => a
-                    .remote
-                    .addr
-                    .cmp(&b.remote.addr)
-                    .then(a.remote.port.cmp(&b.remote.port)),
-                SortColumn::State => a.state.as_str().cmp(b.state.as_str()),
-                SortColumn::Proto => {
-                    let proto_key = |p: &Proto| match p {
-                        Proto::Tcp => "tcp",
-                        Proto::Udp => "udp",
-                    };
-                    proto_key(&a.proto).cmp(proto_key(&b.proto))
-                }
-                SortColumn::Family => (a.family as u8).cmp(&(b.family as u8)),
-                SortColumn::Path => a
-                    .process_path
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(b.process_path.as_deref().unwrap_or("")),
-                SortColumn::Cmdline => a
-                    .process_cmdline
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(b.process_cmdline.as_deref().unwrap_or("")),
-                SortColumn::LastSeen => a.last_seen.cmp(&b.last_seen),
-            };
-            match self.sort_dir {
-                SortDir::Asc => cmp,
-                SortDir::Desc => cmp.reverse(),
+                table::cell_mono_label(ui, cmd, fg_sec);
             }
         });
-
-        items
+        table::row_hover(r, cmd);
     }
+    // 11 last_seen
+    cell!(row, |ui: &mut egui::Ui| table::cell_mono_label(ui, &item.d_last_seen, fg_sec));
 }
 
-// ── Cell renderers ─────────────────────────────────────────
-
-/// Non-selectable label (prevents text cursor/edit mode).
-fn ui_label(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
-    ui.add(egui::Label::new(text).selectable(false))
-}
-
-/// Non-selectable label for table cells.
-fn cell_text(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
-    ui_label(ui, text)
-}
-
-/// For history rows, returns FG_TERTIARY (gray), otherwise the given color.
-fn fg_color(history_base: egui::Color32, is_history: bool) -> egui::Color32 {
-    if is_history {
-        theme::fg_tertiary()
-    } else {
-        history_base
-    }
-}
-
-fn cell_first_seen(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(theme::fmt_time(conn.first_seen))
-                .monospace()
-                .size(12.0)
-                .color(fg_color(theme::fg_secondary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_pid(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(conn.pid.to_string())
-                .monospace()
-                .size(12.0)
-                .color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_process(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        let text = if is_history {
-            format!("[{}]", conn.process_name.as_deref().unwrap_or("-"))
-        } else {
-            conn.process_name.as_deref().unwrap_or("-").to_string()
-        };
-        ui_label(
-            ui,
-            egui::RichText::new(text).color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_local(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(format_endpoint(&conn.local.addr, conn.local.port))
-                .monospace()
-                .size(12.0)
-                .color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_remote(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(format_endpoint(&conn.remote.addr, conn.remote.port))
-                .monospace()
-                .size(12.0)
-                .color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_state(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        let s = conn.state.as_str();
-        if s.is_empty() {
-            cell_text(ui, egui::RichText::new("-").color(theme::fg_tertiary()));
-        } else if is_history {
-            // Historical state — show as gray text instead of colored badge
-            cell_text(ui, egui::RichText::new(s).color(theme::fg_tertiary()));
-        } else {
-            badge::badge(ui, s, state_badge_variant(&conn.state));
-        }
-    });
-    r
-}
-
-fn cell_proto(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                .color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_family(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(format!("{:?}", conn.family).to_uppercase())
-                .color(fg_color(theme::fg_primary(), is_history)),
-        );
-    });
-    r
-}
-
-fn cell_path(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        let path = conn.process_path.as_deref().unwrap_or("");
-        let col = fg_color(theme::fg_secondary(), is_history);
-        let resp = ui.add(
-            egui::Label::new(egui::RichText::new(path).monospace().size(12.0).color(col))
-                .selectable(false)
-                .truncate(),
-        );
-        if !path.is_empty() {
-            resp.on_hover_text(path);
-        }
-    });
-    r
-}
-
-fn cell_cmdline(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        let cmd = conn.process_cmdline.as_deref().unwrap_or("");
-        if cmd.is_empty() {
-            cell_text(ui, egui::RichText::new("-").color(theme::fg_tertiary()));
-        } else {
-            let col = fg_color(theme::fg_secondary(), is_history);
-            let resp = ui.add(
-                egui::Label::new(egui::RichText::new(cmd).monospace().size(12.0).color(col))
-                    .selectable(false)
-                    .truncate(),
-            );
-            resp.on_hover_text(cmd);
-        }
-    });
-    r
-}
-
-fn cell_last_seen(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
-    let (_, r) = row.col(|ui| {
-        cell_text(
-            ui,
-            egui::RichText::new(theme::fmt_time(conn.last_seen))
-                .monospace()
-                .size(12.0)
-                .color(fg_color(theme::fg_secondary(), is_history)),
-        );
-    });
-    r
-}
-
-// ── Utility functions ──────────────────────────────────────
-
-fn filter_button(ui: &mut egui::Ui, label: &str, active: bool) -> bool {
-    let btn = if active {
-        egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(theme::accent())
-    } else {
-        egui::Button::new(egui::RichText::new(label).color(theme::fg_secondary()))
-    };
-    ui.add(btn).clicked()
-}
-
-fn format_endpoint(addr: &str, port: u16) -> String {
-    let a = if addr.is_empty() || addr == "0.0.0.0" || addr == "::" {
-        "*"
-    } else {
-        addr
-    };
-    let p = if port == 0 { "*".to_string() } else { port.to_string() };
-    format!("{}:{}", a, p)
-}
-
-fn state_badge_variant(state: &ConnState) -> BadgeVariant {
+/// 状态徽章的 role 映射（spec §2.2：ESTABLISHED→success / LISTEN→info /
+/// TIME_WAIT→warning / CLOSE_WAIT→danger / 其余 neutral）。
+fn state_roles(state: &ConnState, pal: &Palette) -> crate::design::tokens::RoleColors {
     match state {
-        ConnState::Established => BadgeVariant::Success,
-        ConnState::Listen => BadgeVariant::Info,
-        ConnState::TimeWait => BadgeVariant::Warning,
-        ConnState::CloseWait => BadgeVariant::Danger,
-        _ => BadgeVariant::Default,
+        ConnState::Established => pal.success,
+        ConnState::Listen => pal.info,
+        ConnState::TimeWait => pal.warning,
+        ConnState::CloseWait => pal.danger,
+        _ => pal.neutral,
     }
 }
 
-fn write_csv(path: &std::path::Path, items: &[NetConn]) -> std::io::Result<()> {
+/// 命令行获取状态的行内图标（React CmdlineStatusIcon 对齐）：字符 + role 色。
+fn cmdline_icon(status: CmdlineStatus, pal: &Palette) -> (&'static str, eframe::egui::Color32) {
+    match status {
+        CmdlineStatus::Pending => ("⟳", pal.info.fg),
+        CmdlineStatus::Ready => ("✓", pal.success.fg),
+        CmdlineStatus::Denied => ("⊘", pal.warning.fg),
+        CmdlineStatus::Exited => ("✗", pal.dim.fg),
+        CmdlineStatus::Failed => ("✗", pal.danger.fg),
+        CmdlineStatus::Unknown => ("", pal.neutral.fg),
+    }
+}
+
+// ── 右键菜单（egui PopupMenu，菜单项对齐 React 版）─────────────
+
+fn build_context_menu(
+    ui: &mut egui::Ui,
+    store: &VecDeque<NetRow>,
+    view: &[u32],
+    vidx: usize,
+    action: &Cell<MenuAction>,
+) {
+    let item = &store[view[vidx] as usize];
+    ui.set_min_width(180.0);
+    ui.style_mut().spacing.button_padding = egui::vec2(8.0, 4.0);
+
+    let copy_label = t!("network.context-menu.copy-row");
+    if ui.button(copy_label.as_ref()).clicked() {
+        action.set(MenuAction::CopyRow);
+        ui.close();
+    }
+
+    let kill_label = t!("network.context-menu.kill");
+    if ui.button(kill_label.as_ref()).clicked() {
+        action.set(MenuAction::Kill(item.pid));
+        ui.close();
+    }
+
+    ui.separator();
+
+    let ws_label = t!("network.context-menu.search-workspace");
+    ui.add_enabled(false, egui::Button::new(ws_label.as_ref()));
+}
+
+/// 「复制行」动作：以当前选中行拼接整行概要（对齐 React 版格式）。
+fn copy_row_text(store: &VecDeque<NetRow>, selected: Option<&ConnKey>, ui: &egui::Ui) {
+    let Some(key) = selected else { return };
+    let Some(item) = store.iter().find(|r| key.matches(r)) else { return };
+    let text = format!(
+        "{} {}:{} -> {}:{} pid={} {}",
+        item.d_proto,
+        item.local_addr,
+        item.local_port,
+        item.remote_addr,
+        item.remote_port,
+        item.pid,
+        item.process_name.as_deref().unwrap_or(""),
+    );
+    ui.ctx().copy_text(text);
+}
+
+// ── 小组件 ────────────────────────────────────────────────────
+
+/// 软色徽章（页面侧薄封装：role 三件套直接展开）。
+fn soft_badge(ui: &mut egui::Ui, text: &str, role: crate::design::tokens::RoleColors) {
+    crate::design::widgets::badge(ui, text, role.fg, role.bg, role.border);
+}
+
+/// 命令行获取状态徽章（详情面板；标签 i18n，颜色走 role）。
+fn cmdline_status_badge(ui: &mut egui::Ui, pal: &Palette, status: CmdlineStatus) {
+    let (key, role) = match status {
+        CmdlineStatus::Pending => ("network.detail.cmdline-status.pending", pal.info),
+        CmdlineStatus::Ready => ("network.detail.cmdline-status.ready", pal.success),
+        CmdlineStatus::Denied => ("network.detail.cmdline-status.denied", pal.warning),
+        CmdlineStatus::Exited => ("network.detail.cmdline-status.exited", pal.dim),
+        CmdlineStatus::Failed => ("network.detail.cmdline-status.failed", pal.danger),
+        CmdlineStatus::Unknown => ("network.detail.cmdline-status.unknown", pal.neutral),
+    };
+    let label = t!(key);
+    crate::design::widgets::badge(ui, label.as_ref(), role.fg, role.bg, role.border);
+}
+
+/// 空态（有快照但过滤后为空）。
+fn table_empty_state(ui: &mut egui::Ui, pal: &Palette) {
+    let title = t!("network.empty.no-match");
+    let hint = t!("network.empty.no-match-hint");
+    crate::design::widgets::empty_state(ui, pal, "⇄", title.as_ref(), hint.as_ref());
+}
+
+/// 明细行：label（caption/fg-tertiary）+ 值（可点击复制，悬停提示）。
+fn detail_row(ui: &mut egui::Ui, label: &str, value: Option<&str>, mono: bool, hint: &str) {
+    let Some(value) = value else { return };
+    if value.is_empty() {
+        return;
+    }
+    let pal = dtheme::palette();
+    ui.label(
+        egui::RichText::new(label)
+            .font(crate::design::fonts::caption())
+            .color(pal.fg_tertiary),
+    );
+    let text = if mono {
+        egui::RichText::new(value)
+            .font(crate::design::fonts::mono_caption())
+            .color(pal.fg_primary)
+    } else {
+        egui::RichText::new(value).color(pal.fg_primary)
+    };
+    let resp = ui.add(egui::Label::new(text).sense(egui::Sense::click()));
+    if resp.clicked() {
+        ui.ctx().copy_text(value.to_string());
+    }
+    if resp.hovered() {
+        resp.on_hover_text(hint.to_string());
+    }
+    ui.add_space(2.0);
+}
+
+fn proto_rank(p: Proto) -> u8 {
+    match p {
+        Proto::Tcp => 0,
+        Proto::Udp => 1,
+    }
+}
+
+fn fam_rank(f: Family) -> u8 {
+    match f {
+        Family::V4 => 0,
+        Family::V6 => 1,
+    }
+}
+
+fn write_csv(path: &std::path::Path, items: &[NetRow]) -> std::io::Result<()> {
     use std::io::Write;
     let mut f = std::fs::File::create(path)?;
     writeln!(f, "PID,Process,LocalAddr,RemoteAddr,State,Proto,Family,Path,Cmdline")?;
     for c in items {
-        let local = format!("{}:{}", c.local.addr, c.local.port);
-        let remote = format!("{}:{}", c.remote.addr, c.remote.port);
         writeln!(
             f,
             "{},{},{},{},{},{},{},{},{}",
             c.pid,
             csv_escape(c.process_name.as_deref().unwrap_or("")),
-            csv_escape(&local),
-            csv_escape(&remote),
+            csv_escape(&format!("{}:{}", c.local_addr, c.local_port)),
+            csv_escape(&format!("{}:{}", c.remote_addr, c.remote_port)),
             csv_escape(c.state.as_str()),
-            csv_escape(&format!("{:?}", c.proto)),
-            csv_escape(&format!("{:?}", c.family)),
+            csv_escape(&c.d_proto),
+            csv_escape(&c.d_family),
             csv_escape(c.process_path.as_deref().unwrap_or("")),
             csv_escape(c.process_cmdline.as_deref().unwrap_or("")),
         )?;

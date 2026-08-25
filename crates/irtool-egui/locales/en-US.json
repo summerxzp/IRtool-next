@@ -133,7 +133,9 @@
       "retention-1m": "1 min",
       "retention-5m": "5 min",
       "retention-10m": "10 min",
-      "retention-forever": "Forever"
+      "retention-forever": "Forever",
+      "select-all": "Select All",
+      "clear-all": "Clear All"
     },
     "columns": {
       "proto": "Proto",
@@ -154,7 +156,9 @@
       "listening": "Listening",
       "time-wait": "TIME_WAIT",
       "close-wait": "CLOSE_WAIT",
-      "history": "History"
+      "history": "History",
+      "count": "%{total} connections",
+      "count-history": "%{total} connections (%{history} history)"
     },
     "detail": {
       "title": "Connection Detail",
@@ -165,7 +169,16 @@
       "first-seen": "First Seen",
       "last-seen": "Last Seen",
       "select-row": "Select a connection to view details",
-      "view-process-chain": "View Process Chain"
+      "view-process-chain": "View Process Chain",
+      "click-to-copy": "Click to copy",
+      "cmdline-status": {
+        "unknown": "Unknown",
+        "pending": "Loading…",
+        "ready": "Ready",
+        "denied": "Access Denied",
+        "exited": "Process Exited",
+        "failed": "Query Failed"
+      }
     },
     "kill-confirm": {
       "title": "Confirm Kill Process",
@@ -178,6 +191,15 @@
       "open-explorer": "Open in Explorer",
       "kill": "Kill Process",
       "search-workspace": "Search in Workspace"
+    },
+    "status": {
+      "polling": "Polling",
+      "paused": "Paused"
+    },
+    "empty": {
+      "waiting": "Waiting for network data…",
+      "no-match": "No connections match the current filters",
+      "no-match-hint": "Adjust search or filters to see more connections"
     }
   },
   "autoruns": {
@@ -665,16 +687,16 @@
       "targets-placeholder": "e.g.: evil.com, *.malware.net, 10.0.0.0/8",
       "enabled": "Enabled",
       "disabled": "Disabled",
-      "import": "Import",
-      "export": "Export",
-      "save": "Save",
-      "saving": "Saving…",
       "delete": "Delete",
-      "export-success": "Rules exported to: %{path}",
+      "export": "Export",
       "export-failed-detail": "Export failed: %{e}",
-      "import-success": "Rules imported from %{path}",
+      "export-success": "Rules exported to: %{path}",
+      "import": "Import",
       "import-failed-detail": "Failed to parse rules: %{e}",
-      "import-read-failed": "Failed to read file: %{e} (place the rules file at %{path})"
+      "import-read-failed": "Failed to read file: %{e} (place the rules file at %{path})",
+      "import-success": "Rules imported from %{path}",
+      "save": "Save",
+      "saving": "Saving…"
     },
     "notification": {
       "title": "Notification Config",
@@ -687,11 +709,11 @@
       "no-rules": "No rules available",
       "popup-duration": "Popup Duration",
       "popup-duration-hint": "seconds, 0 = no auto-close",
-      "test-success": "Feishu test message sent",
-      "test-failed-detail": "Feishu test failed: %{e}",
-      "testing": "Testing…",
-      "show": "Show",
       "hide": "Hide",
+      "show": "Show",
+      "test-failed-detail": "Feishu test failed: %{e}",
+      "test-success": "Feishu test message sent",
+      "testing": "Testing…",
       "untitled": "(Untitled)"
     },
     "database": {
@@ -728,21 +750,21 @@
       "export-failed": "Export failed",
       "import-success": "Import successful, some settings may require restart",
       "import-failed": "Import failed: invalid file format",
-      "export-failed-detail": "Export failed: %{e}",
       "config-exported": "Config exported to: %{path}",
       "config-imported": "Config imported from %{path}",
+      "export-failed-detail": "Export failed: %{e}",
       "import-failed-detail": "Failed to parse config: %{e}",
       "read-failed": "Failed to read file: %{e} (place the config file at %{path})"
     },
     "event-types": {
+      "create-remote-thread": "Remote thread",
       "dns": "DNS query",
       "dns-client": "DNS-Client",
+      "dns-pcap": "DNS capture",
+      "file-create": "File create",
       "network-connect": "Network connection",
       "network-monitor": "Network monitor",
-      "tls-sni": "TLS SNI",
-      "dns-pcap": "DNS capture",
-      "create-remote-thread": "Remote thread",
-      "file-create": "File create"
+      "tls-sni": "TLS SNI"
     },
     "load-failed": "Failed to load config: %{e}",
     "save-failed-detail": "Failed to save config: %{e}"
@@ -912,6 +934,13 @@
       "dns_pcap": "DNS Capture",
       "create_remote_thread": "Remote Thread",
       "file_create": "File Create"
+    }
+  },
+  "design": {
+    "table": {
+      "density": "Toggle table density (compact/standard)",
+      "density-compact": "Compact",
+      "density-standard": "Standard"
     }
   }
 }

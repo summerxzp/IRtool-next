@@ -72,13 +72,29 @@ impl Language {
     }
 }
 
-/// ui-state.json 的落盘结构（theme + language；后续壳状态可扩展字段）。
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// ui-state.json 的落盘结构（theme + language + tables）。
+///
+/// `tables` 是各表格（design/table.rs）的持久化段：table_id → 组件自定义 JSON
+/// （schema 由 table.rs 自管，本模块只负责存取，保持解耦）。缺字段由
+/// `#[serde(default)]` 兜底，旧文件向后兼容。
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UiState {
     #[serde(default)]
     pub theme: ThemeMode,
     #[serde(default)]
     pub language: Language,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub tables: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        UiState {
+            theme: ThemeMode::default(),
+            language: Language::default(),
+            tables: std::collections::BTreeMap::new(),
+        }
+    }
 }
 
 /// Windows 系统应用主题是否偏好深色（AppsUseLightTheme=0 → 深色）。
@@ -292,28 +308,36 @@ pub fn apply(ctx: &Context) {
 
 // ── 持久化（ui-state.json，目录由调用方传入 = AppDirs::config_dir）──
 
-/// 从 `config_dir/ui-state.json` 读取完整 UI 状态（theme + language）；
-/// 无文件/解析失败 → 双默认值（System / zh-CN）。旧文件缺 language 字段时
-/// 由 `#[serde(default)]` 兜底为默认语言。
+/// 从 `config_dir/ui-state.json` 读取完整 UI 状态（theme/language/tables）；
+/// 无文件/解析失败 → 默认值（System / zh-CN / 空 tables）。旧文件缺字段时
+/// 由 `#[serde(default)]` 兜底。
 pub fn load_state(config_dir: &std::path::Path) -> UiState {
     let path = config_dir.join("ui-state.json");
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|text| serde_json::from_str::<UiState>(&text).ok())
-        .unwrap_or(UiState {
-            theme: ThemeMode::default(),
-            language: Language::default(),
-        })
+        .unwrap_or_default()
 }
 
-/// 把主题 mode 写入 `config_dir/ui-state.json`（原子写：先 tmp 再 rename）；
-/// language 取运行时当前值一并落盘。
-pub fn store_mode(mode: ThemeMode, config_dir: &std::path::Path) {
+/// 读改写 `config_dir/ui-state.json`：读出现有内容（缺文件/坏 JSON → 默认值）
+/// 交给 `f` 修改后原子写回（先 tmp 再 rename）。各持久化段落（主题/语言/表格
+/// 状态等）统一走这里做读改写，保证互相不覆盖。
+pub fn update_state(config_dir: &std::path::Path, f: impl FnOnce(&mut UiState)) {
     let path = config_dir.join("ui-state.json");
+    let mut state = load_state(config_dir);
+    f(&mut state);
     let tmp = config_dir.join("ui-state.json.tmp");
-    let body =
-        serde_json::to_string_pretty(&UiState { theme: mode, language: language() }).unwrap_or_default();
+    let body = serde_json::to_string_pretty(&state).unwrap_or_default();
     if std::fs::write(&tmp, body).and_then(|_| std::fs::rename(&tmp, &path)).is_err() {
         tracing::warn!("failed to persist ui-state.json at {}", path.display());
     }
+}
+
+/// 把主题 mode 写入 `config_dir/ui-state.json`（经 [`update_state`] 读改写，
+/// 不动 tables 等其他段）；language 取运行时当前值一并落盘。
+pub fn store_mode(mode: ThemeMode, config_dir: &std::path::Path) {
+    update_state(config_dir, |s| {
+        s.theme = mode;
+        s.language = language();
+    });
 }

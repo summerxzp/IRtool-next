@@ -133,7 +133,9 @@
       "retention-1m": "1 分钟",
       "retention-5m": "5 分钟",
       "retention-10m": "10 分钟",
-      "retention-forever": "永久"
+      "retention-forever": "永久",
+      "select-all": "全选",
+      "clear-all": "取消全选"
     },
     "columns": {
       "proto": "协议",
@@ -154,7 +156,9 @@
       "listening": "监听",
       "time-wait": "TimeWait",
       "close-wait": "CloseWait",
-      "history": "历史"
+      "history": "历史",
+      "count": "%{total} 条连接",
+      "count-history": "%{total} 条连接（含 %{history} 条历史）"
     },
     "detail": {
       "title": "连接详情",
@@ -165,7 +169,16 @@
       "first-seen": "首次出现",
       "last-seen": "最近出现",
       "select-row": "请选择一条连接查看详情",
-      "view-process-chain": "查看进程链"
+      "view-process-chain": "查看进程链",
+      "click-to-copy": "点击复制",
+      "cmdline-status": {
+        "unknown": "未知",
+        "pending": "获取中",
+        "ready": "已就绪",
+        "denied": "访问被拒绝",
+        "exited": "进程已退出",
+        "failed": "查询失败"
+      }
     },
     "kill-confirm": {
       "title": "确认终止进程",
@@ -178,6 +191,15 @@
       "open-explorer": "在资源管理器中打开",
       "kill": "终止进程",
       "search-workspace": "在工作台搜索"
+    },
+    "status": {
+      "polling": "轮询中",
+      "paused": "已暂停"
+    },
+    "empty": {
+      "waiting": "等待网络数据…",
+      "no-match": "没有匹配当前过滤条件的连接",
+      "no-match-hint": "调整搜索或过滤条件以查看更多连接"
     }
   },
   "autoruns": {
@@ -665,16 +687,16 @@
       "targets-placeholder": "如: evil.com, *.malware.net, 10.0.0.0/8",
       "enabled": "启用",
       "disabled": "禁用",
-      "import": "导入",
-      "export": "导出",
-      "save": "保存",
-      "saving": "保存中…",
       "delete": "删除",
-      "export-success": "规则已导出到: %{path}",
+      "export": "导出",
       "export-failed-detail": "导出失败: %{e}",
-      "import-success": "规则已从 %{path} 导入",
+      "export-success": "规则已导出到: %{path}",
+      "import": "导入",
       "import-failed-detail": "解析规则失败: %{e}",
-      "import-read-failed": "读取文件失败: %{e} (请将规则文件放在 %{path})"
+      "import-read-failed": "读取文件失败: %{e} (请将规则文件放在 %{path})",
+      "import-success": "规则已从 %{path} 导入",
+      "save": "保存",
+      "saving": "保存中…"
     },
     "notification": {
       "title": "通知配置",
@@ -687,11 +709,11 @@
       "no-rules": "暂无可用规则",
       "popup-duration": "弹窗时长",
       "popup-duration-hint": "秒，0 = 不自动关闭",
-      "test-success": "飞书测试消息发送成功",
-      "test-failed-detail": "飞书测试失败: %{e}",
-      "testing": "测试中…",
-      "show": "显示",
       "hide": "隐藏",
+      "show": "显示",
+      "test-failed-detail": "飞书测试失败: %{e}",
+      "test-success": "飞书测试消息发送成功",
+      "testing": "测试中…",
       "untitled": "(未命名)"
     },
     "database": {
@@ -728,21 +750,21 @@
       "export-failed": "导出失败",
       "import-success": "导入成功，部分配置需重启生效",
       "import-failed": "导入失败：文件格式无效",
-      "export-failed-detail": "导出失败: %{e}",
       "config-exported": "配置已导出到: %{path}",
       "config-imported": "配置已从 %{path} 导入",
+      "export-failed-detail": "导出失败: %{e}",
       "import-failed-detail": "解析配置失败: %{e}",
       "read-failed": "读取文件失败: %{e} (请将配置文件放在 %{path})"
     },
     "event-types": {
+      "create-remote-thread": "远程线程",
       "dns": "DNS查询",
       "dns-client": "DNS-Client",
+      "dns-pcap": "DNS抓包",
+      "file-create": "文件创建",
       "network-connect": "网络连接",
       "network-monitor": "网络监控",
-      "tls-sni": "TLS SNI",
-      "dns-pcap": "DNS抓包",
-      "create-remote-thread": "远程线程",
-      "file-create": "文件创建"
+      "tls-sni": "TLS SNI"
     },
     "load-failed": "加载配置失败: %{e}",
     "save-failed-detail": "保存配置失败: %{e}"
@@ -912,6 +934,13 @@
       "dns_pcap": "DNS抓包",
       "create_remote_thread": "远程线程",
       "file_create": "文件创建"
+    }
+  },
+  "design": {
+    "table": {
+      "density": "切换表格密度（紧凑/标准）",
+      "density-compact": "紧凑",
+      "density-standard": "标准"
     }
   }
 }
