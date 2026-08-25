@@ -104,12 +104,14 @@
 - [x] spec 三项裁决定稿：selected.bg 15%（P5 落地目检）/ hover 与 bg-elev-2 收窄并存 / 交互态 18% 派生（见 spec §7）
 - 验收记录（2026-08-23）：release 双目标构建零警告；真实采集数据下深色全 app 一致（顶栏/侧栏图标/表格/语义徽章），持久化写入→重启→生效链路验证通过；截图 `target/shots-p3/`
 
-### P4 i18n 就位（必须在逐页迁移前，避免每页摸两遍）
+### P4 i18n 就位（必须在逐页迁移前，避免每页摸两遍）✅
 
-- [ ] 引入 rust-i18n（编译期宏）
-- [ ] 写脚本从 `ui/src/locales/`（817 键 × zh/en）生成 Rust 键表
-- [ ] settings 页语言切换 + 持久化
-- 验收：全局壳 + settings 页完成双语，其余页面允许暂留中文（迁移该页时再接线）
+- [x] rust-i18n 3.x 接入（编译期宏，locales 嵌入二进制）
+- [x] 键表搬运：`scripts/i18n-egui-sync.mjs`（React locale → egui locales 同步 + `scripts/egui-locales-extra/` egui 特有键 merge 源）；zh/en 各 743 键、差集为空；键名沿用 React 原键名（P6 直接用）
+- [x] 全局壳接线（app 31 / nav 9 / layout 6 处 t!）；settings 页全量接线（含事件类型标签动态化、异步消息占位符 %{e}/%{path}），非注释中文残留 0
+- [x] 语言切换：settings 侧栏沉底 ComboBox（各语言自称 native_label），UiState.language 持久化（ui-state.json），切换即时生效
+- 验收记录（2026-08-25）：双目标 release 构建零警告；写 en-US → 重启 → 全英文壳（顶栏/工具栏/状态栏）截图验证通过（`target/shots-p4/`）；其余 8 页零 diff（P6 迁移时接线）
+- 备注：React locale 自身有键不齐现象（如 ioc-matches 缺 en），搬运时已修补；后续 React 侧补键建议同步回脚本源
 
 ### P5 reference 页迁移：network（1,292 行）
 

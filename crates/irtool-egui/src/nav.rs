@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::design::icon::Icon;
 
 /// Navigation page enum.
@@ -27,17 +29,18 @@ impl Page {
         Page::Database,
     ];
 
-    pub fn label(&self) -> &'static str {
+    /// 导航名（i18n：键名与 React ui/src/locales nav.* 一致，P4 起 t! 动态取）。
+    pub fn label(&self) -> Cow<'static, str> {
         match self {
-            Page::Network => "网络监控",
-            Page::Autoruns => "持久化检测",
-            Page::BrowserForensics => "浏览器取证",
-            Page::Sysmon => "日志采集",
-            Page::Process => "进程",
-            Page::Monitor => "后台监控",
-            Page::Database => "数据库",
-            Page::Workspace => "工作台",
-            Page::Settings => "设置",
+            Page::Network => rust_i18n::t!("nav.network"),
+            Page::Autoruns => rust_i18n::t!("nav.autoruns"),
+            Page::BrowserForensics => rust_i18n::t!("nav.browser-forensics"),
+            Page::Sysmon => rust_i18n::t!("nav.log-collector"),
+            Page::Process => rust_i18n::t!("nav.process"),
+            Page::Monitor => rust_i18n::t!("nav.background-monitoring"),
+            Page::Database => rust_i18n::t!("nav.database-search"),
+            Page::Workspace => rust_i18n::t!("nav.workspace"),
+            Page::Settings => rust_i18n::t!("nav.settings"),
         }
     }
 

@@ -3,26 +3,38 @@
 use std::collections::HashMap;
 
 use eframe::egui;
+use rust_i18n::t;
 
 use irtool_service::context::AppContext;
 use irtool_service::services::monitor::MonitorService;
 use irtool_service::types::MonitorConfig;
 
+use crate::design::theme as dtheme;
 use crate::theme;
 use crate::widgets::badge::{self, BadgeVariant};
 
 // ── 事件类型选项 ──────────────────────────────────────────
 
+/// (config 键, i18n 键)；文案经 [`event_type_label`] 动态取，支持语言切换。
 const EVENT_TYPE_OPTIONS: &[(&str, &str)] = &[
-    ("dns", "DNS查询"),
-    ("dns_client", "DNS-Client"),
-    ("network_connect", "网络连接"),
-    ("network_monitor", "网络监控"),
-    ("tls_sni", "TLS SNI"),
-    ("dns_pcap", "DNS抓包"),
-    ("create_remote_thread", "远程线程"),
-    ("file_create", "文件创建"),
+    ("dns", "settings.event-types.dns"),
+    ("dns_client", "settings.event-types.dns-client"),
+    ("network_connect", "settings.event-types.network-connect"),
+    ("network_monitor", "settings.event-types.network-monitor"),
+    ("tls_sni", "settings.event-types.tls-sni"),
+    ("dns_pcap", "settings.event-types.dns-pcap"),
+    ("create_remote_thread", "settings.event-types.create-remote-thread"),
+    ("file_create", "settings.event-types.file-create"),
 ];
+
+fn event_type_label(config_key: &str) -> String {
+    let key = EVENT_TYPE_OPTIONS
+        .iter()
+        .find(|(k, _)| *k == config_key)
+        .map(|(_, i)| *i)
+        .unwrap_or(config_key);
+    t!(key).to_string()
+}
 
 // ── Tab 枚举 ──────────────────────────────────────────────
 
@@ -115,7 +127,7 @@ impl SettingsPageState {
             if let Some(e) = r.feishu_test_error {
                 self.last_error = Some(e);
             } else {
-                self.last_success = Some("飞书测试消息发送成功".to_string());
+                self.last_success = Some(t!("settings.notification.test-success").to_string());
             }
         }
     }
@@ -137,7 +149,7 @@ impl SettingsPageState {
                 }
                 Err(e) => {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("加载配置失败: {}", e)),
+                        error: Some(t!("settings.load-failed", e = e.to_string()).to_string()),
                         ..Default::default()
                     });
                 }
@@ -169,13 +181,13 @@ impl SettingsPageState {
             match svc.update_config(config).await {
                 Ok(()) => {
                     let _ = tx.send(SettingsRefresh {
-                        success: Some("配置已保存".to_string()),
+                        success: Some(t!("settings.save-success").to_string()),
                         ..Default::default()
                     });
                 }
                 Err(e) => {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("保存配置失败: {}", e)),
+                        error: Some(t!("settings.save-failed-detail", e = e.to_string()).to_string()),
                         ..Default::default()
                     });
                 }
@@ -201,7 +213,9 @@ impl SettingsPageState {
                 Err(e) => {
                     let _ = tx.send(SettingsRefresh {
                         feishu_test_done: true,
-                        feishu_test_error: Some(format!("飞书测试失败: {}", e)),
+                        feishu_test_error: Some(
+                            t!("settings.notification.test-failed-detail", e = e.to_string()).to_string(),
+                        ),
                         ..Default::default()
                     });
                 }
@@ -284,7 +298,7 @@ impl SettingsPageState {
             .show(ui, |ui| {
                 ui.add_space(8.0);
                 ui.label(
-                    egui::RichText::new("设置")
+                    egui::RichText::new(t!("settings.title").to_string())
                         .color(theme::fg_secondary())
                         .size(12.0)
                         .strong(),
@@ -292,10 +306,10 @@ impl SettingsPageState {
                 ui.add_space(8.0);
 
                 let tabs = [
-                    (SettingsTab::AlertRules, "告警规则"),
-                    (SettingsTab::Notification, "通知"),
-                    (SettingsTab::DataSource, "数据源"),
-                    (SettingsTab::ImportExport, "导入导出"),
+                    (SettingsTab::AlertRules, t!("settings.tabs.alert-rules").to_string()),
+                    (SettingsTab::Notification, t!("settings.tabs.notification").to_string()),
+                    (SettingsTab::DataSource, t!("settings.tabs.data-source").to_string()),
+                    (SettingsTab::ImportExport, t!("settings.tabs.import-export").to_string()),
                 ];
                 for (tab, label) in tabs {
                     let is_active = self.active_tab == tab;
@@ -312,6 +326,27 @@ impl SettingsPageState {
                         self.active_tab = tab;
                     }
                 }
+
+                // 语言切换（沉底；各语言自称，不随当前语言翻译）
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    ui.add_space(12.0);
+                    let current = dtheme::language();
+                    egui::ComboBox::from_id_salt("settings_language")
+                        .selected_text(current.native_label())
+                        .width(130.0)
+                        .show_ui(ui, |ui| {
+                            for lang in dtheme::Language::ALL {
+                                if ui
+                                    .selectable_label(current == lang, lang.native_label())
+                                    .clicked()
+                                {
+                                    dtheme::set_language(lang);
+                                    dtheme::store_mode(dtheme::mode(), &ctx.app_dirs.config_dir());
+                                    ui.ctx().request_repaint();
+                                }
+                            }
+                        });
+                });
             });
 
         egui::CentralPanel::default().show(ui, |ui| {
@@ -361,24 +396,29 @@ impl SettingsPageState {
     fn render_alert_rules(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new("告警规则")
+                egui::RichText::new(t!("settings.alert-rules.title").to_string())
                     .color(theme::fg_primary())
                     .strong()
                     .size(13.0),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("导入").clicked() {
+                if ui.button(t!("settings.alert-rules.import").to_string()).clicked() {
                     self.import_rules(ctx);
                 }
-                if ui.button("导出").clicked() {
+                if ui.button(t!("settings.alert-rules.export").to_string()).clicked() {
                     self.export_rules(ctx);
                 }
-                if ui.button("添加").clicked() {
+                if ui.button(t!("settings.alert-rules.add").to_string()).clicked() {
                     self.add_rule();
                 }
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
+                        egui::RichText::new(if self.saving {
+                            t!("settings.alert-rules.saving").to_string()
+                        } else {
+                            t!("settings.alert-rules.save").to_string()
+                        })
+                        .color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -393,7 +433,7 @@ impl SettingsPageState {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new("暂无告警规则，点击「添加」创建")
+                    egui::RichText::new(t!("settings.alert-rules.empty").to_string())
                         .color(theme::fg_tertiary())
                         .size(12.0),
                 );
@@ -411,7 +451,7 @@ impl SettingsPageState {
                     let mut name = rule.name.clone();
                     ui.add(
                         egui::TextEdit::singleline(&mut name)
-                            .hint_text("规则名称")
+                            .hint_text(t!("settings.alert-rules.rule-name").to_string())
                             .desired_width(160.0),
                     );
                     rule.name = name;
@@ -423,16 +463,23 @@ impl SettingsPageState {
                     ui.checkbox(&mut enabled, "");
                     rule.enabled = enabled;
                     ui.label(
-                        egui::RichText::new(if enabled { "已启用" } else { "已禁用" })
-                            .color(theme::fg_tertiary())
-                            .size(10.0),
+                        egui::RichText::new(if enabled {
+                            t!("settings.alert-rules.enabled").to_string()
+                        } else {
+                            t!("settings.alert-rules.disabled").to_string()
+                        })
+                        .color(theme::fg_tertiary())
+                        .size(10.0),
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("删除").color(theme::semantic_danger()))
-                                    .frame(false),
+                                egui::Button::new(
+                                    egui::RichText::new(t!("settings.alert-rules.delete").to_string())
+                                        .color(theme::semantic_danger()),
+                                )
+                                .frame(false),
                             )
                             .clicked()
                         {
@@ -447,7 +494,7 @@ impl SettingsPageState {
                 let targets_str = self.targets_input.entry(rule_id.clone()).or_default();
                 ui.add(
                     egui::TextEdit::singleline(targets_str)
-                        .hint_text("匹配目标（域名/IP/CIDR，逗号分隔）")
+                        .hint_text(t!("settings.alert-rules.targets-placeholder").to_string())
                         .desired_width(ui.available_width()),
                 );
 
@@ -455,14 +502,15 @@ impl SettingsPageState {
 
                 // 事件类型 badges
                 ui.horizontal_wrapped(|ui| {
-                    for (key, label) in EVENT_TYPE_OPTIONS {
+                    for (key, _) in EVENT_TYPE_OPTIONS {
+                        let label = event_type_label(key);
                         let selected = rule.event_types.iter().any(|t| t == *key);
                         let text = if selected {
                             egui::RichText::new(format!("{} √", label))
                                 .color(egui::Color32::WHITE)
                                 .size(10.0)
                         } else {
-                            egui::RichText::new(*label).color(theme::fg_tertiary()).size(10.0)
+                            egui::RichText::new(label).color(theme::fg_tertiary()).size(10.0)
                         };
                         let btn = if selected {
                             egui::Button::new(text).fill(theme::accent())
@@ -492,11 +540,21 @@ impl SettingsPageState {
 
     fn render_notification(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("通知").color(theme::fg_primary()).strong().size(13.0));
+            ui.label(
+                egui::RichText::new(t!("settings.notification.title").to_string())
+                    .color(theme::fg_primary())
+                    .strong()
+                    .size(13.0),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
+                        egui::RichText::new(if self.saving {
+                            t!("settings.alert-rules.saving").to_string()
+                        } else {
+                            t!("settings.alert-rules.save").to_string()
+                        })
+                        .color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -511,16 +569,16 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("弹窗通知")
+                    egui::RichText::new(t!("settings.notification.popup").to_string())
                         .color(theme::fg_primary())
                         .strong()
                         .size(12.0),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("取消全选").clicked() {
+                    if ui.small_button(t!("settings.notification.deselect-all").to_string()).clicked() {
                         self.select_all_popup(false);
                     }
-                    if ui.small_button("全选").clicked() {
+                    if ui.small_button(t!("settings.notification.select-all").to_string()).clicked() {
                         self.select_all_popup(true);
                     }
                 });
@@ -528,7 +586,11 @@ impl SettingsPageState {
             ui.add_space(4.0);
 
             if self.config.rules.is_empty() {
-                ui.label(egui::RichText::new("暂无规则").color(theme::fg_tertiary()).size(10.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.notification.no-rules").to_string())
+                        .color(theme::fg_tertiary())
+                        .size(10.0),
+                );
             } else {
                 let mut toggles: Vec<String> = Vec::new();
                 for rule in &self.config.rules {
@@ -541,19 +603,17 @@ impl SettingsPageState {
                         }
                         ui.label(
                             egui::RichText::new(if rule.name.is_empty() {
-                                "(未命名)"
+                                t!("settings.notification.untitled").to_string()
                             } else {
-                                &rule.name
+                                rule.name.clone()
                             })
                             .color(theme::fg_primary())
                             .size(11.0),
                         );
                         ui.add_space(4.0);
                         for et in &rule.event_types {
-                            if let Some((_, label)) = EVENT_TYPE_OPTIONS.iter().find(|(k, _)| k == et) {
-                                badge::badge(ui, label, BadgeVariant::Default);
-                                ui.add_space(2.0);
-                            }
+                            badge::badge(ui, &event_type_label(et), BadgeVariant::Default);
+                            ui.add_space(2.0);
                         }
                     });
                 }
@@ -568,10 +628,14 @@ impl SettingsPageState {
 
             // 弹窗时长
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("弹窗时长").color(theme::fg_secondary()).size(11.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.notification.popup-duration").to_string())
+                        .color(theme::fg_secondary())
+                        .size(11.0),
+                );
                 ui.add(egui::DragValue::new(&mut self.config.notify_config.popup_duration_secs).range(0..=3600));
                 ui.label(
-                    egui::RichText::new("秒（0 = 不自动关闭）")
+                    egui::RichText::new(t!("settings.notification.popup-duration-hint").to_string())
                         .color(theme::fg_tertiary())
                         .size(10.0),
                 );
@@ -584,16 +648,16 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("飞书通知")
+                    egui::RichText::new(t!("settings.notification.feishu").to_string())
                         .color(theme::fg_primary())
                         .strong()
                         .size(12.0),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("取消全选").clicked() {
+                    if ui.small_button(t!("settings.notification.deselect-all").to_string()).clicked() {
                         self.select_all_feishu(false);
                     }
-                    if ui.small_button("全选").clicked() {
+                    if ui.small_button(t!("settings.notification.select-all").to_string()).clicked() {
                         self.select_all_feishu(true);
                     }
                 });
@@ -601,7 +665,11 @@ impl SettingsPageState {
             ui.add_space(4.0);
 
             if self.config.rules.is_empty() {
-                ui.label(egui::RichText::new("暂无规则").color(theme::fg_tertiary()).size(10.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.notification.no-rules").to_string())
+                        .color(theme::fg_tertiary())
+                        .size(10.0),
+                );
             } else {
                 let mut toggles: Vec<String> = Vec::new();
                 for rule in &self.config.rules {
@@ -614,19 +682,17 @@ impl SettingsPageState {
                         }
                         ui.label(
                             egui::RichText::new(if rule.name.is_empty() {
-                                "(未命名)"
+                                t!("settings.notification.untitled").to_string()
                             } else {
-                                &rule.name
+                                rule.name.clone()
                             })
                             .color(theme::fg_primary())
                             .size(11.0),
                         );
                         ui.add_space(4.0);
                         for et in &rule.event_types {
-                            if let Some((_, label)) = EVENT_TYPE_OPTIONS.iter().find(|(k, _)| k == et) {
-                                badge::badge(ui, label, BadgeVariant::Default);
-                                ui.add_space(2.0);
-                            }
+                            badge::badge(ui, &event_type_label(et), BadgeVariant::Default);
+                            ui.add_space(2.0);
                         }
                     });
                 }
@@ -639,7 +705,11 @@ impl SettingsPageState {
 
             // Webhook URL
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Webhook URL").color(theme::fg_secondary()).size(11.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.notification.webhook-url").to_string())
+                        .color(theme::fg_secondary())
+                        .size(11.0),
+                );
                 let display_url = if self.revealed_feishu_url {
                     self.feishu_webhook_url.clone()
                 } else {
@@ -656,7 +726,11 @@ impl SettingsPageState {
                     self.feishu_webhook_url = buf;
                 }
                 if ui
-                    .button(if self.revealed_feishu_url { "隐藏" } else { "显示" })
+                    .button(if self.revealed_feishu_url {
+                        t!("settings.notification.hide").to_string()
+                    } else {
+                        t!("settings.notification.show").to_string()
+                    })
                     .clicked()
                 {
                     self.revealed_feishu_url = !self.revealed_feishu_url;
@@ -665,8 +739,12 @@ impl SettingsPageState {
                     .add_enabled(
                         !self.testing_feishu && !self.feishu_webhook_url.is_empty(),
                         egui::Button::new(
-                            egui::RichText::new(if self.testing_feishu { "测试中…" } else { "测试" })
-                                .color(theme::accent()),
+                            egui::RichText::new(if self.testing_feishu {
+                                t!("settings.notification.testing").to_string()
+                            } else {
+                                t!("settings.notification.test").to_string()
+                            })
+                            .color(theme::accent()),
                         ),
                     )
                     .clicked()
@@ -683,7 +761,7 @@ impl SettingsPageState {
     fn render_data_source(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new("数据源")
+                egui::RichText::new(t!("settings.data-source.title").to_string())
                     .color(theme::fg_primary())
                     .strong()
                     .size(13.0),
@@ -691,7 +769,12 @@ impl SettingsPageState {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
+                        egui::RichText::new(if self.saving {
+                            t!("settings.alert-rules.saving").to_string()
+                        } else {
+                            t!("settings.alert-rules.save").to_string()
+                        })
+                        .color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -706,16 +789,20 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.config.enable_sni, "");
-                ui.label(egui::RichText::new("TLS SNI 提取").color(theme::fg_primary()).size(12.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.data-source.sni").to_string())
+                        .color(theme::fg_primary())
+                        .size(12.0),
+                );
             });
             ui.add_space(2.0);
             ui.label(
-                egui::RichText::new("从网络流量中提取 TLS SNI（Server Name Indication）信息")
+                egui::RichText::new(t!("settings.data-source.sni-desc").to_string())
                     .color(theme::fg_tertiary())
                     .size(10.0),
             );
             ui.label(
-                egui::RichText::new("数据来源：网络层抓包（TCP:443）")
+                egui::RichText::new(t!("settings.data-source.sni-source").to_string())
                     .color(theme::fg_tertiary())
                     .size(10.0),
             );
@@ -727,16 +814,20 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.config.enable_dns_pcap, "");
-                ui.label(egui::RichText::new("DNS 抓包").color(theme::fg_primary()).size(12.0));
+                ui.label(
+                    egui::RichText::new(t!("settings.data-source.dns-pcap").to_string())
+                        .color(theme::fg_primary())
+                        .size(12.0),
+                );
             });
             ui.add_space(2.0);
             ui.label(
-                egui::RichText::new("在网络层捕获 DNS 查询和响应")
+                egui::RichText::new(t!("settings.data-source.dns-pcap-desc").to_string())
                     .color(theme::fg_tertiary())
                     .size(10.0),
             );
             ui.label(
-                egui::RichText::new("数据来源：网络层抓包（UDP:53）")
+                egui::RichText::new(t!("settings.data-source.dns-pcap-source").to_string())
                     .color(theme::fg_tertiary())
                     .size(10.0),
             );
@@ -747,30 +838,30 @@ impl SettingsPageState {
 
     fn render_import_export(&mut self, ui: &mut egui::Ui, ctx: &AppContext, _rt: &tokio::runtime::Handle) {
         ui.label(
-            egui::RichText::new("导入导出")
+            egui::RichText::new(t!("settings.import-export.title").to_string())
                 .color(theme::fg_primary())
                 .strong()
                 .size(13.0),
         );
         ui.add_space(4.0);
         ui.label(
-            egui::RichText::new("导出当前配置到文件，或从文件导入配置")
+            egui::RichText::new(t!("settings.import-export.desc").to_string())
                 .color(theme::fg_tertiary())
                 .size(11.0),
         );
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
-            if ui.button("导出配置").clicked() {
+            if ui.button(t!("settings.import-export.export").to_string()).clicked() {
                 self.export_config(ctx);
             }
-            if ui.button("导入配置").clicked() {
+            if ui.button(t!("settings.import-export.import").to_string()).clicked() {
                 self.import_config(ctx);
             }
-            if ui.button("导出规则").clicked() {
+            if ui.button(t!("settings.alert-rules.export").to_string()).clicked() {
                 self.export_rules(ctx);
             }
-            if ui.button("导入规则").clicked() {
+            if ui.button(t!("settings.alert-rules.import").to_string()).clicked() {
                 self.import_rules(ctx);
             }
         });
@@ -788,7 +879,10 @@ impl SettingsPageState {
             Ok(()) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        success: Some(format!("配置已导出到: {}", path.display())),
+                        success: Some(
+                            t!("settings.import-export.config-exported", path = path.display().to_string())
+                                .to_string(),
+                        ),
                         ..Default::default()
                     });
                 }
@@ -796,7 +890,7 @@ impl SettingsPageState {
             Err(e) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("导出失败: {}", e)),
+                        error: Some(t!("settings.import-export.export-failed-detail", e = e.to_string()).to_string()),
                         ..Default::default()
                     });
                 }
@@ -819,7 +913,10 @@ impl SettingsPageState {
                     self.config = config;
                     if let Some(tx) = &self.refresh_tx {
                         let _ = tx.send(SettingsRefresh {
-                            success: Some(format!("配置已从 {} 导入", path.display())),
+                            success: Some(
+                                t!("settings.import-export.config-imported", path = path.display().to_string())
+                                    .to_string(),
+                            ),
                             ..Default::default()
                         });
                     }
@@ -827,7 +924,9 @@ impl SettingsPageState {
                 Err(e) => {
                     if let Some(tx) = &self.refresh_tx {
                         let _ = tx.send(SettingsRefresh {
-                            error: Some(format!("解析配置失败: {}", e)),
+                            error: Some(
+                                t!("settings.import-export.import-failed-detail", e = e.to_string()).to_string(),
+                            ),
                             ..Default::default()
                         });
                     }
@@ -836,7 +935,14 @@ impl SettingsPageState {
             Err(e) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("读取文件失败: {} (请将配置文件放在 {})", e, path.display())),
+                        error: Some(
+                            t!(
+                                "settings.import-export.read-failed",
+                                e = e.to_string(),
+                                path = path.display().to_string()
+                            )
+                            .to_string(),
+                        ),
                         ..Default::default()
                     });
                 }
@@ -854,7 +960,10 @@ impl SettingsPageState {
             Ok(()) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        success: Some(format!("规则已导出到: {}", path.display())),
+                        success: Some(
+                            t!("settings.alert-rules.export-success", path = path.display().to_string())
+                                .to_string(),
+                        ),
                         ..Default::default()
                     });
                 }
@@ -862,7 +971,7 @@ impl SettingsPageState {
             Err(e) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("导出失败: {}", e)),
+                        error: Some(t!("settings.alert-rules.export-failed-detail", e = e.to_string()).to_string()),
                         ..Default::default()
                     });
                 }
@@ -885,7 +994,10 @@ impl SettingsPageState {
                     }
                     if let Some(tx) = &self.refresh_tx {
                         let _ = tx.send(SettingsRefresh {
-                            success: Some(format!("规则已从 {} 导入", path.display())),
+                            success: Some(
+                                t!("settings.alert-rules.import-success", path = path.display().to_string())
+                                    .to_string(),
+                            ),
                             ..Default::default()
                         });
                     }
@@ -893,7 +1005,9 @@ impl SettingsPageState {
                 Err(e) => {
                     if let Some(tx) = &self.refresh_tx {
                         let _ = tx.send(SettingsRefresh {
-                            error: Some(format!("解析规则失败: {}", e)),
+                            error: Some(
+                                t!("settings.alert-rules.import-failed-detail", e = e.to_string()).to_string(),
+                            ),
                             ..Default::default()
                         });
                     }
@@ -902,7 +1016,14 @@ impl SettingsPageState {
             Err(e) => {
                 if let Some(tx) = &self.refresh_tx {
                     let _ = tx.send(SettingsRefresh {
-                        error: Some(format!("读取文件失败: {} (请将规则文件放在 {})", e, path.display())),
+                        error: Some(
+                            t!(
+                                "settings.alert-rules.import-read-failed",
+                                e = e.to_string(),
+                                path = path.display().to_string()
+                            )
+                            .to_string(),
+                        ),
                         ..Default::default()
                     });
                 }

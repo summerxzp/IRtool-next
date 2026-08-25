@@ -39,22 +39,46 @@ impl ThemeMode {
             ThemeMode::System => ThemeMode::Light,
         }
     }
+}
 
-    /// 控件显示名。
-    pub fn label(self) -> &'static str {
+/// 界面语言（P4）：对齐 React 侧 supportedLngs（ui/src/lib/i18n.ts）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Language {
+    #[default]
+    #[serde(rename = "zh-CN")]
+    ZhCn,
+    #[serde(rename = "en-US")]
+    EnUs,
+}
+
+impl Language {
+    /// 全部支持的语言（settings 页语言控件枚举用）。
+    pub const ALL: [Language; 2] = [Language::ZhCn, Language::EnUs];
+
+    /// rust-i18n locale 代码（= ui-state.json 落盘值）。
+    pub fn code(self) -> &'static str {
         match self {
-            ThemeMode::Light => "浅色",
-            ThemeMode::Dark => "深色",
-            ThemeMode::System => "跟随系统",
+            Language::ZhCn => "zh-CN",
+            Language::EnUs => "en-US",
+        }
+    }
+
+    /// 控件选项文案：各语言自称，不随当前语言翻译（React 惯例）。
+    pub fn native_label(self) -> &'static str {
+        match self {
+            Language::ZhCn => "简体中文",
+            Language::EnUs => "English",
         }
     }
 }
 
-/// ui-state.json 的落盘结构（目前仅主题；后续壳状态可扩展字段）。
+/// ui-state.json 的落盘结构（theme + language；后续壳状态可扩展字段）。
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct UiState {
     #[serde(default)]
     pub theme: ThemeMode,
+    #[serde(default)]
+    pub language: Language,
 }
 
 /// Windows 系统应用主题是否偏好深色（AppsUseLightTheme=0 → 深色）。
@@ -104,6 +128,24 @@ struct ThemeState {
 }
 
 static STATE: OnceLock<RwLock<ThemeState>> = OnceLock::new();
+
+/// 界面语言运行时（与主题同模式：OnceLock + RwLock，读多写少）。
+static LANG: OnceLock<RwLock<Language>> = OnceLock::new();
+
+fn lang_state() -> &'static RwLock<Language> {
+    LANG.get_or_init(|| RwLock::new(Language::default()))
+}
+
+/// 当前界面语言。
+pub fn language() -> Language {
+    *lang_state().read()
+}
+
+/// 设置界面语言并同步 rust-i18n locale（切换即时生效；重绘由调用方 request_repaint）。
+pub fn set_language(lang: Language) {
+    *lang_state().write() = lang;
+    rust_i18n::set_locale(lang.code());
+}
 
 fn state() -> &'static RwLock<ThemeState> {
     STATE.get_or_init(|| {
@@ -250,21 +292,27 @@ pub fn apply(ctx: &Context) {
 
 // ── 持久化（ui-state.json，目录由调用方传入 = AppDirs::config_dir）──
 
-/// 从 `config_dir/ui-state.json` 读取主题 mode；无文件/解析失败 → System。
-pub fn load_mode(config_dir: &std::path::Path) -> ThemeMode {
+/// 从 `config_dir/ui-state.json` 读取完整 UI 状态（theme + language）；
+/// 无文件/解析失败 → 双默认值（System / zh-CN）。旧文件缺 language 字段时
+/// 由 `#[serde(default)]` 兜底为默认语言。
+pub fn load_state(config_dir: &std::path::Path) -> UiState {
     let path = config_dir.join("ui-state.json");
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|text| serde_json::from_str::<UiState>(&text).ok())
-        .map(|s| s.theme)
-        .unwrap_or_default()
+        .unwrap_or(UiState {
+            theme: ThemeMode::default(),
+            language: Language::default(),
+        })
 }
 
-/// 把主题 mode 写入 `config_dir/ui-state.json`（原子写：先 tmp 再 rename）。
+/// 把主题 mode 写入 `config_dir/ui-state.json`（原子写：先 tmp 再 rename）；
+/// language 取运行时当前值一并落盘。
 pub fn store_mode(mode: ThemeMode, config_dir: &std::path::Path) {
     let path = config_dir.join("ui-state.json");
     let tmp = config_dir.join("ui-state.json.tmp");
-    let body = serde_json::to_string_pretty(&UiState { theme: mode }).unwrap_or_default();
+    let body =
+        serde_json::to_string_pretty(&UiState { theme: mode, language: language() }).unwrap_or_default();
     if std::fs::write(&tmp, body).and_then(|_| std::fs::rename(&tmp, &path)).is_err() {
         tracing::warn!("failed to persist ui-state.json at {}", path.display());
     }

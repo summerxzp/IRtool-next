@@ -115,10 +115,12 @@ impl IrtoolApp {
     ) -> Self {
         let is_admin = is_running_as_admin();
 
-        // 主题运行时初始化：读取 config/ui-state.json（无文件 → System），
-        // System 按注册表 AppsUseLightTheme 解析。
-        let theme_mode = dtheme::load_mode(&ctx.app_dirs.config_dir());
-        dtheme::init(theme_mode);
+        // 主题/语言运行时初始化：读取 config/ui-state.json（无文件 → System / zh-CN），
+        // System 按注册表 AppsUseLightTheme 解析；语言同路加载并应用 rust-i18n locale
+        // （须在 create_tray 之前，保证托盘菜单文本使用启动语言）。
+        let ui_state = dtheme::load_state(&ctx.app_dirs.config_dir());
+        dtheme::init(ui_state.theme);
+        dtheme::set_language(ui_state.language);
 
         let (autoruns_refresh_tx, autoruns_refresh_rx) = std::sync::mpsc::channel::<Vec<AutorunItem>>();
         let (sysmon_refresh_tx, sysmon_refresh_rx) = std::sync::mpsc::channel::<SysmonRefresh>();
@@ -350,7 +352,13 @@ impl IrtoolApp {
         }
         let mut open = self.fallback_notice_open;
         let mut know_clicked = false;
-        egui::Window::new("备用界面提示")
+        let heading = rust_i18n::t!("shell.fallback.heading");
+        let desc = rust_i18n::t!("shell.fallback.desc");
+        let install_hint = rust_i18n::t!("shell.fallback.install-hint");
+        let rec_title = rust_i18n::t!("shell.fallback.rec-title");
+        let rec_detail = rust_i18n::t!("shell.fallback.rec-detail");
+        let open_dl = rust_i18n::t!("shell.fallback.open-download-page");
+        egui::Window::new(rust_i18n::t!("shell.fallback.title"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -362,22 +370,15 @@ impl IrtoolApp {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new("ℹ").size(20.0).color(theme::semantic_warning()));
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new("当前正在使用备用界面").strong().size(14.0));
+                        ui.label(egui::RichText::new(heading.as_ref()).strong().size(14.0));
                     });
                     ui.add_space(8.0);
 
-                    ui.label(
-                        egui::RichText::new(
-                            "由于系统未安装 Microsoft Edge WebView2 运行时，IRTool 已自动降级为备用界面（egui）。\n\
-                             备用界面提供与主界面相同的核心功能，但视觉效果和部分交互体验有所简化。",
-                        )
-                        .size(12.0)
-                        .color(theme::fg_secondary()),
-                    );
+                    ui.label(egui::RichText::new(desc.as_ref()).size(12.0).color(theme::fg_secondary()));
                     ui.add_space(10.0);
 
                     ui.label(
-                        egui::RichText::new("安装 WebView2 运行时后即可恢复主界面：")
+                        egui::RichText::new(install_hint.as_ref())
                             .size(12.0)
                             .color(theme::fg_primary()),
                     );
@@ -386,12 +387,12 @@ impl IrtoolApp {
                     // 推荐选项说明
                     ui.vertical(|ui| {
                         ui.label(
-                            egui::RichText::new("• 推荐下载「常青独立安装程序」（Evergreen Standalone Installer）")
+                            egui::RichText::new(rec_title.as_ref())
                                 .size(11.0)
                                 .color(theme::fg_secondary()),
                         );
                         ui.label(
-                            egui::RichText::new("  相比引导程序（Bootstrapper），直接下载安装包速度更快，体积相近。")
+                            egui::RichText::new(rec_detail.as_ref())
                                 .size(11.0)
                                 .color(theme::fg_tertiary()),
                         );
@@ -399,11 +400,11 @@ impl IrtoolApp {
                     ui.add_space(10.0);
 
                     ui.horizontal(|ui| {
-                        if ui.button("打开 WebView2 下载页").clicked() {
+                        if ui.button(open_dl.as_ref()).clicked() {
                             let _ = webbrowser::open(WEBVIEW2_DOWNLOAD_URL);
                         }
                         ui.add_space((ui.available_width() - 60.0).max(0.0));
-                        if ui.button("知道了").clicked() {
+                        if ui.button(rust_i18n::t!("shell.fallback.ok").as_ref()).clicked() {
                             know_clicked = true;
                         }
                     });
@@ -425,8 +426,9 @@ impl IrtoolApp {
         let mut recheck_clicked = false;
         let mut download_clicked = false;
         let mut relaunch_clicked = false;
+        let intro = rust_i18n::t!("shell.tools.intro");
 
-        egui::Window::new("外部工具管理")
+        egui::Window::new(rust_i18n::t!("shell.tools.title"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -435,17 +437,12 @@ impl IrtoolApp {
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new(
-                            "以下工具需要从 Microsoft 官方下载，IRTool 不会内置或二次分发这些二进制文件。",
-                        )
-                        .size(11.0)
-                        .color(theme::fg_tertiary()),
-                    );
+                    ui.label(egui::RichText::new(intro.as_ref()).size(11.0).color(theme::fg_tertiary()));
                     ui.add_space(6.0);
 
                     if self.tools_status.is_empty() {
-                        ui.label(egui::RichText::new("检测中...").size(12.0).color(theme::fg_tertiary()));
+                        let checking = rust_i18n::t!("shell.tools.checking");
+                        ui.label(egui::RichText::new(checking.as_ref()).size(12.0).color(theme::fg_tertiary()));
                     } else {
                         for tool in &self.tools_status {
                             ui.horizontal(|ui| {
@@ -459,9 +456,15 @@ impl IrtoolApp {
                                     ui.horizontal(|ui| {
                                         ui.label(egui::RichText::new(tool_label(&tool.id)).strong().size(12.0));
                                         if tool.optional {
-                                            ui.label(egui::RichText::new("可选").size(10.0).color(theme::fg_tertiary()));
+                                            let optional = rust_i18n::t!("shell.tools.optional");
+                                            ui.label(
+                                                egui::RichText::new(optional.as_ref())
+                                                    .size(10.0)
+                                                    .color(theme::fg_tertiary()),
+                                            );
                                         }
                                     });
+                                    let missing = rust_i18n::t!("shell.tools.missing");
                                     let detail = if tool.installed {
                                         format!(
                                             "v{} — {}",
@@ -469,7 +472,7 @@ impl IrtoolApp {
                                             tool.files.join(", ")
                                         )
                                     } else {
-                                        format!("缺失: {}", tool.missing_files.join(", "))
+                                        format!("{}: {}", missing.as_ref(), tool.missing_files.join(", "))
                                     };
                                     ui.label(egui::RichText::new(detail).size(10.0).color(theme::fg_tertiary()));
                                 });
@@ -488,7 +491,7 @@ impl IrtoolApp {
                             entries.iter().map(|&v| v as u32).sum::<u32>() / entries.len() as u32
                         };
                         ui.label(
-                            egui::RichText::new(format!("正在下载... {}%", overall))
+                            egui::RichText::new(rust_i18n::t!("shell.tools.downloading", percent = overall).as_ref())
                                 .size(11.0)
                                 .color(theme::fg_secondary()),
                         );
@@ -500,32 +503,34 @@ impl IrtoolApp {
                     if self.tools_download_done && !self.tools_downloading {
                         ui.add_space(4.0);
                         if self.tools_download_error.is_none() {
+                            let done = rust_i18n::t!("shell.tools.download-done");
                             egui::Frame::new()
                                 .fill(theme::semantic_success().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
                                     ui.label(
-                                        egui::RichText::new(
-                                            "下载完成，EULA 已自动接受。点击「立即重启生效」以加载新工具。",
-                                        )
-                                        .size(11.0)
-                                        .color(theme::semantic_success()),
+                                        egui::RichText::new(done.as_ref())
+                                            .size(11.0)
+                                            .color(theme::semantic_success()),
                                     );
                                 });
                         } else {
+                            let partial = rust_i18n::t!("shell.tools.partial-failed");
+                            let msg = format!(
+                                "{}\n{}",
+                                partial.as_ref(),
+                                self.tools_download_error.as_deref().unwrap_or("")
+                            );
                             egui::Frame::new()
                                 .fill(theme::semantic_danger().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
                                     ui.label(
-                                        egui::RichText::new(format!(
-                                            "部分工具下载失败:\n{}",
-                                            self.tools_download_error.as_deref().unwrap_or("")
-                                        ))
-                                        .size(11.0)
-                                        .color(theme::semantic_danger()),
+                                        egui::RichText::new(msg)
+                                            .size(11.0)
+                                            .color(theme::semantic_danger()),
                                     );
                                 });
                         }
@@ -535,13 +540,15 @@ impl IrtoolApp {
                     if self.tools_downloading {
                         if let Some(ref err) = self.tools_download_error {
                             ui.add_space(4.0);
+                            let failed = rust_i18n::t!("shell.tools.download-failed");
+                            let msg = format!("{}\n{}", failed.as_ref(), err);
                             egui::Frame::new()
                                 .fill(theme::semantic_danger().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
                                     ui.label(
-                                        egui::RichText::new(format!("下载失败:\n{}", err))
+                                        egui::RichText::new(msg)
                                             .size(11.0)
                                             .color(theme::semantic_danger()),
                                     );
@@ -550,9 +557,14 @@ impl IrtoolApp {
                     }
 
                     ui.add_space(6.0);
+                    let source = rust_i18n::t!("shell.tools.source");
+                    let relaunch = rust_i18n::t!("shell.tools.relaunch");
+                    let recheck = rust_i18n::t!("shell.tools.recheck");
+                    let download_missing = rust_i18n::t!("shell.tools.download-missing");
+                    let close = rust_i18n::t!("shell.tools.close");
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("来源: download.sysinternals.com (Microsoft 官方)")
+                            egui::RichText::new(source.as_ref())
                                 .size(10.0)
                                 .color(theme::fg_tertiary()),
                         );
@@ -560,22 +572,22 @@ impl IrtoolApp {
                         if self.tools_download_done
                             && !self.tools_downloading
                             && self.tools_download_error.is_none()
-                            && ui.button("立即重启生效").clicked()
+                            && ui.button(relaunch.as_ref()).clicked()
                         {
                             relaunch_clicked = true;
                         }
-                        if ui.button("重新检测").clicked() {
+                        if ui.button(recheck.as_ref()).clicked() {
                             recheck_clicked = true;
                         }
                         let missing = self.tools_status.iter().any(|t| !t.installed);
                         if missing
                             && !self.tools_downloading
                             && !self.tools_download_done
-                            && ui.button("一键下载缺失工具").clicked()
+                            && ui.button(download_missing.as_ref()).clicked()
                         {
                             download_clicked = true;
                         }
-                        if ui.button("关闭").clicked() {
+                        if ui.button(close.as_ref()).clicked() {
                             close_clicked = true;
                         }
                     });
@@ -972,25 +984,27 @@ impl eframe::App for IrtoolApp {
 
         // 6b. Exit confirmation dialog (background monitoring running)
         if self.exit_confirm_open {
-            egui::Window::new("后台监控运行中")
+            let msg1 = rust_i18n::t!("shell.exit-confirm.msg1");
+            let msg2 = rust_i18n::t!("shell.exit-confirm.msg2");
+            egui::Window::new(rust_i18n::t!("shell.exit-confirm.title"))
                 .collapsible(false)
                 .resizable(false)
                 .min_width(320.0)
                 .show(&ctx, |ui| {
-                    ui.label("当前处于后台监控模式，数据采集仍在运行。");
-                    ui.label("关闭窗口将中断监控。请选择：");
+                    ui.label(msg1.as_ref());
+                    ui.label(msg2.as_ref());
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("后台运行").clicked() {
+                        if ui.button(rust_i18n::t!("shell.exit-confirm.background").as_ref()).clicked() {
                             self.exit_confirm_open = false;
                             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         }
-                        if ui.button("彻底退出").clicked() {
+                        if ui.button(rust_i18n::t!("shell.exit-confirm.quit").as_ref()).clicked() {
                             self.exit_confirm_open = false;
                             self.force_exit = true;
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        if ui.button("取消").clicked() {
+                        if ui.button(rust_i18n::t!("common.cancel").as_ref()).clicked() {
                             self.exit_confirm_open = false;
                         }
                     });
@@ -1081,13 +1095,14 @@ fn post_close_to_window() {}
 
 /// 创建系统托盘图标和菜单。
 /// 返回 (TrayIcon, 显示窗口菜单项ID, 退出菜单项ID)。
+/// 注意：菜单文本取启动时语言（托盘菜单无法逐帧刷新）。
 fn create_tray() -> (Option<tray_icon::TrayIcon>, muda::MenuId, muda::MenuId) {
     use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
     use tray_icon::{Icon, TrayIconBuilder};
 
     let menu = Menu::new();
-    let show_item = MenuItem::new("显示窗口", true, None);
-    let quit_item = MenuItem::new("退出", true, None);
+    let show_item = MenuItem::new(rust_i18n::t!("shell.tray.show").to_string(), true, None);
+    let quit_item = MenuItem::new(rust_i18n::t!("shell.tray.quit").to_string(), true, None);
     let sep = PredefinedMenuItem::separator();
     let _ = menu.append(&show_item);
     let _ = menu.append(&sep);
@@ -1104,9 +1119,10 @@ fn create_tray() -> (Option<tray_icon::TrayIcon>, muda::MenuId, muda::MenuId) {
         Icon::from_rgba(rgba.to_vec(), w, h).ok()
     });
 
+    let tooltip = format!("{} - {}", rust_i18n::t!("app.name"), rust_i18n::t!("app.tagline"));
     let mut builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip("IRtool - 应急响应工具");
+        .with_tooltip(tooltip);
 
     if let Some(icon) = icon {
         builder = builder.with_icon(icon);

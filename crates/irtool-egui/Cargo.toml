@@ -36,6 +36,8 @@ webbrowser = "1.2"
 tray-icon = "0.23"
 muda = "0.19"
 
+rust-i18n = "3"
+
 windows = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Security",

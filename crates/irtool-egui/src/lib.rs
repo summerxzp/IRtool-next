@@ -1,3 +1,7 @@
+// i18n（P4）：编译期嵌入 crate 根 locales/{zh-CN,en-US}.json；
+// en 缺键回退 zh-CN。键名与 React ui/src/locales 一致（scripts/i18n-egui-sync.mjs 同步）。
+rust_i18n::i18n!("locales", fallback = "zh-CN");
+
 pub mod design;
 
 mod app;

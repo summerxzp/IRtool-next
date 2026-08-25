@@ -1,0 +1,71 @@
+{
+  "shell": {
+    "topbar": {
+      "fallback-badge": "Fallback Mode",
+      "exit": "× Exit"
+    },
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "Follow System",
+      "toggle-tip": "Switch theme (current: %{mode})"
+    },
+    "tray": {
+      "show": "Show Window",
+      "quit": "Quit"
+    },
+    "fallback": {
+      "title": "Fallback Interface Notice",
+      "heading": "You are currently using the fallback interface",
+      "desc": "The Microsoft Edge WebView2 Runtime is not installed, so IRTool has automatically switched to the fallback (egui) interface.\nThe fallback provides the same core features as the main UI, with simplified visuals and interactions.",
+      "install-hint": "Install the WebView2 Runtime to restore the main interface:",
+      "rec-title": "• Recommended: the \"Evergreen Standalone Installer\"",
+      "rec-detail": "  Compared with the Bootstrapper, the standalone package downloads faster at a similar size.",
+      "open-download-page": "Open WebView2 Download Page",
+      "ok": "Got it"
+    },
+    "tools": {
+      "title": "External Tools",
+      "intro": "The following tools must be downloaded from Microsoft. IRtool does not bundle or redistribute these binaries.",
+      "checking": "Checking...",
+      "optional": "optional",
+      "missing": "Missing",
+      "downloading": "Downloading... %{percent}%",
+      "download-done": "Download complete and EULA accepted automatically. Click \"Restart Now\" to load the new tools.",
+      "partial-failed": "Some tools failed to download:",
+      "download-failed": "Download failed:",
+      "source": "Source: download.sysinternals.com (official Microsoft)",
+      "relaunch": "Restart Now",
+      "recheck": "Re-check",
+      "download-missing": "Download Missing Tools",
+      "close": "Close"
+    },
+    "exit-confirm": {
+      "title": "Background Monitoring Active",
+      "msg1": "Background monitoring mode is active and data collection is still running.",
+      "msg2": "Closing the window will interrupt monitoring. Please choose:",
+      "background": "Keep Running",
+      "quit": "Quit Completely"
+    },
+    "common": {
+      "testing": "Testing…",
+      "show": "Show",
+      "hide": "Hide"
+    },
+    "settings": {
+      "language": "Language",
+      "load-config-failed": "Failed to load config",
+      "unnamed-rule": "(Unnamed)"
+    },
+    "event-type": {
+      "dns": "DNS Query",
+      "dns_client": "DNS Client",
+      "network_connect": "Network Connection",
+      "network_monitor": "Network Monitoring",
+      "tls_sni": "TLS SNI",
+      "dns_pcap": "DNS Capture",
+      "create_remote_thread": "Remote Thread",
+      "file_create": "File Create"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "shell": {
+    "topbar": {
+      "fallback-badge": "降级模式",
+      "exit": "× 退出"
+    },
+    "theme": {
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统",
+      "toggle-tip": "切换主题（当前：%{mode}）"
+    },
+    "tray": {
+      "show": "显示窗口",
+      "quit": "退出"
+    },
+    "fallback": {
+      "title": "备用界面提示",
+      "heading": "当前正在使用备用界面",
+      "desc": "由于系统未安装 Microsoft Edge WebView2 运行时，IRTool 已自动降级为备用界面（egui）。\n备用界面提供与主界面相同的核心功能，但视觉效果和部分交互体验有所简化。",
+      "install-hint": "安装 WebView2 运行时后即可恢复主界面：",
+      "rec-title": "• 推荐下载「常青独立安装程序」（Evergreen Standalone Installer）",
+      "rec-detail": "  相比引导程序（Bootstrapper），直接下载安装包速度更快，体积相近。",
+      "open-download-page": "打开 WebView2 下载页",
+      "ok": "知道了"
+    },
+    "tools": {
+      "title": "外部工具管理",
+      "intro": "以下工具需要从 Microsoft 官方下载，IRTool 不会内置或二次分发这些二进制文件。",
+      "checking": "检测中...",
+      "optional": "可选",
+      "missing": "缺失",
+      "downloading": "正在下载... %{percent}%",
+      "download-done": "下载完成，EULA 已自动接受。点击「立即重启生效」以加载新工具。",
+      "partial-failed": "部分工具下载失败:",
+      "download-failed": "下载失败:",
+      "source": "来源: download.sysinternals.com (Microsoft 官方)",
+      "relaunch": "立即重启生效",
+      "recheck": "重新检测",
+      "download-missing": "一键下载缺失工具",
+      "close": "关闭"
+    },
+    "exit-confirm": {
+      "title": "后台监控运行中",
+      "msg1": "当前处于后台监控模式，数据采集仍在运行。",
+      "msg2": "关闭窗口将中断监控。请选择：",
+      "background": "后台运行",
+      "quit": "彻底退出"
+    },
+    "common": {
+      "testing": "测试中…",
+      "show": "显示",
+      "hide": "隐藏"
+    },
+    "settings": {
+      "language": "语言",
+      "load-config-failed": "加载配置失败",
+      "unnamed-rule": "（未命名）"
+    },
+    "event-type": {
+      "dns": "DNS查询",
+      "dns_client": "DNS-Client",
+      "network_connect": "网络连接",
+      "network_monitor": "网络监控",
+      "tls_sni": "TLS SNI",
+      "dns_pcap": "DNS抓包",
+      "create_remote_thread": "远程线程",
+      "file_create": "文件创建"
+    }
+  }
+}

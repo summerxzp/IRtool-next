@@ -45,25 +45,28 @@ impl IrtoolApp {
             ui.separator();
 
             // Admin chip（demo env_chip：状态点 + 次级文字）
-            let (admin_text, admin_dot) = if self.is_admin {
-                ("管理员", pal.success.fg)
+            let admin_text = if self.is_admin {
+                rust_i18n::t!("status.admin")
             } else {
-                ("普通用户", pal.warning.fg)
+                rust_i18n::t!("status.non-admin")
             };
-            Self::dot_chip(ui, &pal, admin_text, admin_dot);
+            let (admin_text_ref, admin_dot) = (&admin_text, if self.is_admin { pal.success.fg } else { pal.warning.fg });
+            Self::dot_chip(ui, &pal, admin_text_ref, admin_dot);
 
             // Fallback mode badge
             if self.is_fallback {
-                crate::widgets::badge::badge(ui, "降级模式", crate::widgets::badge::BadgeVariant::Warning);
+                let fallback_badge = rust_i18n::t!("shell.topbar.fallback-badge");
+                crate::widgets::badge::badge(ui, &fallback_badge, crate::widgets::badge::BadgeVariant::Warning);
             }
 
             // Right actions: exit + theme toggle（右到左布局，先加的在最右）
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
+                let exit_label = rust_i18n::t!("shell.topbar.exit");
                 if ui
                     .add(
                         egui::Button::new(
-                            egui::RichText::new("× 退出")
+                            egui::RichText::new(exit_label.as_ref())
                                 .font(fonts::control())
                                 .color(pal.fg_secondary),
                         )
@@ -99,16 +102,17 @@ impl IrtoolApp {
     fn theme_toggle(&mut self, ui: &mut egui::Ui) -> egui::Response {
         let pal = dtheme::palette();
         let mode = dtheme::mode();
-        let (icon, label) = match mode {
-            dtheme::ThemeMode::Light => (Icon::Sun, "浅色"),
-            dtheme::ThemeMode::Dark => (Icon::Moon, "深色"),
-            dtheme::ThemeMode::System => (Icon::Monitor, "跟随系统"),
+        let (icon, key) = match mode {
+            dtheme::ThemeMode::Light => (Icon::Sun, "shell.theme.light"),
+            dtheme::ThemeMode::Dark => (Icon::Moon, "shell.theme.dark"),
+            dtheme::ThemeMode::System => (Icon::Monitor, "shell.theme.system"),
         };
-        let tip = format!("切换主题（当前：{}）", mode.label());
+        let label = rust_i18n::t!(key);
+        let tip = rust_i18n::t!("shell.theme.toggle-tip", mode = label.as_ref());
 
         let galley = ui
             .painter()
-            .layout_no_wrap(label.to_string(), fonts::control(), pal.fg_secondary);
+            .layout_no_wrap(label.as_ref().to_string(), fonts::control(), pal.fg_secondary);
         let h = 26.0;
         let w = 8.0 + 16.0 + 5.0 + galley.size().x + 8.0;
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click());
@@ -152,7 +156,7 @@ impl IrtoolApp {
 
         for page in Page::MAIN {
             Self::rail_centered(ui);
-            if Self::rail_btn(ui, &pal, page.icon(), page.label(), self.current_page == page).clicked() {
+            if Self::rail_btn(ui, &pal, page.icon(), &page.label(), self.current_page == page).clicked() {
                 self.current_page = page;
             }
         }
@@ -161,7 +165,7 @@ impl IrtoolApp {
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.add_space(14.0);
             Self::rail_centered(ui);
-            if Self::rail_btn(ui, &pal, Page::Settings.icon(), Page::Settings.label(), self.current_page == Page::Settings)
+            if Self::rail_btn(ui, &pal, Page::Settings.icon(), &Page::Settings.label(), self.current_page == Page::Settings)
                 .clicked()
             {
                 self.current_page = Page::Settings;
