@@ -294,7 +294,9 @@ impl TableShell {
         let header_click: Option<&'static str> = egui::ScrollArea::horizontal()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-        ui.spacing_mut().item_spacing.y = 0.0; // 行紧贴：高亮贯穿，行高即视觉行距
+        // 行/列间距全归零：egui_extras 的行距与列间缝都来自 item_spacing，
+        // 任一非零都会把行背景（选中/risk 高亮）切成碎块。列间视觉间距由 CELL_PAD_X 提供。
+        ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
         let mut builder = TableBuilder::new(ui)
             .id_salt(self.id)
             .striped(false)
