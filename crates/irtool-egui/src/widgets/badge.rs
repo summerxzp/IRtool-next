@@ -14,11 +14,11 @@ pub enum BadgeVariant {
 impl BadgeVariant {
     fn color(&self) -> Color32 {
         match self {
-            BadgeVariant::Success => theme::SEMANTIC_SUCCESS,
-            BadgeVariant::Info => theme::SEMANTIC_INFO,
-            BadgeVariant::Warning => theme::SEMANTIC_WARNING,
-            BadgeVariant::Danger => theme::SEMANTIC_DANGER,
-            BadgeVariant::Default => theme::SEMANTIC_DEFAULT,
+            BadgeVariant::Success => theme::semantic_success(),
+            BadgeVariant::Info => theme::semantic_info(),
+            BadgeVariant::Warning => theme::semantic_warning(),
+            BadgeVariant::Danger => theme::semantic_danger(),
+            BadgeVariant::Default => theme::semantic_default(),
         }
     }
 }

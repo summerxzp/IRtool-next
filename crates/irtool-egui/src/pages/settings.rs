@@ -285,7 +285,7 @@ impl SettingsPageState {
                 ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new("设置")
-                        .color(theme::FG_SECONDARY)
+                        .color(theme::fg_secondary())
                         .size(12.0)
                         .strong(),
                 );
@@ -302,7 +302,7 @@ impl SettingsPageState {
                     let resp = ui.add(
                         egui::Button::new(
                             egui::RichText::new(label)
-                                .color(if is_active { theme::ACCENT } else { theme::FG_SECONDARY })
+                                .color(if is_active { theme::accent() } else { theme::fg_secondary() })
                                 .size(12.0),
                         )
                         .frame(false)
@@ -323,7 +323,7 @@ impl SettingsPageState {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("! {}", err))
-                                .color(theme::SEMANTIC_DANGER)
+                                .color(theme::semantic_danger())
                                 .size(11.0),
                         );
                         if ui.small_button("×").clicked() {
@@ -336,7 +336,7 @@ impl SettingsPageState {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(format!("√ {}", ok))
-                                .color(theme::SEMANTIC_SUCCESS)
+                                .color(theme::semantic_success())
                                 .size(11.0),
                         );
                         if ui.small_button("×").clicked() {
@@ -362,7 +362,7 @@ impl SettingsPageState {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("告警规则")
-                    .color(theme::FG_PRIMARY)
+                    .color(theme::fg_primary())
                     .strong()
                     .size(13.0),
             );
@@ -378,7 +378,7 @@ impl SettingsPageState {
                 }
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::ACCENT),
+                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -394,7 +394,7 @@ impl SettingsPageState {
             ui.vertical_centered(|ui| {
                 ui.label(
                     egui::RichText::new("暂无告警规则，点击「添加」创建")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(12.0),
                 );
             });
@@ -424,14 +424,14 @@ impl SettingsPageState {
                     rule.enabled = enabled;
                     ui.label(
                         egui::RichText::new(if enabled { "已启用" } else { "已禁用" })
-                            .color(theme::FG_TERTIARY)
+                            .color(theme::fg_tertiary())
                             .size(10.0),
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("删除").color(theme::SEMANTIC_DANGER))
+                                egui::Button::new(egui::RichText::new("删除").color(theme::semantic_danger()))
                                     .frame(false),
                             )
                             .clicked()
@@ -462,10 +462,10 @@ impl SettingsPageState {
                                 .color(egui::Color32::WHITE)
                                 .size(10.0)
                         } else {
-                            egui::RichText::new(*label).color(theme::FG_TERTIARY).size(10.0)
+                            egui::RichText::new(*label).color(theme::fg_tertiary()).size(10.0)
                         };
                         let btn = if selected {
-                            egui::Button::new(text).fill(theme::ACCENT)
+                            egui::Button::new(text).fill(theme::accent())
                         } else {
                             egui::Button::new(text).frame(false)
                         };
@@ -492,11 +492,11 @@ impl SettingsPageState {
 
     fn render_notification(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("通知").color(theme::FG_PRIMARY).strong().size(13.0));
+            ui.label(egui::RichText::new("通知").color(theme::fg_primary()).strong().size(13.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::ACCENT),
+                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -512,7 +512,7 @@ impl SettingsPageState {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new("弹窗通知")
-                        .color(theme::FG_PRIMARY)
+                        .color(theme::fg_primary())
                         .strong()
                         .size(12.0),
                 );
@@ -528,7 +528,7 @@ impl SettingsPageState {
             ui.add_space(4.0);
 
             if self.config.rules.is_empty() {
-                ui.label(egui::RichText::new("暂无规则").color(theme::FG_TERTIARY).size(10.0));
+                ui.label(egui::RichText::new("暂无规则").color(theme::fg_tertiary()).size(10.0));
             } else {
                 let mut toggles: Vec<String> = Vec::new();
                 for rule in &self.config.rules {
@@ -545,7 +545,7 @@ impl SettingsPageState {
                             } else {
                                 &rule.name
                             })
-                            .color(theme::FG_PRIMARY)
+                            .color(theme::fg_primary())
                             .size(11.0),
                         );
                         ui.add_space(4.0);
@@ -568,11 +568,11 @@ impl SettingsPageState {
 
             // 弹窗时长
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("弹窗时长").color(theme::FG_SECONDARY).size(11.0));
+                ui.label(egui::RichText::new("弹窗时长").color(theme::fg_secondary()).size(11.0));
                 ui.add(egui::DragValue::new(&mut self.config.notify_config.popup_duration_secs).range(0..=3600));
                 ui.label(
                     egui::RichText::new("秒（0 = 不自动关闭）")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(10.0),
                 );
             });
@@ -585,7 +585,7 @@ impl SettingsPageState {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new("飞书通知")
-                        .color(theme::FG_PRIMARY)
+                        .color(theme::fg_primary())
                         .strong()
                         .size(12.0),
                 );
@@ -601,7 +601,7 @@ impl SettingsPageState {
             ui.add_space(4.0);
 
             if self.config.rules.is_empty() {
-                ui.label(egui::RichText::new("暂无规则").color(theme::FG_TERTIARY).size(10.0));
+                ui.label(egui::RichText::new("暂无规则").color(theme::fg_tertiary()).size(10.0));
             } else {
                 let mut toggles: Vec<String> = Vec::new();
                 for rule in &self.config.rules {
@@ -618,7 +618,7 @@ impl SettingsPageState {
                             } else {
                                 &rule.name
                             })
-                            .color(theme::FG_PRIMARY)
+                            .color(theme::fg_primary())
                             .size(11.0),
                         );
                         ui.add_space(4.0);
@@ -639,7 +639,7 @@ impl SettingsPageState {
 
             // Webhook URL
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Webhook URL").color(theme::FG_SECONDARY).size(11.0));
+                ui.label(egui::RichText::new("Webhook URL").color(theme::fg_secondary()).size(11.0));
                 let display_url = if self.revealed_feishu_url {
                     self.feishu_webhook_url.clone()
                 } else {
@@ -666,7 +666,7 @@ impl SettingsPageState {
                         !self.testing_feishu && !self.feishu_webhook_url.is_empty(),
                         egui::Button::new(
                             egui::RichText::new(if self.testing_feishu { "测试中…" } else { "测试" })
-                                .color(theme::ACCENT),
+                                .color(theme::accent()),
                         ),
                     )
                     .clicked()
@@ -684,14 +684,14 @@ impl SettingsPageState {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("数据源")
-                    .color(theme::FG_PRIMARY)
+                    .color(theme::fg_primary())
                     .strong()
                     .size(13.0),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::ACCENT),
+                        egui::RichText::new(if self.saving { "保存中…" } else { "保存" }).color(theme::accent()),
                     ))
                     .clicked()
                 {
@@ -706,17 +706,17 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.config.enable_sni, "");
-                ui.label(egui::RichText::new("TLS SNI 提取").color(theme::FG_PRIMARY).size(12.0));
+                ui.label(egui::RichText::new("TLS SNI 提取").color(theme::fg_primary()).size(12.0));
             });
             ui.add_space(2.0);
             ui.label(
                 egui::RichText::new("从网络流量中提取 TLS SNI（Server Name Indication）信息")
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(10.0),
             );
             ui.label(
                 egui::RichText::new("数据来源：网络层抓包（TCP:443）")
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(10.0),
             );
         });
@@ -727,17 +727,17 @@ impl SettingsPageState {
         egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.config.enable_dns_pcap, "");
-                ui.label(egui::RichText::new("DNS 抓包").color(theme::FG_PRIMARY).size(12.0));
+                ui.label(egui::RichText::new("DNS 抓包").color(theme::fg_primary()).size(12.0));
             });
             ui.add_space(2.0);
             ui.label(
                 egui::RichText::new("在网络层捕获 DNS 查询和响应")
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(10.0),
             );
             ui.label(
                 egui::RichText::new("数据来源：网络层抓包（UDP:53）")
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(10.0),
             );
         });
@@ -748,14 +748,14 @@ impl SettingsPageState {
     fn render_import_export(&mut self, ui: &mut egui::Ui, ctx: &AppContext, _rt: &tokio::runtime::Handle) {
         ui.label(
             egui::RichText::new("导入导出")
-                .color(theme::FG_PRIMARY)
+                .color(theme::fg_primary())
                 .strong()
                 .size(13.0),
         );
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new("导出当前配置到文件，或从文件导入配置")
-                .color(theme::FG_TERTIARY)
+                .color(theme::fg_tertiary())
                 .size(11.0),
         );
         ui.add_space(8.0);

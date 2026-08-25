@@ -288,7 +288,7 @@ impl DatabasePageState {
     fn render_toolbar(&mut self, ui: &mut egui::Ui, ctx: &AppContext, rt: &tokio::runtime::Handle) {
         ui.horizontal(|ui| {
             // Source filter
-            ui.label(egui::RichText::new("来源").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("来源").color(theme::fg_tertiary()).size(11.0));
             let prev_source = self.source.clone();
             egui::ComboBox::from_id_salt("db_source_filter")
                 .selected_text(source_label(&self.source))
@@ -306,7 +306,7 @@ impl DatabasePageState {
             ui.separator();
 
             // Event type filter
-            ui.label(egui::RichText::new("事件类型").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("事件类型").color(theme::fg_tertiary()).size(11.0));
             let prev_et = self.event_type.clone();
             egui::ComboBox::from_id_salt("db_event_type_filter")
                 .selected_text(event_type_filter_label(&self.event_type))
@@ -328,7 +328,7 @@ impl DatabasePageState {
             ui.separator();
 
             // Process name
-            ui.label(egui::RichText::new("进程名").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("进程名").color(theme::fg_tertiary()).size(11.0));
             let pn_resp = ui.add(
                 egui::TextEdit::singleline(&mut self.process_name)
                     .desired_width(100.0)
@@ -341,7 +341,7 @@ impl DatabasePageState {
             ui.separator();
 
             // IP / domain
-            ui.label(egui::RichText::new("IP/域名").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("IP/域名").color(theme::fg_tertiary()).size(11.0));
             let kf_resp = ui.add(
                 egui::TextEdit::singleline(&mut self.key_field)
                     .desired_width(100.0)
@@ -354,7 +354,7 @@ impl DatabasePageState {
             ui.separator();
 
             // Full-text search
-            ui.label(egui::RichText::new("全文搜索").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("全文搜索").color(theme::fg_tertiary()).size(11.0));
             let st_resp = ui.add(
                 egui::TextEdit::singleline(&mut self.search_text)
                     .desired_width(120.0)
@@ -367,7 +367,7 @@ impl DatabasePageState {
             ui.separator();
 
             // Load limit
-            ui.label(egui::RichText::new("查询数量").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("查询数量").color(theme::fg_tertiary()).size(11.0));
             let mut limit_str = self.load_limit.to_string();
             let limit_resp = ui.add(
                 egui::TextEdit::singleline(&mut limit_str)
@@ -416,7 +416,7 @@ impl DatabasePageState {
             // Clear (danger)
             if ui
                 .add(egui::Button::new(
-                    egui::RichText::new("清空").color(theme::SEMANTIC_DANGER),
+                    egui::RichText::new("清空").color(theme::semantic_danger()),
                 ))
                 .clicked()
             {
@@ -438,11 +438,11 @@ impl DatabasePageState {
             ui.add_space(80.0);
             ui.vertical_centered(|ui| {
                 if self.loading {
-                    ui.label(egui::RichText::new("查询中…").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("查询中…").color(theme::fg_secondary()));
                 } else if self.has_filters {
-                    ui.label(egui::RichText::new("没有匹配当前过滤条件的事件").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配当前过滤条件的事件").color(theme::fg_tertiary()));
                 } else {
-                    ui.label(egui::RichText::new("点击「搜索」查询数据库事件").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("点击「搜索」查询数据库事件").color(theme::fg_secondary()));
                 }
             });
             return;
@@ -466,19 +466,19 @@ impl DatabasePageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("时间").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("时间").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("类型").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("类型").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("目标").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("目标").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("远程地址").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("远程地址").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("路径").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("路径").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -491,7 +491,7 @@ impl DatabasePageState {
                         ui.label(
                             egui::RichText::new(&e.timestamp)
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 类型
@@ -505,7 +505,7 @@ impl DatabasePageState {
                             egui::Label::new(
                                 egui::RichText::new(&dest)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_PRIMARY),
+                                    .color(theme::fg_primary()),
                             )
                             .truncate(),
                         );
@@ -516,7 +516,7 @@ impl DatabasePageState {
                         ui.label(
                             egui::RichText::new(&addr)
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 路径
@@ -525,7 +525,7 @@ impl DatabasePageState {
                             egui::Label::new(
                                 egui::RichText::new(&e.process_path)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -591,14 +591,14 @@ impl DatabasePageState {
                             );
                             ui.label(
                                 egui::RichText::new(format!("来源: {}", event.source))
-                                    .color(theme::FG_TERTIARY)
+                                    .color(theme::fg_tertiary())
                                     .size(11.0),
                             );
                         });
                         ui.add_space(2.0);
                         ui.label(
                             egui::RichText::new(&event.timestamp)
-                                .color(theme::FG_SECONDARY)
+                                .color(theme::fg_secondary())
                                 .size(11.0),
                         );
                     });
@@ -701,7 +701,7 @@ impl DatabasePageState {
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new(format!("来源: {} | DB ID: {}", event.source, event.record_id))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(10.0),
             );
         });
@@ -714,18 +714,18 @@ impl DatabasePageState {
             if self.has_filters {
                 ui.label(
                     egui::RichText::new(format!("已匹配 {} 条", self.matched_count))
-                        .color(theme::FG_SECONDARY)
+                        .color(theme::fg_secondary())
                         .size(11.0),
                 );
                 ui.label(
                     egui::RichText::new(format!("| 数据库总计 {} 条", self.total_count))
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             } else {
                 ui.label(
                     egui::RichText::new(format!("总计 {} 条", self.total_count))
-                        .color(theme::FG_SECONDARY)
+                        .color(theme::fg_secondary())
                         .size(11.0),
                 );
             }
@@ -734,7 +734,7 @@ impl DatabasePageState {
 
             ui.label(
                 egui::RichText::new(format!("DB {}", theme::fmt_bytes(self.db_size)))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(11.0),
             );
 
@@ -744,7 +744,7 @@ impl DatabasePageState {
             for (t, c) in self.type_counts.iter().take(6) {
                 ui.label(
                     egui::RichText::new(format!("{} {}", event_type_label(t), c))
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             }
@@ -772,7 +772,7 @@ impl DatabasePageState {
                     }
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("清空").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("清空").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {

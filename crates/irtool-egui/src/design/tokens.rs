@@ -14,6 +14,27 @@ const fn rgb(hex: u32) -> Color32 {
     )
 }
 
+/// 向黑色方向线性混合（浅色主题的 hover 派生方向）。
+pub const fn mix_toward_black(c: Color32, t: f32) -> Color32 {
+    // 手写 clamp（f32::clamp 非 const fn，const fn 内可用比较/算术）
+    let t = if t < 0.0 { 0.0 } else if t > 1.0 { 1.0 } else { t };
+    Color32::from_rgb(
+        (c.r() as f32 * (1.0 - t)) as u8,
+        (c.g() as f32 * (1.0 - t)) as u8,
+        (c.b() as f32 * (1.0 - t)) as u8,
+    )
+}
+
+/// 向白色方向线性混合（深色主题的 hover 派生方向）。
+pub const fn mix_toward_white(c: Color32, t: f32) -> Color32 {
+    let t = if t < 0.0 { 0.0 } else if t > 1.0 { 1.0 } else { t };
+    Color32::from_rgb(
+        (c.r() as f32 + (255.0 - c.r() as f32) * t) as u8,
+        (c.g() as f32 + (255.0 - c.g() as f32) * t) as u8,
+        (c.b() as f32 + (255.0 - c.b() as f32) * t) as u8,
+    )
+}
+
 /// 角色 bg 的 alpha（tokens.css `color-mix ... 12%`，round(0.12*255)=31）。
 pub const ROLE_BG_ALPHA: u8 = 31;
 /// 角色 border 的 alpha（tokens.css `color-mix ... 25%`，round(0.25*255)=64）。
@@ -103,6 +124,26 @@ pub struct Palette {
 }
 
 impl Palette {
+    /// 交互态 hover 派生（P3 登记规则，spec §7）：tokens.css 无 accent-hover/danger-hover，
+    /// 统一按主题方向线性混合 18%——浅色调暗（#3A7AF0→约 #305FC6），深色调亮
+    /// （#4C8DFF→约 #6DA1FF），与 demo 现值（#1D4ED8/#60A5FA）方向一致、幅度收敛。
+    pub const fn hover_shift(&self, c: Color32) -> Color32 {
+        if self.dark {
+            mix_toward_white(c, 0.18)
+        } else {
+            mix_toward_black(c, 0.18)
+        }
+    }
+
+    /// accent 的 hover 态。
+    pub const fn accent_hover(&self) -> Color32 {
+        self.hover_shift(self.accent)
+    }
+
+    /// danger.fg 的 hover 态。
+    pub const fn danger_hover(&self) -> Color32 {
+        self.hover_shift(self.danger.fg)
+    }
     /// tokens.css `[data-theme="light"]` 块。
     pub const fn light() -> Self {
         let bg_base = rgb(0xF7F8FA);

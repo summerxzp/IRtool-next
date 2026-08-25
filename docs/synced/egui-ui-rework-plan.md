@@ -95,11 +95,14 @@
 - 验收通过（2026-08-23）：release 构建零警告；`git diff` 除新增文件外仅 lib.rs +2 行，9 个现有页面零改动 ✅
 - 备注：demo 仓库（E:\Code\solo\ir-ui-demos）无版本管理，建议 git init（待用户决定）；spec §7 已回填字重降级/取整规则，遗留 4 个待定稿项转 P3
 
-### P3 全局壳切换（视觉收益最大的一步）
+### P3 全局壳切换 + 主题三态 ✅
 
-- [ ] `app.rs` / `nav.rs` / 顶栏 / 状态栏切到 design 模块
-- [ ] 主题三态（dark/light/system，默认 system）+ 持久化（沿用 tauri-plugin-store 对应的本地存储方案，换 serde_json 落 exe 目录）
-- 验收：启动即换新壳，9 页外框统一，主题切换即时生效且重启保持
+- [x] 主题运行时（`design/theme.rs`）：Light/Dark/System 三态（默认 System，注册表 AppsUseLightTheme 判定），OnceLock+RwLock 全局态，持久化 `<数据目录>/config/ui-state.json`（serde_json 原子写，跟随 portable 机制）；已登记限制：运行期不监听系统主题变化
+- [x] 旧 `theme.rs` 运行时化：const→fn（363 处机械替换，映射表注释齐全，9 页面 365+/364- 纯机械），全 app 主题一致，无"黑壳白页"割裂
+- [x] 壳切换：顶栏/侧栏/状态栏接 design 模块（视觉复刻 demo 壳），顶栏主题切换按钮（浅色→深色→跟随系统循环）
+- [x] 图标方案落地：lucide SVG 内嵌 + egui_extras svg 管线（`design/icon.rs` + `assets/`，tint 着色缓存，无新增直接依赖）
+- [x] spec 三项裁决定稿：selected.bg 15%（P5 落地目检）/ hover 与 bg-elev-2 收窄并存 / 交互态 18% 派生（见 spec §7）
+- 验收记录（2026-08-23）：release 双目标构建零警告；真实采集数据下深色全 app 一致（顶栏/侧栏图标/表格/语义徽章），持久化写入→重启→生效链路验证通过；截图 `target/shots-p3/`
 
 ### P4 i18n 就位（必须在逐页迁移前，避免每页摸两遍）
 

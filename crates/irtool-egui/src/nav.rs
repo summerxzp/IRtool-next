@@ -1,3 +1,5 @@
+use crate::design::icon::Icon;
+
 /// Navigation page enum.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Page {
@@ -13,7 +15,8 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 9] = [
+    /// 主导航项（rail 上部；设置项单独沉底，与 demo side_rail 一致）。
+    pub const MAIN: [Page; 8] = [
         Page::Network,
         Page::Sysmon,
         Page::Autoruns,
@@ -22,7 +25,6 @@ impl Page {
         Page::Workspace,
         Page::Monitor,
         Page::Database,
-        Page::Settings,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -39,17 +41,18 @@ impl Page {
         }
     }
 
-    pub fn icon(&self) -> &'static str {
+    /// 导航图标（lucide 线性图标，spec §4.1；颜色规则见 spec §2.2-3）。
+    pub fn icon(&self) -> Icon {
         match self {
-            Page::Network => "[NET]",
-            Page::Autoruns => "[AUTO]",
-            Page::BrowserForensics => "[WEB]",
-            Page::Sysmon => "[LOG]",
-            Page::Process => "[PROC]",
-            Page::Monitor => "[MON]",
-            Page::Database => "[DB]",
-            Page::Workspace => "[WORK]",
-            Page::Settings => "[SET]",
+            Page::Network => Icon::Activity,
+            Page::Autoruns => Icon::Shield,
+            Page::BrowserForensics => Icon::Search,
+            Page::Sysmon => Icon::FileText,
+            Page::Process => Icon::Cpu,
+            Page::Monitor => Icon::Bell,
+            Page::Database => Icon::Database,
+            Page::Workspace => Icon::Briefcase,
+            Page::Settings => Icon::Sliders,
         }
     }
 }

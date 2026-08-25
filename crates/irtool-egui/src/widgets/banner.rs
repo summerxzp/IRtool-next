@@ -17,14 +17,14 @@ use crate::theme;
 pub fn error_banner(ui: &mut egui::Ui, error: &str) -> bool {
     let mut close_clicked = false;
     egui::Frame::new()
-        .fill(theme::SEMANTIC_DANGER.linear_multiply(0.2))
+        .fill(theme::semantic_danger().linear_multiply(0.2))
         .inner_margin(theme::ELEMENT_GAP)
         .corner_radius(4.0)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(format!("错误: {}", error))
-                        .color(theme::SEMANTIC_DANGER)
+                        .color(theme::semantic_danger())
                         .size(12.0),
                 );
                 ui.add_space((ui.available_width() - 20.0).max(0.0));

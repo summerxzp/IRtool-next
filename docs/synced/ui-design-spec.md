@@ -149,7 +149,8 @@ mono 使用清单：表格中时间戳、端点、PID、路径、哈希、命令
 |---|---|---|
 | 2026-08-23 | 规范框架建立，色值基准锁定 tokens.css | ✅ |
 | 2026-08-23 | P2 色值对齐：demo 与主项目 design 模块同源 tokens.css，双端设计样板像素对照通过（残差 <2%，集中于标题栏文字/窗口阴影）；字号映射落定（内建 TextStyle + Name 扩展档）；字重降级与 alpha 取整规则登记（§2.2/§3.2） | ✅ |
+| 2026-08-23 | 图标方案定稿（§4.1）：**SVG 内嵌（lucide）+ egui_extras svg 管线**——lucide SVG（24 viewBox 线性风格）`include_bytes!` 内嵌，加载时 `stroke="black"` 归一为白色后经 `egui_extras::image::load_svg_bytes_with_size`（resvg）光栅化，`(Icon, 物理像素宽)` 纹理缓存，绘制以乘法 tint 着色（主题切换不重光栅化）。无新增直接依赖 | ✅ |
+| 2026-08-23 | P3 裁决定稿①：行选中底色采用 **selected.bg 15%**（alpha 38；12% 在深色表面偏淡），P5 页面迁移落地时目检 | ✅ 定稿 |
+| 2026-08-23 | P3 裁决定稿②：`hover` 与 `bg-elev-2` 并存收窄——`hover` 仅用于悬停/按下交互态，`bg-elev-2` 仅用于静态次级表面；tokens.css 后续增补 `--hover` 后主项目 tokens.rs 转正 | ✅ 定稿 |
+| 2026-08-23 | P3 裁决定稿③：accent_hover/danger_hover 派生规则 = 按主题方向线性混合 18%（浅色调暗、深色调亮，design/tokens.rs `hover_shift`）；tokens.css 增补 `--accent-hover/--danger-hover` 后转正 | ✅ 定稿 |
 | — | role 枚举映射全表（Sysmon 22 类事件/告警/网络状态） | 待 P5 审计 |
-| — | 图标实现方案（SVG vs 字符） | 待 P3 |
-| — | selected.bg 深色可读性（12% vs 15%） | 待 P3 接线评审 |
-| — | 交互态派生规则：accent_hover/danger_hover 无基准来源；demo 扩展 hover 与 bg-elev-2 语义重叠待收敛 | 待 P3 定稿 |

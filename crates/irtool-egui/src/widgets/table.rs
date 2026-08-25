@@ -41,7 +41,7 @@ pub fn sortable_header(ui: &mut egui::Ui, label: &str, is_sorted: bool, dir: Sor
         egui::FontId::proportional(12.0)
     };
 
-    let color = if is_sorted { theme::ACCENT } else { theme::FG_SECONDARY };
+    let color = if is_sorted { theme::accent() } else { theme::fg_secondary() };
 
     let response =
         ui.add(egui::Label::new(egui::RichText::new(text).font(font).color(color)).sense(egui::Sense::click()));

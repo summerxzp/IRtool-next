@@ -1,5 +1,7 @@
 use eframe::egui::{self, Color32};
 
+use crate::design::theme as rt;
+
 // ── Time formatting (UTC+8, DESIGN.md 4.8) ──────────────────
 
 /// Format an epoch (seconds) as UTC+8 string: `2026/06/19,06:21:47`.
@@ -64,46 +66,125 @@ pub fn fmt_uptime(started_at_millis: Option<i64>) -> String {
     }
 }
 
-// ── Background (Light Theme) ────────────────────────────────
-pub const BG_PRIMARY: Color32 = Color32::WHITE;
-pub const BG_SECONDARY: Color32 = Color32::from_rgb(0xf5, 0xf5, 0xf5);
-pub const BG_ELEVATED: Color32 = Color32::from_rgb(0xea, 0xea, 0xea);
+// ── 色彩访问器（P3 运行时化）─────────────────────────────────
+//
+// 旧编译期 const → 函数：内部按当前 resolved palette 返回 design tokens 对应值。
+// 调用方（页面/壳）每帧调用，开销为一次 uncontended 读锁 + 小结构体拷贝。
+//
+// 映射表（旧常量 → design::tokens 字段 → tokens.css 变量）：
+// | 旧常量             | 旧值(light) | design 字段      | tokens.css 变量        |
+// |--------------------|-------------|------------------|------------------------|
+// | BG_PRIMARY         | #ffffff     | bg_elev1         | --bg-elev-1            |
+// | BG_SECONDARY       | #f5f5f5     | bg_elev2         | --bg-elev-2            |
+// | BG_ELEVATED        | #eaeaea     | hover (demo扩展) | （无，hover）          |
+// | FG_PRIMARY         | #1a1a2e     | fg_primary       | --fg-primary           |
+// | FG_SECONDARY       | #555555     | fg_secondary     | --fg-secondary         |
+// | FG_TERTIARY        | #999999     | fg_tertiary      | --fg-tertiary          |
+// | ACCENT             | #2563eb     | accent           | --accent               |
+// | ACCENT_HOVER       | #1d4ed8     | accent_hover()   | 派生：light 调暗 18%   |
+// | SEMANTIC_SUCCESS   | #16a34a     | success.fg       | --success              |
+// | SEMANTIC_INFO      | #2563eb     | info.fg          | --accent               |
+// | SEMANTIC_WARNING   | #ca8a04     | warning.fg       | --warning              |
+// | SEMANTIC_DANGER    | #dc2626     | danger.fg        | --danger               |
+// | SEMANTIC_DEFAULT   | #6b7280     | neutral.fg       | --fg-secondary         |
+// | TABLE_HEADER_BG    | #f0f0f0     | bg_elev2         | --bg-elev-2            |
+// | TABLE_ROW_SELECTED | accent@12%  | selected.bg      | --accent 12% color-mix |
 
-// ── Foreground ──────────────────────────────────────────────
-pub const FG_PRIMARY: Color32 = Color32::from_rgb(0x1a, 0x1a, 0x2e);
-pub const FG_SECONDARY: Color32 = Color32::from_rgb(0x55, 0x55, 0x55);
-pub const FG_TERTIARY: Color32 = Color32::from_rgb(0x99, 0x99, 0x99);
+/// 面板底色（旧 BG_PRIMARY → --bg-elev-1）。
+pub fn bg_primary() -> Color32 {
+    rt::palette().bg_elev1
+}
 
-// ── Accent ──────────────────────────────────────────────────
-pub const ACCENT: Color32 = Color32::from_rgb(0x25, 0x63, 0xeb);
-pub const ACCENT_HOVER: Color32 = Color32::from_rgb(0x1d, 0x4e, 0xd8);
-
-// ── Semantic ────────────────────────────────────────────────
-pub const SEMANTIC_SUCCESS: Color32 = Color32::from_rgb(0x16, 0xa3, 0x4a);
-pub const SEMANTIC_INFO: Color32 = Color32::from_rgb(0x25, 0x63, 0xeb);
-pub const SEMANTIC_WARNING: Color32 = Color32::from_rgb(0xca, 0x8a, 0x04);
-pub const SEMANTIC_DANGER: Color32 = Color32::from_rgb(0xdc, 0x26, 0x26);
-pub const SEMANTIC_DEFAULT: Color32 = Color32::from_rgb(0x6b, 0x72, 0x80);
-
-// ── Table ───────────────────────────────────────────────────
+/// 次级表面（旧 BG_SECONDARY → --bg-elev-2；当前无调用方，映射表完备性保留）。
 #[allow(dead_code)]
-pub const TABLE_HEADER_BG: Color32 = Color32::from_rgb(0xf0, 0xf0, 0xf0);
-pub const TABLE_ROW_SELECTED: Color32 = Color32::from_rgba_premultiplied(0x25, 0x63, 0xeb, 30);
+pub fn bg_secondary() -> Color32 {
+    rt::palette().bg_elev2
+}
 
-// ── Layout ──────────────────────────────────────────────────
+/// hover/抬升表面（旧 BG_ELEVATED → demo 扩展 hover 令牌）。
+pub fn bg_elevated() -> Color32 {
+    rt::palette().hover
+}
+
+/// 主文字（旧 FG_PRIMARY → --fg-primary）。
+pub fn fg_primary() -> Color32 {
+    rt::palette().fg_primary
+}
+
+/// 次级文字（旧 FG_SECONDARY → --fg-secondary）。
+pub fn fg_secondary() -> Color32 {
+    rt::palette().fg_secondary
+}
+
+/// 辅助文字（旧 FG_TERTIARY → --fg-tertiary）。
+pub fn fg_tertiary() -> Color32 {
+    rt::palette().fg_tertiary
+}
+
+/// 品牌色（旧 ACCENT → --accent）。
+pub fn accent() -> Color32 {
+    rt::palette().accent
+}
+
+/// accent hover 派生（旧 ACCENT_HOVER，tokens.css 无对应，P3 派生规则见 tokens.rs；
+/// 当前无调用方，映射表完备性保留）。
+#[allow(dead_code)]
+pub fn accent_hover() -> Color32 {
+    rt::palette().accent_hover()
+}
+
+pub fn semantic_success() -> Color32 {
+    rt::palette().success.fg
+}
+
+pub fn semantic_info() -> Color32 {
+    rt::palette().info.fg
+}
+
+pub fn semantic_warning() -> Color32 {
+    rt::palette().warning.fg
+}
+
+pub fn semantic_danger() -> Color32 {
+    rt::palette().danger.fg
+}
+
+pub fn semantic_default() -> Color32 {
+    rt::palette().neutral.fg
+}
+
+/// 表头底（旧 TABLE_HEADER_BG → --bg-elev-2；当前无调用方，保留对齐用）。
+#[allow(dead_code)]
+pub fn table_header_bg() -> Color32 {
+    rt::palette().bg_elev2
+}
+
+/// 行选中底（旧 TABLE_ROW_SELECTED → selected.bg = accent 12% alpha）。
+pub fn table_row_selected() -> Color32 {
+    rt::palette().selected.bg
+}
+
+// ── Layout（数值常量，与主题无关，保留 const）────────────────
+
 pub const TOPBAR_HEIGHT: f32 = 32.0;
+/// 旧文字侧栏宽度（P3 壳切换为图标 rail 后闲置，保留数值常量）。
+#[allow(dead_code)]
 pub const SIDEBAR_WIDTH: f32 = 160.0;
+/// 导航 rail 宽度（demo side_rail 基准）。
+pub const RAIL_WIDTH: f32 = 58.0;
 pub const DETAIL_PANEL_HEIGHT: f32 = 220.0;
+/// 旧壳内边距（P3 壳改造后闲置，保留数值常量）。
+#[allow(dead_code)]
 pub const PANEL_PADDING: f32 = 12.0;
 pub const ELEMENT_GAP: f32 = 8.0;
 pub const TABLE_ROW_HEIGHT: f32 = 22.0;
 pub const TABLE_HEADER_HEIGHT: f32 = 24.0;
 
-/// 全局面板统一 frame：纯白填充、无边框、无阴影、无外边距。
+/// 全局面板统一 frame：面板底填充、无边框、无阴影、无外边距。
 /// 用于 TopBottomPanel / SidePanel / CentralPanel，避免默认阴影/边框造成的黑边。
 pub fn panel_frame(inner_margin: egui::Margin) -> egui::Frame {
     egui::Frame::new()
-        .fill(BG_PRIMARY)
+        .fill(bg_primary())
         .inner_margin(inner_margin)
         .outer_margin(egui::Margin::ZERO)
         .stroke(egui::Stroke::NONE)
@@ -111,94 +192,7 @@ pub fn panel_frame(inner_margin: egui::Margin) -> egui::Frame {
         .shadow(egui::Shadow::NONE)
 }
 
-/// Apply the light theme and CJK font to an egui context.
-pub fn apply_light_theme(ctx: &egui::Context) {
-    // ── Scale up for high-DPI displays ──
-    // egui defaults to 1.0x which looks tiny on high-resolution screens.
-    // Use 1.15x as a comfortable baseline; users can Ctrl+/- to adjust.
-    let scale = ctx.pixels_per_point();
-    if scale <= 1.0 {
-        ctx.set_pixels_per_point(1.15);
-    }
-
-    // ── Load CJK font ──
-    // Try multiple candidate paths so Chinese renders on N-edition Windows
-    // or systems where msyh.ttc is unavailable.
-    let font_candidates = [
-        r"C:\Windows\Fonts\msyh.ttc",     // Microsoft YaHei
-        r"C:\Windows\Fonts\msyhbd.ttc",   // Microsoft YaHei Bold
-        r"C:\Windows\Fonts\simsun.ttc",   // SimSun
-        r"C:\Windows\Fonts\msjh.ttc",     // Microsoft JhengHei
-        r"C:\Windows\Fonts\msgothic.ttc", // MS Gothic
-    ];
-    let font_data = font_candidates
-        .iter()
-        .find_map(|path| std::fs::read(path).ok().map(|data| (path, data)));
-    if let Some((_font_path, font_data)) = font_data {
-        let mut fonts = egui::FontDefinitions::default();
-
-        fonts.font_data.insert(
-            "msyh".to_owned(),
-            std::sync::Arc::new(egui::FontData::from_owned(font_data).tweak(egui::FontTweak {
-                scale: 1.0,
-                ..Default::default()
-            })),
-        );
-
-        // Insert msyh at the front of Proportional so that symbol characters
-        // (✓ ✕ ⚠ etc.) are rendered by msyh instead of Hack, which may lack
-        // proper glyphs for these codepoints and show tofu boxes.
-        fonts
-            .families
-            .entry(egui::FontFamily::Proportional)
-            .or_default()
-            .insert(0, "msyh".to_owned());
-
-        // Add as fallback for monospace text (keep Hack primary for code)
-        fonts
-            .families
-            .entry(egui::FontFamily::Monospace)
-            .or_default()
-            .push("msyh".to_owned());
-
-        ctx.set_fonts(fonts);
-    } else {
-        tracing::warn!(
-            "No CJK font found in candidates {:?}, Chinese text may not render correctly",
-            font_candidates
-        );
-    }
-
-    // ── Light visuals ──
-    let mut visuals = egui::Visuals::light();
-
-    visuals.override_text_color = Some(FG_PRIMARY);
-    visuals.widgets.noninteractive.bg_fill = BG_PRIMARY;
-    visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0_f32, FG_PRIMARY);
-    visuals.widgets.inactive.bg_fill = BG_SECONDARY;
-    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0_f32, FG_PRIMARY);
-    visuals.widgets.hovered.bg_fill = BG_ELEVATED;
-    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0_f32, ACCENT_HOVER);
-    visuals.widgets.active.bg_fill = ACCENT;
-    visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0_f32, Color32::WHITE);
-
-    visuals.panel_fill = BG_PRIMARY;
-    visuals.window_fill = BG_PRIMARY;
-    visuals.extreme_bg_color = BG_SECONDARY;
-    visuals.faint_bg_color = Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 3);
-
-    visuals.selection.bg_fill = TABLE_ROW_SELECTED;
-
-    ctx.set_visuals(visuals);
-
-    // ── Disable selectable labels globally (DESIGN.md 4.3 Label Convention) ──
-    // All ui.label() calls should not enter text-selection mode.
-    ctx.options_mut(|o| {
-        std::sync::Arc::make_mut(&mut o.dark_style)
-            .interaction
-            .selectable_labels = false;
-        std::sync::Arc::make_mut(&mut o.light_style)
-            .interaction
-            .selectable_labels = false;
-    });
+/// 应用当前 resolved 主题（Light/Dark/System 三态运行时，P3 起替代旧 apply_light_theme）。
+pub fn apply(ctx: &egui::Context) {
+    rt::apply(ctx);
 }

@@ -85,7 +85,7 @@ impl IconCache {
             }
         }
         let rect = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover()).0;
-        ui.painter().rect_filled(rect, 2.0, theme::BG_ELEVATED);
+        ui.painter().rect_filled(rect, 2.0, theme::bg_elevated());
     }
 }
 

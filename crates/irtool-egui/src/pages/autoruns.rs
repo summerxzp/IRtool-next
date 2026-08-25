@@ -219,14 +219,14 @@ impl AutorunsPageState {
             let result = result.clone();
             let (bg_color, text_color, prefix) = if result.success {
                 (
-                    theme::SEMANTIC_SUCCESS.linear_multiply(0.15),
-                    theme::SEMANTIC_SUCCESS,
+                    theme::semantic_success().linear_multiply(0.15),
+                    theme::semantic_success(),
                     "删除成功",
                 )
             } else {
                 (
-                    theme::SEMANTIC_DANGER.linear_multiply(0.15),
-                    theme::SEMANTIC_DANGER,
+                    theme::semantic_danger().linear_multiply(0.15),
+                    theme::semantic_danger(),
                     "删除失败",
                 )
             };
@@ -353,7 +353,7 @@ impl AutorunsPageState {
                 format!("分类 ({})", self.category_filter.len())
             };
             let cat_btn = ui.add(egui::Button::new(
-                egui::RichText::new(&cat_label).color(theme::FG_PRIMARY),
+                egui::RichText::new(&cat_label).color(theme::fg_primary()),
             ));
             if cat_btn.clicked() {
                 self.category_dropdown_open = !self.category_dropdown_open;
@@ -466,9 +466,9 @@ impl AutorunsPageState {
             ui.add_space(80.0);
             ui.vertical_centered(|ui| {
                 if self.items.is_empty() {
-                    ui.label(egui::RichText::new("点击「开始扫描」检测持久化项").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("点击「开始扫描」检测持久化项").color(theme::fg_secondary()));
                 } else {
-                    ui.label(egui::RichText::new("没有匹配当前过滤条件的条目").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配当前过滤条件的条目").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -547,17 +547,17 @@ impl AutorunsPageState {
                     // Row background tint (file missing / unsigned / disabled)
                     if !item.file_exists {
                         row.col(|ui| {
-                            paint_row_bg(ui, theme::SEMANTIC_WARNING, 0.08);
+                            paint_row_bg(ui, theme::semantic_warning(), 0.08);
                             cell_enabled(ui, item);
                         });
                     } else if matches!(item.signature, SignatureStatus::Unsigned) {
                         row.col(|ui| {
-                            paint_row_bg(ui, theme::SEMANTIC_DANGER, 0.06);
+                            paint_row_bg(ui, theme::semantic_danger(), 0.06);
                             cell_enabled(ui, item);
                         });
                     } else if !item.enabled {
                         row.col(|ui| {
-                            paint_row_bg(ui, theme::FG_TERTIARY, 0.05);
+                            paint_row_bg(ui, theme::fg_tertiary(), 0.05);
                             cell_enabled(ui, item);
                         });
                     } else {
@@ -572,7 +572,7 @@ impl AutorunsPageState {
                         ui.horizontal(|ui| {
                             icon_cache.icon_or_placeholder(ui, item.image_path.as_deref(), 16.0);
                             ui.add_space(4.0);
-                            ui.label(egui::RichText::new(&item.entry).color(theme::FG_PRIMARY).strong());
+                            ui.label(egui::RichText::new(&item.entry).color(theme::fg_primary()).strong());
                         });
                     });
                     row.col(|ui| {
@@ -581,7 +581,7 @@ impl AutorunsPageState {
                             egui::Label::new(
                                 egui::RichText::new(path)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_SECONDARY),
+                                    .color(theme::fg_secondary()),
                             )
                             .truncate(),
                         );
@@ -595,7 +595,7 @@ impl AutorunsPageState {
                             egui::Label::new(
                                 egui::RichText::new(cmd)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -705,7 +705,7 @@ impl AutorunsPageState {
                     }
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("删除条目").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("删除条目").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -863,22 +863,22 @@ impl AutorunsPageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&item.entry)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 signature_badge(ui, &item.signature);
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                ui.label(egui::RichText::new(&item.category).color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                ui.label(egui::RichText::new(&item.category).color(theme::fg_tertiary()));
                                 if let Some(size) = item.file_size {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                    ui.label(egui::RichText::new(format_size(size)).color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                    ui.label(egui::RichText::new(format_size(size)).color(theme::fg_tertiary()));
                                 }
                                 if !item.enabled {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                    ui.label(egui::RichText::new("已禁用").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                    ui.label(egui::RichText::new("已禁用").color(theme::fg_tertiary()));
                                 }
                             });
                         });
@@ -906,7 +906,7 @@ impl AutorunsPageState {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("! 文件不存在")
-                            .color(theme::SEMANTIC_DANGER)
+                            .color(theme::semantic_danger())
                             .strong(),
                     );
                 }
@@ -925,7 +925,7 @@ impl AutorunsPageState {
                     let entry_id = item.id;
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("删除").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -961,7 +961,7 @@ impl AutorunsPageState {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("确认删除").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -1028,7 +1028,7 @@ impl AutorunsPageState {
                             egui::Label::new(
                                 egui::RichText::new(text)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_PRIMARY),
+                                    .color(theme::fg_primary()),
                             )
                             .selectable(true),
                         );
@@ -1062,23 +1062,23 @@ impl AutorunsPageState {
 
             ui.label(
                 egui::RichText::new(format!("当前: {}", filtered))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
             ui.label(
                 egui::RichText::new(format!("总数: {}", total))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
             ui.label(
                 egui::RichText::new(format!("已签名: {}/{}", signed, total))
-                    .color(theme::SEMANTIC_SUCCESS)
+                    .color(theme::semantic_success())
                     .size(11.0),
             );
             if disabled > 0 {
                 ui.label(
                     egui::RichText::new(format!("已禁用: {}", disabled))
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             }
@@ -1091,11 +1091,11 @@ impl AutorunsPageState {
                     let phase_label = phase_label(&p.phase);
                     ui.label(
                         egui::RichText::new(format!("{}… {}/{}", phase_label, p.current, p.total))
-                            .color(theme::ACCENT)
+                            .color(theme::accent())
                             .size(11.0),
                     );
                 } else {
-                    ui.label(egui::RichText::new("扫描中…").color(theme::ACCENT).size(11.0));
+                    ui.label(egui::RichText::new("扫描中…").color(theme::accent()).size(11.0));
                 }
             } else if let Some(count) = self.last_scan_count {
                 let mut text = format!("上次扫描: {} 项", count);
@@ -1103,7 +1103,7 @@ impl AutorunsPageState {
                     let secs = dur.as_secs();
                     text.push_str(&format!("  耗时: {}", format_duration(secs)));
                 }
-                ui.label(egui::RichText::new(text).color(theme::FG_TERTIARY).size(11.0));
+                ui.label(egui::RichText::new(text).color(theme::fg_tertiary()).size(11.0));
             }
         });
     }
@@ -1233,7 +1233,7 @@ fn cell_signature(ui: &mut egui::Ui, sig: &SignatureStatus) {
                 if !signer.is_empty() {
                     // Use Label with truncate instead of hard-coded char limit
                     ui.add(
-                        egui::Label::new(egui::RichText::new(signer).color(theme::FG_SECONDARY).size(11.0)).truncate(),
+                        egui::Label::new(egui::RichText::new(signer).color(theme::fg_secondary()).size(11.0)).truncate(),
                     );
                 }
             });
@@ -1245,7 +1245,7 @@ fn cell_signature(ui: &mut egui::Ui, sig: &SignatureStatus) {
             badge::badge(ui, "未签", BadgeVariant::Warning);
         }
         SignatureStatus::NotVerified => {
-            ui.label(egui::RichText::new("—").color(theme::FG_TERTIARY).size(11.0));
+            ui.label(egui::RichText::new("—").color(theme::fg_tertiary()).size(11.0));
         }
     }
 }
@@ -1258,7 +1258,7 @@ fn signature_badge(ui: &mut egui::Ui, sig: &SignatureStatus) {
                 // Show full signer text with wrap, no truncation
                 ui.label(
                     egui::RichText::new(format!("({})", signer))
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(10.0),
                 );
             }

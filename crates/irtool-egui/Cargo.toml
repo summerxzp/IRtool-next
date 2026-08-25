@@ -14,7 +14,7 @@ irtool-autoruns = { path = "../irtool-autoruns" }
 irtool-browser-forensics = { path = "../irtool-browser-forensics" }
 
 eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "accesskit"] }
-egui_extras = "0.36"
+egui_extras = { version = "0.36", features = ["svg"] }
 egui = "0.36"
 
 arboard = "3"

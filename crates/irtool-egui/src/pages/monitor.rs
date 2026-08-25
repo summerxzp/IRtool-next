@@ -176,14 +176,14 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("运行状态")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.is_background {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("退出后台模式").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("退出后台模式").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -208,7 +208,7 @@ impl MonitorPageState {
                     // Row 1
                     // 模式
                     ui.vertical(|ui| {
-                        ui.label(egui::RichText::new("模式").color(theme::FG_TERTIARY).size(11.0));
+                        ui.label(egui::RichText::new("模式").color(theme::fg_tertiary()).size(11.0));
                         if self.is_background {
                             badge::badge(ui, "后台运行", BadgeVariant::Success);
                         } else {
@@ -221,21 +221,21 @@ impl MonitorPageState {
                         .as_ref()
                         .map(|t| theme::fmt_uptime(t.started_at))
                         .unwrap_or_else(|| "-".to_string());
-                    status_cell(ui, "运行时长", uptime, theme::FG_PRIMARY);
+                    status_cell(ui, "运行时长", uptime, theme::fg_primary());
                     // 事件写入
                     let written = self
                         .telemetry
                         .as_ref()
                         .map(|t| t.events_written.to_string())
                         .unwrap_or_else(|| "0".to_string());
-                    status_cell(ui, "事件写入", written, theme::FG_PRIMARY);
+                    status_cell(ui, "事件写入", written, theme::fg_primary());
                     // 事件丢弃
                     let dropped = self
                         .telemetry
                         .as_ref()
                         .map(|t| t.events_dropped.to_string())
                         .unwrap_or_else(|| "0".to_string());
-                    status_cell(ui, "事件丢弃", dropped, theme::FG_PRIMARY);
+                    status_cell(ui, "事件丢弃", dropped, theme::fg_primary());
                     ui.end_row();
 
                     // Row 2
@@ -247,11 +247,11 @@ impl MonitorPageState {
                         .map(theme::fmt_time_millis)
                         .unwrap_or_else(|| "-".to_string());
                     let _last_event_resp = ui.vertical(|ui| {
-                        ui.label(egui::RichText::new("最后事件").color(theme::FG_TERTIARY).size(11.0));
+                        ui.label(egui::RichText::new("最后事件").color(theme::fg_tertiary()).size(11.0));
                         ui.add(
                             egui::Label::new(
                                 egui::RichText::new(last_event)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .size(12.0)
                                     .monospace(),
                             )
@@ -259,9 +259,9 @@ impl MonitorPageState {
                         );
                     });
                     // 数据库记录
-                    status_cell(ui, "数据库记录", self.event_count.to_string(), theme::FG_PRIMARY);
+                    status_cell(ui, "数据库记录", self.event_count.to_string(), theme::fg_primary());
                     // 数据库大小
-                    status_cell(ui, "数据库大小", theme::fmt_bytes(self.db_size), theme::FG_PRIMARY);
+                    status_cell(ui, "数据库大小", theme::fmt_bytes(self.db_size), theme::fg_primary());
                     // 最后错误
                     let last_err = self
                         .telemetry
@@ -269,9 +269,9 @@ impl MonitorPageState {
                         .and_then(|t| t.last_error.clone())
                         .unwrap_or_else(|| "-".to_string());
                     let err_color = if last_err == "-" {
-                        theme::FG_TERTIARY
+                        theme::fg_tertiary()
                     } else {
-                        theme::SEMANTIC_DANGER
+                        theme::semantic_danger()
                     };
                     status_cell(ui, "最后错误", last_err, err_color);
                     ui.end_row();
@@ -311,7 +311,7 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("存储配置")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
         });
@@ -331,7 +331,7 @@ impl MonitorPageState {
                 }
                 ui.label(
                     egui::RichText::new("(0 = 永久保留)")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             });
@@ -348,7 +348,7 @@ impl MonitorPageState {
                 }
                 ui.label(
                     egui::RichText::new("MB (0 = 不限制)")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             });
@@ -383,7 +383,7 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("日志采集事件")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -405,10 +405,10 @@ impl MonitorPageState {
                             .color(egui::Color32::WHITE)
                             .size(11.0)
                     } else {
-                        egui::RichText::new(label).color(theme::FG_SECONDARY).size(11.0)
+                        egui::RichText::new(label).color(theme::fg_secondary()).size(11.0)
                     };
                     let btn = if active {
-                        egui::Button::new(text).fill(theme::ACCENT)
+                        egui::Button::new(text).fill(theme::accent())
                     } else {
                         egui::Button::new(text)
                     };
@@ -435,7 +435,7 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("网络监控")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
         });
@@ -455,7 +455,7 @@ impl MonitorPageState {
                 }
                 ui.label(
                     egui::RichText::new("秒 (0 = 不限制)")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             });
@@ -480,7 +480,7 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("规则与通知")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
         });
@@ -491,7 +491,7 @@ impl MonitorPageState {
             if self.config.rules.is_empty() {
                 ui.label(
                     egui::RichText::new("暂无监控规则，请在 设置 → 告警规则 中添加")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(12.0),
                 );
             } else {
@@ -502,7 +502,7 @@ impl MonitorPageState {
                         } else {
                             badge::badge(ui, "禁用", BadgeVariant::Default);
                         }
-                        ui.label(egui::RichText::new(&rule.name).color(theme::FG_PRIMARY).size(12.0));
+                        ui.label(egui::RichText::new(&rule.name).color(theme::fg_primary()).size(12.0));
                         for et in &rule.event_types {
                             badge::badge(ui, et, BadgeVariant::Info);
                         }
@@ -530,7 +530,7 @@ impl MonitorPageState {
                 }
                 ui.label(
                     egui::RichText::new("秒 (0 = 不自动关闭)")
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             });
@@ -546,7 +546,7 @@ impl MonitorPageState {
             ui.label(
                 egui::RichText::new("快速预设")
                     .strong()
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(13.0),
             );
         });
@@ -702,7 +702,7 @@ impl MonitorPageState {
 /// Render a label + value pair for the status grid.
 fn status_cell(ui: &mut egui::Ui, label: &str, value: String, color: egui::Color32) {
     ui.vertical(|ui| {
-        ui.label(egui::RichText::new(label).color(theme::FG_TERTIARY).size(11.0));
+        ui.label(egui::RichText::new(label).color(theme::fg_tertiary()).size(11.0));
         ui.add(egui::Label::new(egui::RichText::new(value).color(color).size(12.0)).truncate());
     });
 }

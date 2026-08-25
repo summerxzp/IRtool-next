@@ -288,12 +288,12 @@ impl BrowserForensicsPageState {
                 let btn = if is_selected {
                     egui::Button::new(
                         egui::RichText::new(kind.display_name())
-                            .color(theme::BG_PRIMARY)
+                            .color(theme::bg_primary())
                             .strong(),
                     )
-                    .fill(theme::ACCENT)
+                    .fill(theme::accent())
                 } else {
-                    egui::Button::new(egui::RichText::new(kind.display_name()).color(theme::FG_PRIMARY))
+                    egui::Button::new(egui::RichText::new(kind.display_name()).color(theme::fg_primary()))
                 };
                 if ui.add(btn).clicked() && !is_selected {
                     self.selected_browser = *kind;
@@ -365,7 +365,7 @@ impl BrowserForensicsPageState {
             // Loading indicator
             if self.loading {
                 ui.spinner();
-                ui.label(egui::RichText::new("加载中…").color(theme::ACCENT).size(12.0));
+                ui.label(egui::RichText::new("加载中…").color(theme::accent()).size(12.0));
             }
         });
     }
@@ -379,13 +379,13 @@ impl BrowserForensicsPageState {
                 let btn = if is_active {
                     egui::Button::new(
                         egui::RichText::new(tab.label())
-                            .color(theme::ACCENT)
+                            .color(theme::accent())
                             .strong()
                             .underline(),
                     )
                     .frame(false)
                 } else {
-                    egui::Button::new(egui::RichText::new(tab.label()).color(theme::FG_SECONDARY)).frame(false)
+                    egui::Button::new(egui::RichText::new(tab.label()).color(theme::fg_secondary())).frame(false)
                 };
                 if ui.add(btn).clicked() {
                     self.active_tab = *tab;
@@ -474,7 +474,7 @@ impl BrowserForensicsPageState {
             let total = self.extensions.len();
             ui.label(
                 egui::RichText::new(format!("{}/{}", filtered, total))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(11.0),
             );
         });
@@ -491,14 +491,14 @@ impl BrowserForensicsPageState {
             ui.vertical_centered(|ui| {
                 if self.extensions.is_empty() {
                     if self.extensions_loaded {
-                        ui.label(egui::RichText::new("未发现扩展").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("未发现扩展").color(theme::fg_secondary()));
                     } else if self.selected_profile.is_some() {
-                        ui.label(egui::RichText::new("选择 Profile 后加载扩展").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("选择 Profile 后加载扩展").color(theme::fg_secondary()));
                     } else {
-                        ui.label(egui::RichText::new("请先选择浏览器和 Profile").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("请先选择浏览器和 Profile").color(theme::fg_secondary()));
                     }
                 } else {
-                    ui.label(egui::RichText::new("没有匹配当前过滤条件的扩展").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配当前过滤条件的扩展").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -582,11 +582,11 @@ impl BrowserForensicsPageState {
                     });
                     // Name
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.name).color(theme::FG_PRIMARY).strong());
+                        ui.label(egui::RichText::new(&item.name).color(theme::fg_primary()).strong());
                     });
                     // Version
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.version).color(theme::FG_SECONDARY).size(11.0));
+                        ui.label(egui::RichText::new(&item.version).color(theme::fg_secondary()).size(11.0));
                     });
                     // ID
                     row.col(|ui| {
@@ -594,7 +594,7 @@ impl BrowserForensicsPageState {
                             egui::Label::new(
                                 egui::RichText::new(&item.id)
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -608,19 +608,19 @@ impl BrowserForensicsPageState {
                                 badge::badge(ui, risk_flag_label(flag), variant);
                             }
                             if item.risk_flags.is_empty() {
-                                ui.label(egui::RichText::new("—").color(theme::FG_TERTIARY).size(11.0));
+                                ui.label(egui::RichText::new("—").color(theme::fg_tertiary()).size(11.0));
                             }
                         });
                     });
                     // Permissions count
                     row.col(|ui| {
                         let count = item.permissions.len() + item.host_permissions.len();
-                        ui.label(egui::RichText::new(count.to_string()).color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new(count.to_string()).color(theme::fg_secondary()));
                     });
                     // Install source
                     row.col(|ui| {
                         let source = item.install_source.as_deref().unwrap_or("—");
-                        ui.label(egui::RichText::new(source).color(theme::FG_SECONDARY).size(11.0));
+                        ui.label(egui::RichText::new(source).color(theme::fg_secondary()).size(11.0));
                     });
                     // Install time
                     row.col(|ui| {
@@ -629,7 +629,7 @@ impl BrowserForensicsPageState {
                             .as_deref()
                             .map(format_rfc3339)
                             .unwrap_or_else(|| "—".to_string());
-                        ui.label(egui::RichText::new(&time).color(theme::FG_TERTIARY).size(11.0));
+                        ui.label(egui::RichText::new(&time).color(theme::fg_tertiary()).size(11.0));
                     });
 
                     // Row click
@@ -688,7 +688,7 @@ impl BrowserForensicsPageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&item.name)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
@@ -699,10 +699,10 @@ impl BrowserForensicsPageState {
                                 } else {
                                     badge::badge(ui, "已禁用", BadgeVariant::Default);
                                 }
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                ui.label(egui::RichText::new(&item.version).color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                ui.label(egui::RichText::new(&item.version).color(theme::fg_tertiary()));
                                 if !item.risk_flags.is_empty() {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                     for flag in &item.risk_flags {
                                         let variant = risk_flag_badge_variant(flag);
                                         badge::badge(ui, risk_flag_label(flag), variant);
@@ -760,7 +760,7 @@ impl BrowserForensicsPageState {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("权限列表")
-                            .color(theme::FG_TERTIARY)
+                            .color(theme::fg_tertiary())
                             .size(11.0)
                             .strong(),
                     );
@@ -770,7 +770,7 @@ impl BrowserForensicsPageState {
                             ui.label(
                                 egui::RichText::new(format!("• {}", perm))
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_SECONDARY)
+                                    .color(theme::fg_secondary())
                                     .size(11.0),
                             );
                         });
@@ -782,7 +782,7 @@ impl BrowserForensicsPageState {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("Host Permissions")
-                            .color(theme::FG_TERTIARY)
+                            .color(theme::fg_tertiary())
                             .size(11.0)
                             .strong(),
                     );
@@ -792,7 +792,7 @@ impl BrowserForensicsPageState {
                             ui.label(
                                 egui::RichText::new(format!("• {}", perm))
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_SECONDARY)
+                                    .color(theme::fg_secondary())
                                     .size(11.0),
                             );
                         });
@@ -804,7 +804,7 @@ impl BrowserForensicsPageState {
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("IOC 匹配")
-                            .color(theme::SEMANTIC_DANGER)
+                            .color(theme::semantic_danger())
                             .size(11.0)
                             .strong(),
                     );
@@ -815,10 +815,10 @@ impl BrowserForensicsPageState {
                             ui.label(
                                 egui::RichText::new(&m.value)
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_SECONDARY)
+                                    .color(theme::fg_secondary())
                                     .size(11.0),
                             );
-                            ui.label(egui::RichText::new(&m.value).color(theme::FG_TERTIARY).size(10.0));
+                            ui.label(egui::RichText::new(&m.value).color(theme::fg_tertiary()).size(10.0));
                         });
                     }
                 }
@@ -852,7 +852,7 @@ impl BrowserForensicsPageState {
             ui.add_space((ui.available_width() - 80.0).max(0.0));
             ui.label(
                 egui::RichText::new(format!("{} 条", self.get_filtered_history().len()))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(11.0),
             );
         });
@@ -867,12 +867,12 @@ impl BrowserForensicsPageState {
             ui.vertical_centered(|ui| {
                 if self.history.is_empty() {
                     if self.history_loaded {
-                        ui.label(egui::RichText::new("无历史记录").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("无历史记录").color(theme::fg_secondary()));
                     } else {
-                        ui.label(egui::RichText::new("选择 Profile 后加载历史记录").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("选择 Profile 后加载历史记录").color(theme::fg_secondary()));
                     }
                 } else {
-                    ui.label(egui::RichText::new("没有匹配的记录").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配的记录").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -922,7 +922,7 @@ impl BrowserForensicsPageState {
                     row.col(|ui| {
                         ui.label(
                             egui::RichText::new(&item.visit_time)
-                                .color(theme::FG_TERTIARY)
+                                .color(theme::fg_tertiary())
                                 .size(11.0),
                         );
                     });
@@ -931,14 +931,14 @@ impl BrowserForensicsPageState {
                             egui::Label::new(
                                 egui::RichText::new(&item.url)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_SECONDARY),
+                                    .color(theme::fg_secondary()),
                             )
                             .truncate(),
                         );
                         resp.on_hover_text(&item.url);
                     });
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.title).color(theme::FG_PRIMARY));
+                        ui.label(egui::RichText::new(&item.title).color(theme::fg_primary()));
                     });
 
                     let row_resp = row.response();
@@ -982,7 +982,7 @@ impl BrowserForensicsPageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&item.title)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
@@ -1025,7 +1025,7 @@ impl BrowserForensicsPageState {
             ui.add_space((ui.available_width() - 80.0).max(0.0));
             ui.label(
                 egui::RichText::new(format!("{} 条", self.get_filtered_downloads().len()))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(11.0),
             );
         });
@@ -1040,12 +1040,12 @@ impl BrowserForensicsPageState {
             ui.vertical_centered(|ui| {
                 if self.downloads.is_empty() {
                     if self.downloads_loaded {
-                        ui.label(egui::RichText::new("无下载记录").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("无下载记录").color(theme::fg_secondary()));
                     } else {
-                        ui.label(egui::RichText::new("选择 Profile 后加载下载记录").color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new("选择 Profile 后加载下载记录").color(theme::fg_secondary()));
                     }
                 } else {
-                    ui.label(egui::RichText::new("没有匹配的记录").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配的记录").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -1086,7 +1086,7 @@ impl BrowserForensicsPageState {
                     }
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("Referrer").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("Referrer").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
                     if table::sortable_header(ui, "安全", sc == DownloadSortColumn::DangerType, sd) {
@@ -1099,7 +1099,7 @@ impl BrowserForensicsPageState {
                     }
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("已打开").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("已打开").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -1119,11 +1119,11 @@ impl BrowserForensicsPageState {
                             .as_deref()
                             .map(format_rfc3339)
                             .unwrap_or_else(|| "—".to_string());
-                        ui.label(egui::RichText::new(&time).color(theme::FG_TERTIARY).size(11.0));
+                        ui.label(egui::RichText::new(&time).color(theme::fg_tertiary()).size(11.0));
                     });
                     // Filename
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.filename).color(theme::FG_PRIMARY));
+                        ui.label(egui::RichText::new(&item.filename).color(theme::fg_primary()));
                     });
                     // Source URL
                     row.col(|ui| {
@@ -1131,7 +1131,7 @@ impl BrowserForensicsPageState {
                             egui::Label::new(
                                 egui::RichText::new(&item.download_url)
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_SECONDARY),
+                                    .color(theme::fg_secondary()),
                             )
                             .truncate(),
                         );
@@ -1144,7 +1144,7 @@ impl BrowserForensicsPageState {
                             egui::Label::new(
                                 egui::RichText::new(ref_text)
                                     .font(egui::FontId::monospace(10.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -1163,14 +1163,14 @@ impl BrowserForensicsPageState {
                             .total_bytes
                             .map(|b| format_bytes(b as u64))
                             .unwrap_or_else(|| "—".to_string());
-                        ui.label(egui::RichText::new(&size).color(theme::FG_SECONDARY).size(11.0));
+                        ui.label(egui::RichText::new(&size).color(theme::fg_secondary()).size(11.0));
                     });
                     // Opened
                     row.col(|ui| {
                         if item.opened {
-                            ui.label(egui::RichText::new("是").color(theme::SEMANTIC_SUCCESS).size(11.0));
+                            ui.label(egui::RichText::new("是").color(theme::semantic_success()).size(11.0));
                         } else {
-                            ui.label(egui::RichText::new("否").color(theme::FG_TERTIARY).size(11.0));
+                            ui.label(egui::RichText::new("否").color(theme::fg_tertiary()).size(11.0));
                         }
                     });
 
@@ -1215,7 +1215,7 @@ impl BrowserForensicsPageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&item.filename)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
@@ -1224,8 +1224,8 @@ impl BrowserForensicsPageState {
                                 let (label, variant) = danger_type_badge(&item.danger_type);
                                 badge::badge(ui, label, variant);
                                 if item.opened {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                    ui.label(egui::RichText::new("已打开").color(theme::SEMANTIC_WARNING).size(11.0));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                    ui.label(egui::RichText::new("已打开").color(theme::semantic_warning()).size(11.0));
                                 }
                             });
                         });
@@ -1273,9 +1273,9 @@ impl BrowserForensicsPageState {
             ui.add_space(80.0);
             ui.vertical_centered(|ui| {
                 if self.tabs_loaded {
-                    ui.label(egui::RichText::new("无打开的标签页").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("无打开的标签页").color(theme::fg_secondary()));
                 } else {
-                    ui.label(egui::RichText::new("选择 Profile 后加载标签页").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("选择 Profile 后加载标签页").color(theme::fg_secondary()));
                 }
             });
             return;
@@ -1293,13 +1293,13 @@ impl BrowserForensicsPageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("#").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("#").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("URL").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("URL").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("标题").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("标题").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -1312,21 +1312,21 @@ impl BrowserForensicsPageState {
                             .tab_index
                             .map(|i| i.to_string())
                             .unwrap_or_else(|| (idx + 1).to_string());
-                        ui.label(egui::RichText::new(&idx_str).color(theme::FG_TERTIARY));
+                        ui.label(egui::RichText::new(&idx_str).color(theme::fg_tertiary()));
                     });
                     row.col(|ui| {
                         let resp = ui.add(
                             egui::Label::new(
                                 egui::RichText::new(&tab.url)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_SECONDARY),
+                                    .color(theme::fg_secondary()),
                             )
                             .truncate(),
                         );
                         resp.on_hover_text(&tab.url);
                     });
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&tab.title).color(theme::FG_PRIMARY));
+                        ui.label(egui::RichText::new(&tab.title).color(theme::fg_primary()));
                     });
                 });
             });

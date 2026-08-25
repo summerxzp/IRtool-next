@@ -435,9 +435,9 @@ impl ProcessPageState {
         ui.horizontal(|ui| {
             // 刷新按钮
             let refresh_btn = if self.refreshing {
-                egui::Button::new(egui::RichText::new("↻ 刷新中...").color(theme::FG_TERTIARY))
+                egui::Button::new(egui::RichText::new("↻ 刷新中...").color(theme::fg_tertiary()))
             } else {
-                egui::Button::new(egui::RichText::new("↻ 刷新").color(theme::FG_PRIMARY))
+                egui::Button::new(egui::RichText::new("↻ 刷新").color(theme::fg_primary()))
             };
             if ui.add_enabled(!self.refreshing, refresh_btn).clicked() {
                 self.trigger_refresh(ctx, rt);
@@ -546,7 +546,7 @@ impl ProcessPageState {
                             theme::fmt_time(snap.timestamp)
                         ))
                         .size(12.0)
-                        .color(theme::FG_TERTIARY),
+                        .color(theme::fg_tertiary()),
                     );
                 });
             }
@@ -587,9 +587,9 @@ impl ProcessPageState {
             ui.vertical_centered(|ui| {
                 if snapshot_is_none {
                     ui.spinner();
-                    ui_label(ui, egui::RichText::new("等待进程数据...").color(theme::FG_SECONDARY));
+                    ui_label(ui, egui::RichText::new("等待进程数据...").color(theme::fg_secondary()));
                 } else {
-                    ui_label(ui, egui::RichText::new("没有匹配的进程").color(theme::FG_TERTIARY));
+                    ui_label(ui, egui::RichText::new("没有匹配的进程").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -651,7 +651,7 @@ impl ProcessPageState {
                             egui::RichText::new(entry.pid.to_string())
                                 .monospace()
                                 .size(12.0)
-                                .color(theme::FG_PRIMARY),
+                                .color(theme::fg_primary()),
                         );
                     });
                     // PPID
@@ -661,7 +661,7 @@ impl ProcessPageState {
                             egui::RichText::new(entry.ppid.to_string())
                                 .monospace()
                                 .size(12.0)
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 名称（带图标）
@@ -670,9 +670,9 @@ impl ProcessPageState {
                             icon_cache.icon_or_placeholder(ui, entry.exe.as_deref(), 16.0);
                             ui.add_space(4.0);
                             let color = if is_suspicious {
-                                theme::SEMANTIC_WARNING
+                                theme::semantic_warning()
                             } else {
-                                theme::FG_PRIMARY
+                                theme::fg_primary()
                             };
                             cell_text(ui, egui::RichText::new(&entry.name).color(color));
                         });
@@ -685,7 +685,7 @@ impl ProcessPageState {
                                 egui::RichText::new(path)
                                     .monospace()
                                     .size(12.0)
-                                    .color(theme::FG_SECONDARY),
+                                    .color(theme::fg_secondary()),
                             )
                             .selectable(false)
                             .truncate(),
@@ -759,9 +759,9 @@ impl ProcessPageState {
             ui.vertical_centered(|ui| {
                 if snapshot_is_none {
                     ui.spinner();
-                    ui_label(ui, egui::RichText::new("等待进程数据...").color(theme::FG_SECONDARY));
+                    ui_label(ui, egui::RichText::new("等待进程数据...").color(theme::fg_secondary()));
                 } else {
-                    ui_label(ui, egui::RichText::new("没有匹配的进程").color(theme::FG_TERTIARY));
+                    ui_label(ui, egui::RichText::new("没有匹配的进程").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -858,12 +858,12 @@ impl ProcessPageState {
                             ui.horizontal(|ui| {
                                 ui.label(
                                     egui::RichText::new(&entry.name)
-                                        .color(theme::FG_PRIMARY)
+                                        .color(theme::fg_primary())
                                         .strong()
                                         .size(14.0),
                                 );
                                 if entry.is_suspicious {
-                                    ui.label(egui::RichText::new("⚠").color(theme::SEMANTIC_WARNING));
+                                    ui.label(egui::RichText::new("⚠").color(theme::semantic_warning()));
                                 }
                             });
                             ui.add_space(2.0);
@@ -871,14 +871,14 @@ impl ProcessPageState {
                                 ui.label(
                                     egui::RichText::new(format!("PID {}", entry.pid))
                                         .monospace()
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                 ui.label(
                                     egui::RichText::new(format!("PPID {}", entry.ppid))
                                         .monospace()
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
                             });
@@ -927,23 +927,23 @@ impl ProcessPageState {
                     DetailTab::Chain => {
                         if chain_loading {
                             ui.spinner();
-                            ui.label(egui::RichText::new("加载中...").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("加载中...").color(theme::fg_tertiary()));
                         } else if let Some(ref chain) = chain {
                             if chain.nodes.is_empty() {
-                                ui.label(egui::RichText::new("无进程链数据").color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("无进程链数据").color(theme::fg_tertiary()));
                             } else {
                                 // 倒序显示：root→target
                                 let nodes: Vec<&ProcessNode> = chain.nodes.iter().rev().collect();
                                 for (i, node) in nodes.iter().enumerate() {
                                     ui.horizontal(|ui| {
                                         ui.add_space(i as f32 * 12.0);
-                                        ui.label(egui::RichText::new("└─").color(theme::FG_TERTIARY).size(11.0));
+                                        ui.label(egui::RichText::new("└─").color(theme::fg_tertiary()).size(11.0));
                                         let name_color = if node.is_suspicious {
-                                            theme::SEMANTIC_WARNING
+                                            theme::semantic_warning()
                                         } else if node.is_target {
-                                            theme::ACCENT
+                                            theme::accent()
                                         } else {
-                                            theme::FG_PRIMARY
+                                            theme::fg_primary()
                                         };
                                         ui.label(
                                             egui::RichText::new(format!("{} ({})", node.name, node.pid))
@@ -951,7 +951,7 @@ impl ProcessPageState {
                                                 .size(12.0),
                                         );
                                         if node.is_suspicious {
-                                            ui.label(egui::RichText::new("⚠").color(theme::SEMANTIC_WARNING));
+                                            ui.label(egui::RichText::new("⚠").color(theme::semantic_warning()));
                                         }
                                         if node.is_target {
                                             badge::badge(ui, "目标", BadgeVariant::Info);
@@ -979,15 +979,15 @@ impl ProcessPageState {
                                 }
                             }
                         } else {
-                            ui.label(egui::RichText::new("点击进程查看进程链").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("点击进程查看进程链").color(theme::fg_tertiary()));
                         }
                     }
                     DetailTab::Network => {
                         if network_loading {
                             ui.spinner();
-                            ui.label(egui::RichText::new("加载中...").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("加载中...").color(theme::fg_tertiary()));
                         } else if network_conns.is_empty() {
-                            ui.label(egui::RichText::new("无关联网络连接").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("无关联网络连接").color(theme::fg_tertiary()));
                         } else {
                             for conn in &network_conns {
                                 ui.horizontal(|ui| {
@@ -995,21 +995,21 @@ impl ProcessPageState {
                                     ui.label(
                                         egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
                                             .size(11.0)
-                                            .color(theme::FG_TERTIARY),
+                                            .color(theme::fg_tertiary()),
                                     );
                                     // local→remote
                                     ui.label(
                                         egui::RichText::new(format_endpoint(&conn.local.addr, conn.local.port))
                                             .monospace()
                                             .size(11.0)
-                                            .color(theme::FG_PRIMARY),
+                                            .color(theme::fg_primary()),
                                     );
-                                    ui.label(egui::RichText::new("→").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("→").color(theme::fg_tertiary()));
                                     ui.label(
                                         egui::RichText::new(format_endpoint(&conn.remote.addr, conn.remote.port))
                                             .monospace()
                                             .size(11.0)
-                                            .color(theme::FG_PRIMARY),
+                                            .color(theme::fg_primary()),
                                     );
                                     // 状态 badge
                                     badge::badge(ui, conn.state.as_str(), state_badge_variant(&conn.state));
@@ -1018,7 +1018,7 @@ impl ProcessPageState {
                                         egui::RichText::new(theme::fmt_time(conn.last_seen))
                                             .monospace()
                                             .size(10.0)
-                                            .color(theme::FG_TERTIARY),
+                                            .color(theme::fg_tertiary()),
                                     );
                                 });
                             }
@@ -1031,7 +1031,7 @@ impl ProcessPageState {
                             .take(50)
                             .collect();
                         if pid_events.is_empty() {
-                            ui.label(egui::RichText::new("无关联 Sysmon 事件").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("无关联 Sysmon 事件").color(theme::fg_tertiary()));
                         } else {
                             for evt in &pid_events {
                                 ui.horizontal(|ui| {
@@ -1043,13 +1043,13 @@ impl ProcessPageState {
                                     );
                                     // 关键信息
                                     let key_info = sysmon_event_key_info(evt);
-                                    ui.label(egui::RichText::new(key_info).size(11.0).color(theme::FG_PRIMARY));
+                                    ui.label(egui::RichText::new(key_info).size(11.0).color(theme::fg_primary()));
                                     // 时间
                                     ui.label(
                                         egui::RichText::new(&evt.timestamp)
                                             .monospace()
                                             .size(10.0)
-                                            .color(theme::FG_TERTIARY),
+                                            .color(theme::fg_tertiary()),
                                     );
                                 });
                             }
@@ -1058,24 +1058,24 @@ impl ProcessPageState {
                     DetailTab::Autoruns => {
                         if autoruns_loading {
                             ui.spinner();
-                            ui.label(egui::RichText::new("加载中...").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("加载中...").color(theme::fg_tertiary()));
                         } else if entry.exe.is_none() {
-                            ui.label(egui::RichText::new("无可执行路径").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("无可执行路径").color(theme::fg_tertiary()));
                         } else if autoruns_items.is_empty() {
-                            ui.label(egui::RichText::new("无关联持久化项").color(theme::FG_TERTIARY));
+                            ui.label(egui::RichText::new("无关联持久化项").color(theme::fg_tertiary()));
                         } else {
                             for item in &autoruns_items {
                                 ui.horizontal(|ui| {
                                     // 分类 badge
                                     badge::badge(ui, &item.category, BadgeVariant::Default);
                                     // entry
-                                    ui.label(egui::RichText::new(&item.entry).size(11.0).color(theme::FG_PRIMARY));
+                                    ui.label(egui::RichText::new(&item.entry).size(11.0).color(theme::fg_primary()));
                                     // location
                                     ui.label(
                                         egui::RichText::new(&item.location)
                                             .monospace()
                                             .size(10.0)
-                                            .color(theme::FG_TERTIARY),
+                                            .color(theme::fg_tertiary()),
                                     );
                                 });
                             }
@@ -1187,11 +1187,12 @@ fn render_tree_node(
     let is_selected = selected_pid == Some(node.entry.pid);
     let is_suspicious = node.entry.is_suspicious;
 
-    // 选中行背景高亮
+    // 选中行背景高亮（可疑行 = SEMANTIC_WARNING 旧字面量 0xca8a04 → warning.fg 同 alpha）
     let bg = if is_selected {
-        theme::TABLE_ROW_SELECTED
+        theme::table_row_selected()
     } else if is_suspicious {
-        egui::Color32::from_rgba_premultiplied(0xca, 0x8a, 0x04, 15)
+        let w = theme::semantic_warning();
+        egui::Color32::from_rgba_premultiplied(w.r(), w.g(), w.b(), 15)
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -1213,14 +1214,14 @@ fn render_tree_node(
             // 展开箭头
             if has_children {
                 let arrow = if is_expanded { "▼" } else { "▶" };
-                ui.label(egui::RichText::new(arrow).size(10.0).color(theme::FG_TERTIARY));
+                ui.label(egui::RichText::new(arrow).size(10.0).color(theme::fg_tertiary()));
             } else {
                 ui.add_space(12.0);
             }
 
             // orphan 标记
             if node.is_orphan {
-                ui.label(egui::RichText::new("⚠").color(theme::SEMANTIC_WARNING).size(11.0))
+                ui.label(egui::RichText::new("⚠").color(theme::semantic_warning()).size(11.0))
                     .on_hover_text("父进程不在快照中");
             }
 
@@ -1229,25 +1230,25 @@ fn render_tree_node(
                 egui::RichText::new(node.entry.pid.to_string())
                     .monospace()
                     .size(12.0)
-                    .color(theme::FG_TERTIARY),
+                    .color(theme::fg_tertiary()),
             );
 
             // 图标 + 进程名
             icon_cache.icon_or_placeholder(ui, node.entry.exe.as_deref(), 16.0);
             ui.add_space(4.0);
             let name_color = if is_suspicious {
-                theme::SEMANTIC_WARNING
+                theme::semantic_warning()
             } else if is_selected {
-                theme::ACCENT
+                theme::accent()
             } else {
-                theme::FG_PRIMARY
+                theme::fg_primary()
             };
             ui.label(egui::RichText::new(&node.entry.name).color(name_color).size(13.0));
 
             // 可疑标记
             if is_suspicious {
                 let reason = node.entry.suspicious_reason.as_deref().unwrap_or("");
-                let resp = ui.label(egui::RichText::new("⚠").color(theme::SEMANTIC_WARNING).size(11.0));
+                let resp = ui.label(egui::RichText::new("⚠").color(theme::semantic_warning()).size(11.0));
                 if !reason.is_empty() {
                     resp.on_hover_text(reason);
                 }
@@ -1272,9 +1273,9 @@ fn render_tree_node(
 
 fn filter_button(ui: &mut egui::Ui, label: &str, active: bool) -> bool {
     let btn = if active {
-        egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(theme::ACCENT)
+        egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(theme::accent())
     } else {
-        egui::Button::new(egui::RichText::new(label).color(theme::FG_SECONDARY))
+        egui::Button::new(egui::RichText::new(label).color(theme::fg_secondary()))
     };
     ui.add(btn).clicked()
 }
@@ -1282,9 +1283,9 @@ fn filter_button(ui: &mut egui::Ui, label: &str, active: bool) -> bool {
 fn tab_button(ui: &mut egui::Ui, label: &str, count: usize, active: bool) -> bool {
     let text = format!("{} ({})", label, count);
     let btn = if active {
-        egui::Button::new(egui::RichText::new(&text).color(egui::Color32::WHITE)).fill(theme::ACCENT)
+        egui::Button::new(egui::RichText::new(&text).color(egui::Color32::WHITE)).fill(theme::accent())
     } else {
-        egui::Button::new(egui::RichText::new(&text).color(theme::FG_SECONDARY))
+        egui::Button::new(egui::RichText::new(&text).color(theme::fg_secondary()))
     };
     ui.add(btn).clicked()
 }

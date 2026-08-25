@@ -9,6 +9,7 @@ use irtool_service::services::tools::ToolsService;
 use irtool_service::types::AutorunItem;
 use irtool_service::types::ToolStatus;
 
+use crate::design::theme as dtheme;
 use crate::event_bridge::EventBridge;
 use crate::nav::Page;
 use crate::pages::{
@@ -113,6 +114,12 @@ impl IrtoolApp {
         single_instance_guard: crate::single_instance::SingleInstanceGuard,
     ) -> Self {
         let is_admin = is_running_as_admin();
+
+        // 主题运行时初始化：读取 config/ui-state.json（无文件 → System），
+        // System 按注册表 AppsUseLightTheme 解析。
+        let theme_mode = dtheme::load_mode(&ctx.app_dirs.config_dir());
+        dtheme::init(theme_mode);
+
         let (autoruns_refresh_tx, autoruns_refresh_rx) = std::sync::mpsc::channel::<Vec<AutorunItem>>();
         let (sysmon_refresh_tx, sysmon_refresh_rx) = std::sync::mpsc::channel::<SysmonRefresh>();
         let (monitor_refresh_tx, monitor_refresh_rx) = std::sync::mpsc::channel::<MonitorRefresh>();
@@ -353,7 +360,7 @@ impl IrtoolApp {
                 ui.vertical(|ui| {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("ℹ").size(20.0).color(theme::SEMANTIC_WARNING));
+                        ui.label(egui::RichText::new("ℹ").size(20.0).color(theme::semantic_warning()));
                         ui.add_space(4.0);
                         ui.label(egui::RichText::new("当前正在使用备用界面").strong().size(14.0));
                     });
@@ -365,14 +372,14 @@ impl IrtoolApp {
                              备用界面提供与主界面相同的核心功能，但视觉效果和部分交互体验有所简化。",
                         )
                         .size(12.0)
-                        .color(theme::FG_SECONDARY),
+                        .color(theme::fg_secondary()),
                     );
                     ui.add_space(10.0);
 
                     ui.label(
                         egui::RichText::new("安装 WebView2 运行时后即可恢复主界面：")
                             .size(12.0)
-                            .color(theme::FG_PRIMARY),
+                            .color(theme::fg_primary()),
                     );
                     ui.add_space(4.0);
 
@@ -381,12 +388,12 @@ impl IrtoolApp {
                         ui.label(
                             egui::RichText::new("• 推荐下载「常青独立安装程序」（Evergreen Standalone Installer）")
                                 .size(11.0)
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                         ui.label(
                             egui::RichText::new("  相比引导程序（Bootstrapper），直接下载安装包速度更快，体积相近。")
                                 .size(11.0)
-                                .color(theme::FG_TERTIARY),
+                                .color(theme::fg_tertiary()),
                         );
                     });
                     ui.add_space(10.0);
@@ -433,26 +440,26 @@ impl IrtoolApp {
                             "以下工具需要从 Microsoft 官方下载，IRTool 不会内置或二次分发这些二进制文件。",
                         )
                         .size(11.0)
-                        .color(theme::FG_TERTIARY),
+                        .color(theme::fg_tertiary()),
                     );
                     ui.add_space(6.0);
 
                     if self.tools_status.is_empty() {
-                        ui.label(egui::RichText::new("检测中...").size(12.0).color(theme::FG_TERTIARY));
+                        ui.label(egui::RichText::new("检测中...").size(12.0).color(theme::fg_tertiary()));
                     } else {
                         for tool in &self.tools_status {
                             ui.horizontal(|ui| {
                                 let (icon, color) = if tool.installed {
-                                    ("√", theme::SEMANTIC_SUCCESS)
+                                    ("√", theme::semantic_success())
                                 } else {
-                                    ("!", theme::SEMANTIC_WARNING)
+                                    ("!", theme::semantic_warning())
                                 };
                                 ui.label(egui::RichText::new(icon).size(14.0).color(color));
                                 ui.vertical(|ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(egui::RichText::new(tool_label(&tool.id)).strong().size(12.0));
                                         if tool.optional {
-                                            ui.label(egui::RichText::new("可选").size(10.0).color(theme::FG_TERTIARY));
+                                            ui.label(egui::RichText::new("可选").size(10.0).color(theme::fg_tertiary()));
                                         }
                                     });
                                     let detail = if tool.installed {
@@ -464,7 +471,7 @@ impl IrtoolApp {
                                     } else {
                                         format!("缺失: {}", tool.missing_files.join(", "))
                                     };
-                                    ui.label(egui::RichText::new(detail).size(10.0).color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new(detail).size(10.0).color(theme::fg_tertiary()));
                                 });
                             });
                             ui.add_space(2.0);
@@ -483,7 +490,7 @@ impl IrtoolApp {
                         ui.label(
                             egui::RichText::new(format!("正在下载... {}%", overall))
                                 .size(11.0)
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                         let progress = overall as f32 / 100.0;
                         ui.add(egui::ProgressBar::new(progress).desired_width(400.0));
@@ -494,7 +501,7 @@ impl IrtoolApp {
                         ui.add_space(4.0);
                         if self.tools_download_error.is_none() {
                             egui::Frame::new()
-                                .fill(theme::SEMANTIC_SUCCESS.linear_multiply(0.15))
+                                .fill(theme::semantic_success().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
@@ -503,12 +510,12 @@ impl IrtoolApp {
                                             "下载完成，EULA 已自动接受。点击「立即重启生效」以加载新工具。",
                                         )
                                         .size(11.0)
-                                        .color(theme::SEMANTIC_SUCCESS),
+                                        .color(theme::semantic_success()),
                                     );
                                 });
                         } else {
                             egui::Frame::new()
-                                .fill(theme::SEMANTIC_DANGER.linear_multiply(0.15))
+                                .fill(theme::semantic_danger().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
@@ -518,7 +525,7 @@ impl IrtoolApp {
                                             self.tools_download_error.as_deref().unwrap_or("")
                                         ))
                                         .size(11.0)
-                                        .color(theme::SEMANTIC_DANGER),
+                                        .color(theme::semantic_danger()),
                                     );
                                 });
                         }
@@ -529,14 +536,14 @@ impl IrtoolApp {
                         if let Some(ref err) = self.tools_download_error {
                             ui.add_space(4.0);
                             egui::Frame::new()
-                                .fill(theme::SEMANTIC_DANGER.linear_multiply(0.15))
+                                .fill(theme::semantic_danger().linear_multiply(0.15))
                                 .inner_margin(6.0)
                                 .corner_radius(4.0)
                                 .show(ui, |ui| {
                                     ui.label(
                                         egui::RichText::new(format!("下载失败:\n{}", err))
                                             .size(11.0)
-                                            .color(theme::SEMANTIC_DANGER),
+                                            .color(theme::semantic_danger()),
                                     );
                                 });
                         }
@@ -547,7 +554,7 @@ impl IrtoolApp {
                         ui.label(
                             egui::RichText::new("来源: download.sysinternals.com (Microsoft 官方)")
                                 .size(10.0)
-                                .color(theme::FG_TERTIARY),
+                                .color(theme::fg_tertiary()),
                         );
                         ui.add_space((ui.available_width() - 200.0).max(0.0));
                         if self.tools_download_done
@@ -747,15 +754,15 @@ impl eframe::App for IrtoolApp {
 
         // Apply theme on first update (when we have the real egui context)
         if !self.theme_applied {
-            theme::apply_light_theme(&ctx);
+            theme::apply(&ctx);
             self.theme_applied = true;
             self.event_bridge.attach_context(ctx.clone());
         }
 
-        // 0. 全屏白色底层：防止 Panel 之间因 DPI 缩放/对齐产生缝隙，露出 eframe 默认深色背景。
+        // 0. 全屏底层填充：防止 Panel 之间因 DPI 缩放/对齐产生缝隙，露出 eframe 默认深色背景。
         let screen = ctx.viewport_rect();
         ctx.layer_painter(egui::LayerId::background())
-            .rect_filled(screen, 0.0, theme::BG_PRIMARY);
+            .rect_filled(screen, 0.0, theme::bg_primary());
 
         // 1. Drain events from EventBus
         for event in self.event_bridge.drain() {
@@ -822,35 +829,40 @@ impl eframe::App for IrtoolApp {
             }
         }
 
-        // 2. Top bar
+        // 2. Top bar（壳：elev-1 底 + 底缘 border 分隔线，demo toolbar 基准）
         egui::Panel::top("topbar")
-            .frame(theme::panel_frame(egui::Margin::symmetric(8, 6)))
+            .frame(dtheme::shell_panel_frame(egui::Margin::symmetric(12, 6)))
+            .show_separator_line(true)
             .show(ui, |ui| {
                 self.render_topbar(ui);
             });
 
-        // 3. Sidebar
+        // 3. Navigation rail（壳：rail 底色，demo side_rail 基准）
         egui::Panel::left("sidebar")
             .resizable(false)
-            .exact_size(theme::SIDEBAR_WIDTH)
-            .frame(theme::panel_frame(egui::Margin {
-                left: 4,
-                right: 0,
-                top: 8,
-                bottom: 4,
-            }))
+            .exact_size(theme::RAIL_WIDTH)
+            .frame(
+                egui::Frame::new()
+                    .fill(dtheme::palette().rail)
+                    .inner_margin(egui::Margin::ZERO)
+                    .outer_margin(egui::Margin::ZERO)
+                    .stroke(egui::Stroke::NONE)
+                    .corner_radius(0.0)
+                    .shadow(egui::Shadow::NONE),
+            )
             .show_separator_line(false)
             .show(ui, |ui| {
                 self.render_sidebar(ui);
             });
 
-        // 4. Stats bar (bottom, always at the very bottom)
+        // 4. Stats bar (bottom, always at the very bottom；壳：elev-1 底 + 顶缘分隔线)
         if matches!(
             self.current_page,
             Page::Network | Page::Autoruns | Page::Sysmon | Page::Database | Page::Workspace
         ) {
             egui::Panel::bottom("stats_bar")
-                .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
+                .frame(dtheme::shell_panel_frame(egui::Margin::symmetric(16, 6)))
+                .show_separator_line(true)
                 .show(ui, |ui| match self.current_page {
                     Page::Autoruns => self.autoruns.render_stats_bar(ui),
                     Page::Sysmon => self.sysmon.render_stats_bar(ui),

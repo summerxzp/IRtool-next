@@ -10,10 +10,10 @@ pub fn detail_row(ui: &mut egui::Ui, label: &str, value: Option<&str>, mono: boo
     }
     ui.horizontal(|ui| {
         ui.set_min_width(70.0);
-        ui.label(egui::RichText::new(label).color(theme::FG_TERTIARY).size(11.0));
+        ui.label(egui::RichText::new(label).color(theme::fg_tertiary()).size(11.0));
     });
     ui.horizontal(|ui| {
-        let text = egui::RichText::new(value).size(11.0).color(theme::FG_PRIMARY);
+        let text = egui::RichText::new(value).size(11.0).color(theme::fg_primary());
         let text = if mono {
             text.font(egui::FontId::monospace(11.0))
         } else {
@@ -29,7 +29,7 @@ pub fn detail_row(ui: &mut egui::Ui, label: &str, value: Option<&str>, mono: boo
             ui.ctx().copy_text(value.to_string());
         }
         if hovered {
-            ui.label(egui::RichText::new("复制").size(10.0).color(theme::FG_TERTIARY));
+            ui.label(egui::RichText::new("复制").size(10.0).color(theme::fg_tertiary()));
         }
     });
     ui.add_space(2.0);

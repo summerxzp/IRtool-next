@@ -330,7 +330,7 @@ impl SysmonPageState {
                 format!("类型 ({})", self.event_type_filter.len())
             };
             let type_btn = ui.add(egui::Button::new(
-                egui::RichText::new(&type_label).color(theme::FG_PRIMARY),
+                egui::RichText::new(&type_label).color(theme::fg_primary()),
             ));
             if type_btn.clicked() {
                 self.event_type_dropdown_open = !self.event_type_dropdown_open;
@@ -422,7 +422,7 @@ impl SysmonPageState {
             if installed {
                 if ui
                     .add(egui::Button::new(
-                        egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
+                        egui::RichText::new("卸载").color(theme::semantic_danger()),
                     ))
                     .clicked()
                 {
@@ -458,9 +458,9 @@ impl SysmonPageState {
             ui.add_space(80.0);
             ui.vertical_centered(|ui| {
                 if self.events.is_empty() {
-                    ui.label(egui::RichText::new("点击「开始采集」或「加载历史」获取事件").color(theme::FG_SECONDARY));
+                    ui.label(egui::RichText::new("点击「开始采集」或「加载历史」获取事件").color(theme::fg_secondary()));
                 } else {
-                    ui.label(egui::RichText::new("没有匹配当前过滤条件的事件").color(theme::FG_TERTIARY));
+                    ui.label(egui::RichText::new("没有匹配当前过滤条件的事件").color(theme::fg_tertiary()));
                 }
             });
             return;
@@ -484,16 +484,16 @@ impl SysmonPageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("时间").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("时间").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("类型").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("类型").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("目标").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("目标").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("路径").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("路径").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -506,7 +506,7 @@ impl SysmonPageState {
                         ui.label(
                             egui::RichText::new(fmt_event_time(e))
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 类型
@@ -520,7 +520,7 @@ impl SysmonPageState {
                             egui::Label::new(
                                 egui::RichText::new(&dest)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_PRIMARY),
+                                    .color(theme::fg_primary()),
                             )
                             .truncate(),
                         );
@@ -532,7 +532,7 @@ impl SysmonPageState {
                             egui::Label::new(
                                 egui::RichText::new(&p)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -628,18 +628,18 @@ impl SysmonPageState {
                                 badge::badge(ui, event.event_type.label(), event_badge_variant(&event.event_type));
                                 ui.label(
                                     egui::RichText::new(format!("EventID {}", event.event_id))
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
                                 if event.is_suspicious {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                     badge::badge(ui, "可疑", BadgeVariant::Danger);
                                 }
                             });
                             ui.add_space(2.0);
                             ui.label(
                                 egui::RichText::new(fmt_event_time(&event))
-                                    .color(theme::FG_SECONDARY)
+                                    .color(theme::fg_secondary())
                                     .size(11.0),
                             );
                         });
@@ -702,7 +702,7 @@ impl SysmonPageState {
                     ui.label(
                         egui::RichText::new("进程链")
                             .strong()
-                            .color(theme::FG_SECONDARY)
+                            .color(theme::fg_secondary())
                             .size(12.0),
                     );
                     ui.add_space(2.0);
@@ -711,19 +711,19 @@ impl SysmonPageState {
                             // 实时查询返回空链（短命进程已退出），尝试从 raw_data 读取捕获时的链
                             if let Some(chain_str) = event.raw_data.get("process_chain") {
                                 if chain_str.is_empty() {
-                                    ui.label(egui::RichText::new("无进程链信息").color(theme::FG_TERTIARY).size(11.0));
+                                    ui.label(egui::RichText::new("无进程链信息").color(theme::fg_tertiary()).size(11.0));
                                 } else {
                                     for (i, part) in chain_str.split("->").enumerate() {
                                         let arrow = if i == 0 { "" } else { "↑ " };
                                         ui.label(
                                             egui::RichText::new(format!("{}{}", arrow, part))
                                                 .font(egui::FontId::monospace(11.0))
-                                                .color(theme::FG_PRIMARY),
+                                                .color(theme::fg_primary()),
                                         );
                                     }
                                 }
                             } else {
-                                ui.label(egui::RichText::new("无进程链信息").color(theme::FG_TERTIARY).size(11.0));
+                                ui.label(egui::RichText::new("无进程链信息").color(theme::fg_tertiary()).size(11.0));
                             }
                         } else {
                             for (i, node) in chain.nodes.iter().enumerate() {
@@ -733,22 +733,22 @@ impl SysmonPageState {
                                     egui::RichText::new(format!("{}{} (pid={}){}", arrow, node.name, node.pid, susp))
                                         .font(egui::FontId::monospace(11.0))
                                         .color(if node.is_suspicious {
-                                            theme::SEMANTIC_DANGER
+                                            theme::semantic_danger()
                                         } else {
-                                            theme::FG_PRIMARY
+                                            theme::fg_primary()
                                         }),
                                 );
                                 if let Some(ref exe) = node.exe {
                                     ui.label(
                                         egui::RichText::new(format!("    {}", exe))
                                             .font(egui::FontId::monospace(10.0))
-                                            .color(theme::FG_TERTIARY),
+                                            .color(theme::fg_tertiary()),
                                     );
                                 }
                             }
                         }
                     } else {
-                        ui.label(egui::RichText::new("加载中…").color(theme::FG_TERTIARY).size(11.0));
+                        ui.label(egui::RichText::new("加载中…").color(theme::fg_tertiary()).size(11.0));
                     }
                 }
             });
@@ -769,7 +769,7 @@ impl SysmonPageState {
 
             ui.label(
                 egui::RichText::new(format!("事件: {}", self.events.len()))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
 
@@ -778,7 +778,7 @@ impl SysmonPageState {
             for (t, c) in counts.iter().take(4) {
                 ui.label(
                     egui::RichText::new(format!("{}: {}", t.label(), c))
-                        .color(theme::FG_TERTIARY)
+                        .color(theme::fg_tertiary())
                         .size(11.0),
                 );
             }
@@ -791,7 +791,7 @@ impl SysmonPageState {
                     let d = t.elapsed().as_secs();
                     ui.label(
                         egui::RichText::new(format!("时长: {}", format_hms(d)))
-                            .color(theme::ACCENT)
+                            .color(theme::accent())
                             .size(11.0),
                     );
                 }
@@ -812,7 +812,7 @@ impl SysmonPageState {
 
             ui.label(
                 egui::RichText::new(format!("日志上限: {} MB", self.log_max_size_mb))
-                    .color(theme::FG_TERTIARY)
+                    .color(theme::fg_tertiary())
                     .size(11.0),
             );
         });
@@ -833,7 +833,7 @@ impl SysmonPageState {
                 ui.label(
                     egui::RichText::new("事件类型")
                         .strong()
-                        .color(theme::FG_SECONDARY)
+                        .color(theme::fg_secondary())
                         .size(12.0),
                 );
                 ui.add_space(4.0);
@@ -933,7 +933,7 @@ impl SysmonPageState {
                     }
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("清除").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("清除").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -980,7 +980,7 @@ impl SysmonPageState {
                     }
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("卸载").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("卸载").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -1050,7 +1050,7 @@ impl SysmonPageState {
                          Sysmon 是 Microsoft Sysinternals 提供的免费系统监控工具，安装后会在后台运行。",
                     )
                     .size(12.0)
-                    .color(theme::FG_SECONDARY),
+                    .color(theme::fg_secondary()),
                 );
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {

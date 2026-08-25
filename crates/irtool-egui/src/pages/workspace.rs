@@ -708,19 +708,19 @@ impl WorkspacePageState {
             let event_active = self.active_tab == WorkspaceTab::Events;
 
             let autorun_color = if autorun_active {
-                theme::ACCENT
+                theme::accent()
             } else {
-                theme::FG_SECONDARY
+                theme::fg_secondary()
             };
             let network_color = if network_active {
-                theme::ACCENT
+                theme::accent()
             } else {
-                theme::FG_SECONDARY
+                theme::fg_secondary()
             };
             let event_color = if event_active {
-                theme::ACCENT
+                theme::accent()
             } else {
-                theme::FG_SECONDARY
+                theme::fg_secondary()
             };
 
             if ui
@@ -792,16 +792,16 @@ impl WorkspacePageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("条目").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("条目").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("文件路径").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("文件路径").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("类别").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("类别").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("风险").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("风险").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -815,7 +815,7 @@ impl WorkspacePageState {
                         let prefix = if has_match { "! " } else { "" };
                         ui.label(
                             egui::RichText::new(format!("{}{}", prefix, item.entry))
-                                .color(theme::FG_PRIMARY)
+                                .color(theme::fg_primary())
                                 .strong(),
                         );
                     });
@@ -826,7 +826,7 @@ impl WorkspacePageState {
                             egui::Label::new(
                                 egui::RichText::new(p)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_TERTIARY),
+                                    .color(theme::fg_tertiary()),
                             )
                             .truncate(),
                         );
@@ -836,7 +836,7 @@ impl WorkspacePageState {
                     });
                     // 类别
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&item.category).color(theme::FG_SECONDARY));
+                        ui.label(egui::RichText::new(&item.category).color(theme::fg_secondary()));
                     });
                     // 风险
                     row.col(|ui| {
@@ -907,22 +907,22 @@ impl WorkspacePageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("时间").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("时间").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("协议").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("协议").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("远程").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("远程").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("状态").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("状态").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("PID").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("PID").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("进程").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("进程").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -937,14 +937,14 @@ impl WorkspacePageState {
                         ui.label(
                             egui::RichText::new(format!("{}{}", prefix, theme::fmt_time(conn.last_seen)))
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 协议
                     row.col(|ui| {
                         ui.label(
                             egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                                .color(theme::FG_TERTIARY)
+                                .color(theme::fg_tertiary())
                                 .size(11.0),
                         );
                     });
@@ -954,7 +954,7 @@ impl WorkspacePageState {
                             egui::Label::new(
                                 egui::RichText::new(format!("{}:{}", conn.remote.addr, conn.remote.port))
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_PRIMARY),
+                                    .color(theme::fg_primary()),
                             )
                             .truncate(),
                         );
@@ -968,13 +968,13 @@ impl WorkspacePageState {
                         ui.label(
                             egui::RichText::new(conn.pid.to_string())
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 进程
                     row.col(|ui| {
                         ui.label(
-                            egui::RichText::new(conn.process_name.as_deref().unwrap_or("")).color(theme::FG_PRIMARY),
+                            egui::RichText::new(conn.process_name.as_deref().unwrap_or("")).color(theme::fg_primary()),
                         );
                     });
 
@@ -1043,16 +1043,16 @@ impl WorkspacePageState {
         table
             .header(theme::TABLE_HEADER_HEIGHT, |mut header| {
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("时间").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("时间").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("类型").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("类型").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("目标").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("目标").color(theme::fg_secondary()).size(12.0));
                 });
                 header.col(|ui| {
-                    ui.label(egui::RichText::new("进程").color(theme::FG_SECONDARY).size(12.0));
+                    ui.label(egui::RichText::new("进程").color(theme::fg_secondary()).size(12.0));
                 });
             })
             .body(|body| {
@@ -1072,7 +1072,7 @@ impl WorkspacePageState {
                         ui.label(
                             egui::RichText::new(format!("{}{}", prefix, ts))
                                 .font(egui::FontId::monospace(11.0))
-                                .color(theme::FG_SECONDARY),
+                                .color(theme::fg_secondary()),
                         );
                     });
                     // 类型
@@ -1086,14 +1086,14 @@ impl WorkspacePageState {
                             egui::Label::new(
                                 egui::RichText::new(&dest)
                                     .font(egui::FontId::monospace(11.0))
-                                    .color(theme::FG_PRIMARY),
+                                    .color(theme::fg_primary()),
                             )
                             .truncate(),
                         );
                     });
                     // 进程
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(&event.process_name).color(theme::FG_PRIMARY));
+                        ui.label(egui::RichText::new(&event.process_name).color(theme::fg_primary()));
                     });
 
                     if is_selected {
@@ -1146,7 +1146,7 @@ impl WorkspacePageState {
                 }
                 _ => "无数据",
             };
-            ui.label(egui::RichText::new(msg).color(theme::FG_SECONDARY));
+            ui.label(egui::RichText::new(msg).color(theme::fg_secondary()));
         });
     }
 
@@ -1196,18 +1196,18 @@ impl WorkspacePageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&item.entry)
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 badge::badge(ui, item.risk.as_str(), risk_badge_variant(&item.risk));
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                ui.label(egui::RichText::new(&item.category).color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                ui.label(egui::RichText::new(&item.category).color(theme::fg_tertiary()));
                                 if !item.enabled {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
-                                    ui.label(egui::RichText::new("已禁用").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
+                                    ui.label(egui::RichText::new("已禁用").color(theme::fg_tertiary()));
                                 }
                             });
                         });
@@ -1243,7 +1243,7 @@ impl WorkspacePageState {
                     ui.label(
                         egui::RichText::new("匹配规则")
                             .strong()
-                            .color(theme::FG_SECONDARY)
+                            .color(theme::fg_secondary())
                             .size(12.0),
                     );
                     ui.add_space(2.0);
@@ -1263,7 +1263,7 @@ impl WorkspacePageState {
                     let entry_id = item.id;
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("删除").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -1367,17 +1367,17 @@ impl WorkspacePageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(conn.process_name.as_deref().unwrap_or("未知进程"))
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 badge::badge(ui, conn.state.as_str(), conn_state_badge_variant(&conn.state));
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                 ui.label(
                                     egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
                             });
@@ -1419,7 +1419,7 @@ impl WorkspacePageState {
                     ui.label(
                         egui::RichText::new("匹配规则")
                             .strong()
-                            .color(theme::FG_SECONDARY)
+                            .color(theme::fg_secondary())
                             .size(12.0),
                     );
                     ui.add_space(2.0);
@@ -1439,7 +1439,7 @@ impl WorkspacePageState {
                     let pid = conn.pid;
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("终止进程").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("终止进程").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -1499,11 +1499,11 @@ impl WorkspacePageState {
                                 badge::badge(ui, event.event_type.label(), event_badge_variant(&event.event_type));
                                 ui.label(
                                     egui::RichText::new(format!("EventID {}", event.event_id))
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
                                 if event.is_suspicious {
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                     badge::badge(ui, "可疑", BadgeVariant::Danger);
                                 }
                             });
@@ -1513,7 +1513,7 @@ impl WorkspacePageState {
                             } else {
                                 event.timestamp.clone()
                             };
-                            ui.label(egui::RichText::new(ts).color(theme::FG_SECONDARY).size(11.0));
+                            ui.label(egui::RichText::new(ts).color(theme::fg_secondary()).size(11.0));
                         });
                     });
                 });
@@ -1545,7 +1545,7 @@ impl WorkspacePageState {
                     ui.label(
                         egui::RichText::new("匹配规则")
                             .strong()
-                            .color(theme::FG_SECONDARY)
+                            .color(theme::fg_secondary())
                             .size(12.0),
                     );
                     ui.add_space(2.0);
@@ -1585,13 +1585,13 @@ impl WorkspacePageState {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(format!("持久化 {}/{}", autorun_filtered, self.autorun_items.len()))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
             if autorun_matched > 0 {
                 ui.label(
                     egui::RichText::new(format!("! {}", autorun_matched))
-                        .color(theme::SEMANTIC_DANGER)
+                        .color(theme::semantic_danger())
                         .size(11.0),
                 );
             }
@@ -1600,13 +1600,13 @@ impl WorkspacePageState {
 
             ui.label(
                 egui::RichText::new(format!("网络 {}/{}", network_filtered, self.network_items.len()))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
             if network_matched > 0 {
                 ui.label(
                     egui::RichText::new(format!("! {}", network_matched))
-                        .color(theme::SEMANTIC_DANGER)
+                        .color(theme::semantic_danger())
                         .size(11.0),
                 );
             }
@@ -1615,13 +1615,13 @@ impl WorkspacePageState {
 
             ui.label(
                 egui::RichText::new(format!("事件 {}/{}", event_filtered, self.event_items.len()))
-                    .color(theme::FG_SECONDARY)
+                    .color(theme::fg_secondary())
                     .size(11.0),
             );
             if event_matched > 0 {
                 ui.label(
                     egui::RichText::new(format!("! {}", event_matched))
-                        .color(theme::SEMANTIC_DANGER)
+                        .color(theme::semantic_danger())
                         .size(11.0),
                 );
             }
@@ -1629,9 +1629,9 @@ impl WorkspacePageState {
             ui.add_space(ui.available_width().max(0.0) - 100.0);
 
             if self.scanning {
-                ui.label(egui::RichText::new("扫描中…").color(theme::ACCENT).size(11.0));
+                ui.label(egui::RichText::new("扫描中…").color(theme::accent()).size(11.0));
             } else if self.loading {
-                ui.label(egui::RichText::new("加载中…").color(theme::ACCENT).size(11.0));
+                ui.label(egui::RichText::new("加载中…").color(theme::accent()).size(11.0));
             }
         });
     }
@@ -1682,7 +1682,7 @@ impl WorkspacePageState {
 
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new(&rule.name).color(theme::FG_PRIMARY).strong());
+                                    ui.label(egui::RichText::new(&rule.name).color(theme::fg_primary()).strong());
                                     badge::badge(
                                         ui,
                                         severity_label(&rule.severity),
@@ -1696,7 +1696,7 @@ impl WorkspacePageState {
                                         rule.family,
                                         rule.conditions.len()
                                     ))
-                                    .color(theme::FG_TERTIARY)
+                                    .color(theme::fg_tertiary())
                                     .size(11.0),
                                 );
                             });
@@ -1708,7 +1708,7 @@ impl WorkspacePageState {
                             }
                             if ui
                                 .add(egui::Button::new(
-                                    egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                                    egui::RichText::new("删除").color(theme::semantic_danger()),
                                 ))
                                 .clicked()
                             {
@@ -1852,7 +1852,7 @@ impl WorkspacePageState {
                     ui.label(
                         egui::RichText::new("条件")
                             .strong()
-                            .color(theme::FG_SECONDARY)
+                            .color(theme::fg_secondary())
                             .size(12.0),
                     );
                     if ui.button("➕ 添加条件").clicked() {
@@ -1891,7 +1891,7 @@ impl WorkspacePageState {
 
                         if ui
                             .add(egui::Button::new(
-                                egui::RichText::new("删除").color(theme::SEMANTIC_DANGER),
+                                egui::RichText::new("删除").color(theme::semantic_danger()),
                             ))
                             .clicked()
                         {
@@ -1970,7 +1970,7 @@ impl WorkspacePageState {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("确认删除").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("确认删除").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -2029,7 +2029,7 @@ impl WorkspacePageState {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("确认终止").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("确认终止").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {

@@ -235,9 +235,9 @@ impl NetworkPageState {
             // Polling status — clickable to toggle pause/resume
             let polling_status = if self.paused { "‖ 已暂停" } else { "▶ 轮询中" };
             let polling_color = if self.paused {
-                theme::SEMANTIC_WARNING
+                theme::semantic_warning()
             } else {
-                theme::SEMANTIC_SUCCESS
+                theme::semantic_success()
             };
             let polling_resp = ui.add(
                 egui::Label::new(egui::RichText::new(polling_status).size(11.0).color(polling_color))
@@ -304,7 +304,7 @@ impl NetworkPageState {
             };
 
             let state_btn = ui.add(egui::Button::new(
-                egui::RichText::new(&state_label).color(theme::FG_PRIMARY),
+                egui::RichText::new(&state_label).color(theme::fg_primary()),
             ));
             if state_btn.clicked() {
                 self.state_dropdown_open = !self.state_dropdown_open;
@@ -366,9 +366,9 @@ impl NetworkPageState {
             // Pause / Resume
             let pause_label = if self.paused { "▶ 恢复" } else { "‖ 暂停" };
             let pause_color = if self.paused {
-                theme::SEMANTIC_SUCCESS
+                theme::semantic_success()
             } else {
-                theme::FG_SECONDARY
+                theme::fg_secondary()
             };
             if ui
                 .add(egui::Button::new(egui::RichText::new(pause_label).color(pause_color)))
@@ -408,9 +408,9 @@ impl NetworkPageState {
                 "历史: 关"
             };
             let hist_color = if self.show_history {
-                theme::ACCENT
+                theme::accent()
             } else {
-                theme::FG_TERTIARY
+                theme::fg_tertiary()
             };
             if ui
                 .add(egui::Button::new(egui::RichText::new(hist_label).color(hist_color)))
@@ -438,7 +438,7 @@ impl NetworkPageState {
                     format!("{} 连接", total)
                 };
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui_label(ui, egui::RichText::new(count_text).size(12.0).color(theme::FG_TERTIARY));
+                    ui_label(ui, egui::RichText::new(count_text).size(12.0).color(theme::fg_tertiary()));
                 });
             }
         });
@@ -464,11 +464,11 @@ impl NetworkPageState {
             ui.vertical_centered(|ui| {
                 if snapshot_is_none {
                     ui.spinner();
-                    ui_label(ui, egui::RichText::new("等待网络数据...").color(theme::FG_SECONDARY));
+                    ui_label(ui, egui::RichText::new("等待网络数据...").color(theme::fg_secondary()));
                 } else {
                     ui_label(
                         ui,
-                        egui::RichText::new("没有匹配当前过滤条件的连接").color(theme::FG_TERTIARY),
+                        egui::RichText::new("没有匹配当前过滤条件的连接").color(theme::fg_tertiary()),
                     );
                 }
             });
@@ -718,7 +718,7 @@ impl NetworkPageState {
                     ui.separator();
 
                     let kill_btn = ui.add(egui::Button::new(
-                        egui::RichText::new("终止进程").color(theme::SEMANTIC_DANGER),
+                        egui::RichText::new("终止进程").color(theme::semantic_danger()),
                     ));
                     if kill_btn.clicked() {
                         if let Some(ref conn) = conn {
@@ -781,7 +781,7 @@ impl NetworkPageState {
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(format!("PID {}", conn.pid))
-                                    .color(theme::FG_PRIMARY)
+                                    .color(theme::fg_primary())
                                     .strong()
                                     .size(13.0),
                             );
@@ -789,17 +789,17 @@ impl NetworkPageState {
                             ui.horizontal(|ui| {
                                 if !conn.is_current {
                                     badge::badge(ui, "历史", BadgeVariant::Warning);
-                                    ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                    ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                 }
                                 ui.label(
                                     egui::RichText::new(conn.state.as_str())
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
-                                ui.label(egui::RichText::new("·").color(theme::FG_TERTIARY));
+                                ui.label(egui::RichText::new("·").color(theme::fg_tertiary()));
                                 ui.label(
                                     egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                                        .color(theme::FG_TERTIARY)
+                                        .color(theme::fg_tertiary())
                                         .size(11.0),
                                 );
                             });
@@ -839,7 +839,7 @@ impl NetworkPageState {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("终止进程").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("终止进程").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -876,7 +876,7 @@ impl NetworkPageState {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::Button::new(
-                            egui::RichText::new("确认终止").color(theme::SEMANTIC_DANGER),
+                            egui::RichText::new("确认终止").color(theme::semantic_danger()),
                         ))
                         .clicked()
                     {
@@ -1071,7 +1071,7 @@ fn cell_text(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Resp
 /// For history rows, returns FG_TERTIARY (gray), otherwise the given color.
 fn fg_color(history_base: egui::Color32, is_history: bool) -> egui::Color32 {
     if is_history {
-        theme::FG_TERTIARY
+        theme::fg_tertiary()
     } else {
         history_base
     }
@@ -1084,7 +1084,7 @@ fn cell_first_seen(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_h
             egui::RichText::new(theme::fmt_time(conn.first_seen))
                 .monospace()
                 .size(12.0)
-                .color(fg_color(theme::FG_SECONDARY, is_history)),
+                .color(fg_color(theme::fg_secondary(), is_history)),
         );
     });
     r
@@ -1097,7 +1097,7 @@ fn cell_pid(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history:
             egui::RichText::new(conn.pid.to_string())
                 .monospace()
                 .size(12.0)
-                .color(fg_color(theme::FG_PRIMARY, is_history)),
+                .color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1112,7 +1112,7 @@ fn cell_process(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_hist
         };
         ui_label(
             ui,
-            egui::RichText::new(text).color(fg_color(theme::FG_PRIMARY, is_history)),
+            egui::RichText::new(text).color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1125,7 +1125,7 @@ fn cell_local(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histor
             egui::RichText::new(format_endpoint(&conn.local.addr, conn.local.port))
                 .monospace()
                 .size(12.0)
-                .color(fg_color(theme::FG_PRIMARY, is_history)),
+                .color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1138,7 +1138,7 @@ fn cell_remote(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histo
             egui::RichText::new(format_endpoint(&conn.remote.addr, conn.remote.port))
                 .monospace()
                 .size(12.0)
-                .color(fg_color(theme::FG_PRIMARY, is_history)),
+                .color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1148,10 +1148,10 @@ fn cell_state(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histor
     let (_, r) = row.col(|ui| {
         let s = conn.state.as_str();
         if s.is_empty() {
-            cell_text(ui, egui::RichText::new("-").color(theme::FG_TERTIARY));
+            cell_text(ui, egui::RichText::new("-").color(theme::fg_tertiary()));
         } else if is_history {
             // Historical state — show as gray text instead of colored badge
-            cell_text(ui, egui::RichText::new(s).color(theme::FG_TERTIARY));
+            cell_text(ui, egui::RichText::new(s).color(theme::fg_tertiary()));
         } else {
             badge::badge(ui, s, state_badge_variant(&conn.state));
         }
@@ -1164,7 +1164,7 @@ fn cell_proto(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histor
         cell_text(
             ui,
             egui::RichText::new(format!("{:?}", conn.proto).to_uppercase())
-                .color(fg_color(theme::FG_PRIMARY, is_history)),
+                .color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1175,7 +1175,7 @@ fn cell_family(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histo
         cell_text(
             ui,
             egui::RichText::new(format!("{:?}", conn.family).to_uppercase())
-                .color(fg_color(theme::FG_PRIMARY, is_history)),
+                .color(fg_color(theme::fg_primary(), is_history)),
         );
     });
     r
@@ -1184,7 +1184,7 @@ fn cell_family(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_histo
 fn cell_path(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_history: bool) -> egui::Response {
     let (_, r) = row.col(|ui| {
         let path = conn.process_path.as_deref().unwrap_or("");
-        let col = fg_color(theme::FG_SECONDARY, is_history);
+        let col = fg_color(theme::fg_secondary(), is_history);
         let resp = ui.add(
             egui::Label::new(egui::RichText::new(path).monospace().size(12.0).color(col))
                 .selectable(false)
@@ -1201,9 +1201,9 @@ fn cell_cmdline(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_hist
     let (_, r) = row.col(|ui| {
         let cmd = conn.process_cmdline.as_deref().unwrap_or("");
         if cmd.is_empty() {
-            cell_text(ui, egui::RichText::new("-").color(theme::FG_TERTIARY));
+            cell_text(ui, egui::RichText::new("-").color(theme::fg_tertiary()));
         } else {
-            let col = fg_color(theme::FG_SECONDARY, is_history);
+            let col = fg_color(theme::fg_secondary(), is_history);
             let resp = ui.add(
                 egui::Label::new(egui::RichText::new(cmd).monospace().size(12.0).color(col))
                     .selectable(false)
@@ -1222,7 +1222,7 @@ fn cell_last_seen(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_hi
             egui::RichText::new(theme::fmt_time(conn.last_seen))
                 .monospace()
                 .size(12.0)
-                .color(fg_color(theme::FG_SECONDARY, is_history)),
+                .color(fg_color(theme::fg_secondary(), is_history)),
         );
     });
     r
@@ -1232,9 +1232,9 @@ fn cell_last_seen(row: &mut egui_extras::TableRow<'_, '_>, conn: &NetConn, is_hi
 
 fn filter_button(ui: &mut egui::Ui, label: &str, active: bool) -> bool {
     let btn = if active {
-        egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(theme::ACCENT)
+        egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(theme::accent())
     } else {
-        egui::Button::new(egui::RichText::new(label).color(theme::FG_SECONDARY))
+        egui::Button::new(egui::RichText::new(label).color(theme::fg_secondary()))
     };
     ui.add(btn).clicked()
 }
