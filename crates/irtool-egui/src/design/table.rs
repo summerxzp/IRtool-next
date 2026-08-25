@@ -71,8 +71,8 @@ impl TableDensity {
     /// 行高（spec §3.3：compact 28px / standard 34px）。
     pub fn row_height(self) -> f32 {
         match self {
-            TableDensity::Compact => 28.0,
-            TableDensity::Standard => 34.0,
+            TableDensity::Compact => 26.0,
+            TableDensity::Standard => 30.0,
         }
     }
 
@@ -88,6 +88,9 @@ impl TableDensity {
 /// 旧文件缺字段/新字段缺失均不破坏读写）。
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct TablePersisted {
+    /// 列定义 schema 版本：与 TableShell.schema 不一致时整份忽略（列集/默认宽变更后防旧值污染）。
+    #[serde(default)]
+    schema: u32,
     /// 列 id → 宽度。
     #[serde(default)]
     widths: BTreeMap<String, f32>,
@@ -139,6 +142,8 @@ const LAST_ACTIVE_TABLE: &str = "design_table_last_active";
 pub struct TableShell {
     /// 稳定表标识（持久化键 + egui id_salt），如 "network"。
     pub id: &'static str,
+    /// 列定义版本（列集/默认宽变更时 bump，使旧持久化失效）。
+    pub schema: u32,
     pub columns: Vec<TableColumn>,
     pub density: TableDensity,
     pub sort: Option<SortState>,
@@ -155,8 +160,14 @@ pub struct TableShell {
 
 impl TableShell {
     pub fn new(id: &'static str, columns: Vec<TableColumn>) -> Self {
+        Self::new_with_schema(id, 1, columns)
+    }
+
+    /// `schema`：列定义版本，列集/默认宽变更时 bump 使旧持久化失效。
+    pub fn new_with_schema(id: &'static str, schema: u32, columns: Vec<TableColumn>) -> Self {
         TableShell {
             id,
+            schema,
             columns,
             density: TableDensity::default(),
             sort: None,
@@ -182,6 +193,9 @@ impl TableShell {
             tracing::warn!("table state for '{}' has unexpected schema, using defaults", self.id);
             return;
         };
+        if p.schema != self.schema {
+            return; // 列定义已变更，丢弃旧列宽/密度/排序
+        }
         for col in &mut self.columns {
             if let Some(w) = p.widths.get(col.id) {
                 let clamped = w.clamp(col.min_width, col.max_width);
@@ -208,6 +222,7 @@ impl TableShell {
             widths.insert(col.id.to_string(), col.width);
         }
         let persisted = TablePersisted {
+            schema: self.schema,
             widths,
             density: Some(self.density),
             sort: self.sort.map(|(col, asc)| TableSortPersisted {
@@ -271,6 +286,15 @@ impl TableShell {
         }
 
         // ── 组建 TableBuilder（列宽：load 时已写回 columns[].width）──
+        // 横向滚动：Table 内部 ScrollArea 仅纵轴，外层包 horizontal ScrollArea
+        // （表头随横滚移动；Shift+滚轮横滚由 egui 内建支持）。
+        let sort = self.sort;
+        let mut frame_widths: Vec<f32> = Vec::new();
+        let mut clicked_col: Option<&'static str> = None;
+        let header_click: Option<&'static str> = egui::ScrollArea::horizontal()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = 0.0; // 行紧贴：高亮贯穿，行高即视觉行距
         let mut builder = TableBuilder::new(ui)
             .id_salt(self.id)
             .striped(false)
@@ -290,10 +314,6 @@ impl TableShell {
         }
 
         // ── 表头：caption 字号 fg-secondary，点击循环排序 asc→desc→无 ──
-        let sort = self.sort;
-        let mut frame_widths: Vec<f32> = Vec::new();
-        let header_click: Option<&'static str> = {
-            let mut clicked_col: Option<&'static str> = None;
             let table = builder.header(HEADER_HEIGHT, |mut header| {
                 for col in &self.columns {
                     let sorted = sort.filter(|(cid, _)| *cid == col.id).map(|(_, asc)| asc);
@@ -337,7 +357,8 @@ impl TableShell {
                 });
             });
             clicked_col
-        };
+            })
+            .inner;
 
         // 列宽变化检测：写回 columns[].width；指针松开后置 persist_dirty
         if self.last_widths.len() == frame_widths.len() && !frame_widths.is_empty() {

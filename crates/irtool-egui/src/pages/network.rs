@@ -306,12 +306,12 @@ fn format_endpoint(addr: &str, port: u16) -> String {
 
 fn columns_def() -> Vec<TableColumn> {
     vec![
-        TableColumn { id: "first_seen", title_key: "network.columns.first-seen", width: 160.0, min_width: 90.0, max_width: 260.0 },
-        TableColumn { id: "pid", title_key: "network.columns.pid", width: 55.0, min_width: 35.0, max_width: 120.0 },
+        TableColumn { id: "first_seen", title_key: "network.columns.first-seen", width: 150.0, min_width: 90.0, max_width: 260.0 },
+        TableColumn { id: "pid", title_key: "network.columns.pid", width: 48.0, min_width: 35.0, max_width: 120.0 },
         TableColumn { id: "process", title_key: "network.columns.process", width: 160.0, min_width: 80.0, max_width: 320.0 },
-        TableColumn { id: "local", title_key: "network.columns.local", width: 200.0, min_width: 100.0, max_width: 360.0 },
-        TableColumn { id: "remote", title_key: "network.columns.remote", width: 200.0, min_width: 100.0, max_width: 360.0 },
-        TableColumn { id: "state", title_key: "network.columns.state", width: 110.0, min_width: 60.0, max_width: 200.0 },
+        TableColumn { id: "local", title_key: "network.columns.local", width: 170.0, min_width: 100.0, max_width: 360.0 },
+        TableColumn { id: "remote", title_key: "network.columns.remote", width: 170.0, min_width: 100.0, max_width: 360.0 },
+        TableColumn { id: "state", title_key: "network.columns.state", width: 96.0, min_width: 60.0, max_width: 200.0 },
         TableColumn { id: "proto", title_key: "network.columns.proto", width: 60.0, min_width: 36.0, max_width: 120.0 },
         TableColumn { id: "family", title_key: "network.columns.family", width: 50.0, min_width: 30.0, max_width: 120.0 },
         TableColumn { id: "path", title_key: "network.columns.path", width: 280.0, min_width: 100.0, max_width: 520.0 },
@@ -372,8 +372,9 @@ pub struct NetworkPageState {
 
 impl Default for NetworkPageState {
     fn default() -> Self {
-        let mut shell = TableShell::new("network", columns_def());
-        shell.sort = Some(("first_seen", false)); // 默认按首次出现降序（旧版行为）
+        let mut shell = TableShell::new_with_schema("network", 2, columns_def());
+        // 默认按最近出现降序：新/活跃记录恒在顶部
+        shell.sort = Some(("last_seen", false));
         Self {
             store: VecDeque::new(),
             index: HashMap::new(),
@@ -992,49 +993,59 @@ impl NetworkPageState {
         // 克隆一条供渲染（面板内容少，且避免跨闭包借用冲突）
         let conn = self.store[row_idx as usize].clone();
 
+        // 固定 header：PID + 徽章 + 关闭（不随内容滚动，关闭始终可见）
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            ui.vertical(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("PID {}", conn.pid))
+                        .font(crate::design::fonts::body())
+                        .strong()
+                        .color(pal.fg_primary),
+                );
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    if !conn.is_current {
+                        soft_badge(ui, t!("network.stats.history").as_ref(), pal.warning);
+                        ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
+                    }
+                    ui.label(
+                        egui::RichText::new(conn.state.as_str())
+                            .font(crate::design::fonts::caption())
+                            .color(pal.fg_tertiary),
+                    );
+                    ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
+                    soft_badge(ui, &conn.d_proto, pal.info);
+                });
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(8.0);
+                let (xrect, xresp) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
+                let p = ui.painter();
+                if xresp.hovered() {
+                    p.rect_filled(xrect, 4.0, pal.hover);
+                }
+                crate::design::icon::draw(
+                    ui,
+                    crate::design::icon::Icon::X,
+                    xrect.center(),
+                    12.0,
+                    if xresp.hovered() { pal.fg_primary } else { pal.fg_secondary },
+                );
+                if xresp.clicked() {
+                    self.close_detail();
+                }
+            });
+        });
+        ui.add_space(4.0);
+        ui.separator();
+
         egui::ScrollArea::vertical()
             .id_salt("network_detail_scroll")
             .show(ui, |ui| {
                 ui.add_space(4.0);
 
-                // 头部：PID + 徽章 + 关闭按钮（右上角）
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                        ui.allocate_space(egui::vec2(8.0, 0.0));
-                        if ui
-                            .add(egui::Button::new(egui::RichText::new("×").size(16.0)).frame(false))
-                            .clicked()
-                        {
-                            self.close_detail();
-                        }
-                        ui.vertical(|ui| {
-                            ui.label(
-                                egui::RichText::new(format!("PID {}", conn.pid))
-                                    .font(crate::design::fonts::body())
-                                    .strong()
-                                    .color(pal.fg_primary),
-                            );
-                            ui.add_space(2.0);
-                            ui.horizontal(|ui| {
-                                if !conn.is_current {
-                                    soft_badge(ui, t!("network.stats.history").as_ref(), pal.warning);
-                                    ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
-                                }
-                                ui.label(
-                                    egui::RichText::new(conn.state.as_str())
-                                        .font(crate::design::fonts::caption())
-                                        .color(pal.fg_tertiary),
-                                );
-                                ui.label(egui::RichText::new("·").color(pal.fg_tertiary));
-                                soft_badge(ui, &conn.d_proto, pal.info);
-                            });
-                        });
-                    });
-                });
 
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(4.0);
 
                 // 明细行（点击复制）
                 let hint = t!("network.detail.click-to-copy");
@@ -1302,14 +1313,12 @@ fn paint_row(
             table::cell_pad(ui);
             if cmd.is_empty() {
                 if item.cmdline_status != CmdlineStatus::Unknown && !history {
-                    let (icon, icol) = cmdline_icon(item.cmdline_status, pal);
-                    ui.label(egui::RichText::new(icon).font(crate::design::fonts::caption()).color(icol));
+                    cmdline_status_icon(ui, item.cmdline_status, pal);
                 }
                 table::cell_label(ui, "-", pal.fg_tertiary);
             } else {
                 if !history {
-                    let (icon, icol) = cmdline_icon(item.cmdline_status, pal);
-                    ui.label(egui::RichText::new(icon).font(crate::design::fonts::caption()).color(icol));
+                    cmdline_status_icon(ui, item.cmdline_status, pal);
                 }
                 table::cell_mono_label(ui, cmd, fg_sec);
             }
@@ -1333,15 +1342,20 @@ fn state_roles(state: &ConnState, pal: &Palette) -> crate::design::tokens::RoleC
 }
 
 /// 命令行获取状态的行内图标（React CmdlineStatusIcon 对齐）：字符 + role 色。
-fn cmdline_icon(status: CmdlineStatus, pal: &Palette) -> (&'static str, eframe::egui::Color32) {
-    match status {
-        CmdlineStatus::Pending => ("⟳", pal.info.fg),
-        CmdlineStatus::Ready => ("✓", pal.success.fg),
-        CmdlineStatus::Denied => ("⊘", pal.warning.fg),
-        CmdlineStatus::Exited => ("✗", pal.dim.fg),
-        CmdlineStatus::Failed => ("✗", pal.danger.fg),
-        CmdlineStatus::Unknown => ("", pal.neutral.fg),
-    }
+/// 命令行采集状态图标（lucide 纹理；Unicode ⟳⊘✗ 在雅黑缺字形渲染为 tofu）。
+fn cmdline_status_icon(ui: &mut egui::Ui, status: CmdlineStatus, pal: &Palette) {
+    use crate::design::icon::Icon;
+    let (icon, col) = match status {
+        CmdlineStatus::Pending => (Icon::Refresh, pal.info.fg),
+        CmdlineStatus::Ready => (Icon::Check, pal.success.fg),
+        CmdlineStatus::Denied => (Icon::X, pal.warning.fg),
+        CmdlineStatus::Exited => (Icon::X, pal.dim.fg),
+        CmdlineStatus::Failed => (Icon::X, pal.danger.fg),
+        CmdlineStatus::Unknown => return,
+    };
+    let c = ui.cursor();
+    crate::design::icon::draw(ui, icon, egui::Pos2::new(c.left() + 6.0, c.center().y), 11.0, col);
+    ui.add_space(13.0);
 }
 
 // ── 右键菜单（egui PopupMenu，菜单项对齐 React 版）─────────────

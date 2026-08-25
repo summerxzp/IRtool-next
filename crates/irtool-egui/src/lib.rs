@@ -74,6 +74,7 @@ pub fn run(mode: StartupMode) {
     let icon = load_icon();
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_decorations(false) // 自绘标题栏（顶栏即标题栏，对齐 React 版）
             .with_inner_size([1400.0, 900.0])
             .with_min_inner_size([800.0, 600.0])
             .with_icon(std::sync::Arc::new(icon)),

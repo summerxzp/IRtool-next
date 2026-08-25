@@ -1,4 +1,4 @@
-use eframe::egui::{self, Align2, Color32, Pos2, Sense, Vec2};
+use eframe::egui::{self, Color32, Pos2, Sense, Vec2};
 
 use crate::app::IrtoolApp;
 use crate::design::fonts;
@@ -62,23 +62,71 @@ impl IrtoolApp {
                 crate::widgets::badge::badge(ui, &fallback_badge, crate::widgets::badge::BadgeVariant::Warning);
             }
 
-            // Right actions: exit + theme toggle（右到左布局，先加的在最右）
+            // ── 拖拽区（标题栏空白）：拖动移动窗口，双击切换最大化 ──
+            let (drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+            let _ = drag_rect;
+            if drag_resp.drag_started() {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+            }
+            if drag_resp.double_clicked() {
+                let maximized = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+            }
+
+            // ── 窗口控制（右到左：关闭/最大化/最小化/主题）──
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 6.0;
-                let exit_label = rust_i18n::t!("shell.topbar.exit");
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new(exit_label.as_ref())
-                                .font(fonts::control())
-                                .color(pal.fg_secondary),
-                        )
-                        .frame(false),
-                    )
-                    .clicked()
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let btn_w = 42.0;
+                let btn_h = theme::TOPBAR_HEIGHT - 4.0;
+
+                // 关闭（走 close 拦截：后台监控时弹确认，hover 红底白叉）
+                let (crect, cresp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
                 {
-                    self.request_exit();
+                    let p = ui.painter();
+                    let hot = cresp.hovered();
+                    if hot {
+                        p.rect_filled(crect, 0.0, pal.danger.fg);
+                    }
+                    design_icon::draw(ui, Icon::X, crect.center(), 13.0, if hot { pal.on_accent } else { pal.fg_secondary });
                 }
+                if cresp.clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+
+                // 最大化 / 还原（双框 = 已最大化）
+                let maximized = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
+                let (mrect, mresp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
+                {
+                    let p = ui.painter();
+                    if mresp.hovered() {
+                        p.rect_filled(mrect, 0.0, pal.hover);
+                    }
+                    let r = egui::Rect::from_center_size(mrect.center(), egui::vec2(11.0, 11.0));
+                    p.rect_stroke(r, 0.0, egui::Stroke::new(1.2, pal.fg_secondary), egui::StrokeKind::Inside);
+                    if maximized {
+                        // 还原态：左上偏移的背框提示
+                        let r2 = r.translate(egui::vec2(-2.5, -2.5));
+                        p.rect_stroke(r2, 0.0, egui::Stroke::new(1.0, pal.fg_tertiary), egui::StrokeKind::Inside);
+                    }
+                }
+                if mresp.clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                }
+
+                // 最小化（横线）
+                let (nrect, nresp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
+                {
+                    let p = ui.painter();
+                    if nresp.hovered() {
+                        p.rect_filled(nrect, 0.0, pal.hover);
+                    }
+                    let y = nrect.center().y;
+                    p.line_segment([egui::pos2(nrect.center().x - 5.5, y), egui::pos2(nrect.center().x + 5.5, y)], egui::Stroke::new(1.2, pal.fg_secondary));
+                }
+                if nresp.clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+
                 if self.theme_toggle(ui).clicked() {
                     // Light → Dark → System 循环（图标/文字标当前态），立即应用并落盘
                     dtheme::cycle(ui.ctx());
@@ -147,15 +195,6 @@ impl IrtoolApp {
     pub fn render_sidebar(&mut self, ui: &mut egui::Ui) {
         let pal = dtheme::palette();
         ui.add_space(14.0);
-
-        // Logo tile（demo：34px accent 圆角块 + "IR"）
-        let (logo_rect, _) = ui.allocate_exact_size(Vec2::new(theme::RAIL_WIDTH, 36.0), Sense::hover());
-        let lp = ui.painter();
-        let tile = egui::Rect::from_center_size(logo_rect.center(), Vec2::splat(34.0));
-        lp.rect_filled(tile, 9.0, pal.accent);
-        lp.text(tile.center(), Align2::CENTER_CENTER, "IR", fonts::body(), pal.on_accent);
-
-        ui.add_space(12.0);
 
         for page in Page::MAIN {
             Self::rail_centered(ui);

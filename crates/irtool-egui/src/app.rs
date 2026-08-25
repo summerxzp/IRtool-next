@@ -892,8 +892,10 @@ impl eframe::App for IrtoolApp {
 
         // 4b. Detail panel (bottom, above stats bar — declared after so it stacks above)
         if self.current_page == Page::Network && self.network.detail_visible {
-            egui::Panel::bottom("detail_panel")
-                .default_size(theme::DETAIL_PANEL_HEIGHT)
+            // 详情右侧化（对齐 React 版左右分割）；egui panel 宽度存 Memory，session 内每页独立记忆
+            egui::Panel::right("detail_panel")
+                .default_size(420.0)
+                .size_range(320.0..=680.0)
                 .resizable(true)
                 .frame(theme::panel_frame(egui::Margin::symmetric(8, 4)))
                 .show(ui, |ui| {
