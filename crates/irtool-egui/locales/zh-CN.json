@@ -934,6 +934,10 @@
       "dns_pcap": "DNS抓包",
       "create_remote_thread": "远程线程",
       "file_create": "文件创建"
+    },
+    "sidebar": {
+      "expand": "展开导航",
+      "collapse": "收起导航"
     }
   },
   "design": {

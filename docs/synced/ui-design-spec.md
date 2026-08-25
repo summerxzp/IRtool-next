@@ -165,6 +165,48 @@ mono 使用清单：表格中时间戳、端点、PID、路径、哈希、命令
 3. `ui.painter()` 返回引用借用 ui——与 `&mut ui` API（如 `design::icon::draw`）混用时，painter 临时调用即用即放，不存局部变量。
 4. `right_to_left` 与弹性区混排顺序：先 right_to_left 占边、后 allocate 弹性区（顺序反了必重叠）。
 
+### 4.3 疑难排查手册（实战踩坑，附源码定位；P6 前必读）
+
+以下每条都消耗过 ≥1 轮返工，根因均已用官方源码考证。源码路径以 egui/egui_extras/winit **0.36.1** 为准。
+
+**① 表格行高亮断裂/上下不均（两轮才根治）**
+
+- 现象：选中/risk 行背景在列间被切成碎块；行上下缝宽不一致。
+- 根因 1（横向断裂）：egui_extras 的 StripLayout 给每个 cell 分配 `宽=列宽` 的矩形，然后 `advance_cursor` 推进 `item_spacing.x`——**列间有横向间隙**，每列背景只画自己那格。源码：`egui_extras-0.36.1/src/layout.rs` `StripLayout::add` + `end_line`（`cursor.x = max.x + item_spacing.x`）。
+- 根因 2（纵向不均）：行推进 `cursor.y = max.y + item_spacing.y`（默认 3pt）+ 官方 gapless 公式 `expand2(0.5 * item_spacing).round_ui()` 在**非整数 DPI（1.25/1.5）**下上下取整方向不一致 → 上缝≠下缝。手动 `expand 1px` 补偿会因行绘制顺序（上行侵入被下行覆盖）加剧不对称。
+- **修复**：表格容器 `item_spacing = Vec2::ZERO`（x/y 全归零，行紧贴、列紧贴，列间视觉间距由 CELL_PAD_X 提供）+ 行背景**物理像素对齐**（`(v * ppp).round() / ppp`——相邻行共享坐标则共享取整边界，数学无缝）。源码：`design/table.rs` `paint_row_bg`。
+
+**② 窗口拖拽（StartDrag）无效**
+
+- 官方文档原文（egui `src/viewport.rs` `ViewportCommand::StartDrag`）：
+  > "Moves the window with the left mouse button until the button is released. **There's no guarantee that this will work unless the left mouse button was pressed immediately before this function is called.**"
+- egui 的 `Response::dragged()` 带移动阈值（decidedly dragging），按住不动/微动时为 false → StartDrag 从未发出。
+- egui_winit 侧还有 `window.has_focus()` 前提（`egui-winit-0.36.1/src/lib.rs` process_viewport_command）。
+- **修复**：不用 drag 状态——`resp.contains_pointer() && pointer.primary_down()` 即发（每帧重发无害）。源码：`layout.rs` 顶栏拖拽区。
+
+**③ decorations(false) 后失去系统边缘 resize**
+
+- winit 在 Windows 上 decorations(false) 不提供隐形 resize 边框。
+- **修复**：egui 0.36 有 `ViewportCommand::BeginResize(ResizeDirection)`（8 方向，走 winit 系统 resize 循环，Windows 可靠）。指针按下且处于边缘带（6pt）时发送；顶栏区排除（避开窗口控制钮）。源码：`app.rs` 边缘 resize 段；winit 映射见 `egui-winit-0.36.1/src/lib.rs`（`use winit::window::ResizeDirection`）。
+- 注意：BeginResize 与 StartDrag 同语义（左键按下立即调用）。
+
+**④ 自绘控件在 kittest/读屏中不可见**
+
+- `allocate_exact_size + painter` 自绘不产生 accesskit label 节点。必须 `resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label))`。
+- 可点击节点的 label **不得随状态拼接**（如表头"列名▲▼"）——kittest `By::label` 是精确匹配。
+
+**⑤ Unicode 特殊符号渲染为 tofu**
+
+- 微软雅黑缺字形（⟳⊘✗ 等）→ 方块。一律用 `design::icon`（lucide 纹理），禁止裸 Unicode 符号做图标。
+
+**⑥ egui Painter 与 &mut Ui 混用借用冲突**
+
+- `ui.painter()` 返回引用借用 ui，与 `&mut ui` API（icon::draw 等）同作用域共存会 E0502。painter 临时调用即用即放，不存局部变量。
+
+**⑦ 垫片法居中失效**
+
+- 见 §4.2 居中规则（item_spacing 在 widget 之后插入，官方 style.rs 注释）。
+
 ## 5. 图表与数据画法（统计条/趋势适用）
 
 - **一图一问**：一张图只回答一个问题；图表配色与状态语义色是两套，同图不混用。

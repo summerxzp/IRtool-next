@@ -848,6 +848,44 @@ impl eframe::App for IrtoolApp {
             }
         }
 
+        // 1b. 边缘 resize（decorations=false 后系统边框消失）。
+        // 官方语义（egui viewport.rs BeginResize）："除非左键按下立即调用否则不保证生效"
+        // → 按下边缘带即发。顶栏区不检测（避开窗口控制按钮；顶栏本身可拖动/双击最大化）。
+        {
+            const EDGE: f32 = 6.0;
+            if ctx.input(|i| i.pointer.primary_down()) {
+                if let Some(pos) = ctx.input(|i| i.pointer.latest_pos()) {
+                    if pos.y > theme::TOPBAR_HEIGHT {
+                        let screen = ctx.viewport_rect();
+                        let (near_b, near_l, near_r) = (
+                            screen.bottom() - pos.y < EDGE,
+                            pos.x - screen.left() < EDGE,
+                            screen.right() - pos.x < EDGE,
+                        );
+                        use egui::viewport::ResizeDirection;
+                        let dir = match (near_b, near_l, near_r) {
+                            (true, true, false) => Some(ResizeDirection::SouthWest),
+                            (true, false, true) => Some(ResizeDirection::SouthEast),
+                            (true, false, false) => Some(ResizeDirection::South),
+                            (false, true, false) => Some(ResizeDirection::West),
+                            (false, false, true) => Some(ResizeDirection::East),
+                            _ => None,
+                        };
+                        if let Some(d) = dir {
+                            let cur = match d {
+                                ResizeDirection::South => egui::CursorIcon::ResizeVertical,
+                                ResizeDirection::West | ResizeDirection::East => egui::CursorIcon::ResizeHorizontal,
+                                ResizeDirection::SouthWest | ResizeDirection::SouthEast => egui::CursorIcon::ResizeNwSe,
+                                _ => egui::CursorIcon::Default,
+                            };
+                            ctx.set_cursor_icon(cur);
+                            ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(d));
+                        }
+                    }
+                }
+            }
+        }
+
         // 2. Top bar（壳：elev-1 底 + 底缘 border 分隔线，demo toolbar 基准）
         egui::Panel::top("topbar")
             .frame(dtheme::shell_panel_frame(egui::Margin::symmetric(12, 6)))
@@ -857,7 +895,9 @@ impl eframe::App for IrtoolApp {
             });
 
         // 3. Navigation rail（壳：rail 底色，demo side_rail 基准）
-        let rail_w = if self.sidebar_expanded { 168.0 } else { theme::RAIL_WIDTH };
+        // 展开/收起宽度过渡动画（egui 内建时间插值）
+        let rail_target = if self.sidebar_expanded { 168.0 } else { theme::RAIL_WIDTH };
+        let rail_w = ctx.animate_value_with_time(egui::Id::new("sidebar_width"), rail_target, 0.12);
         egui::Panel::left("sidebar")
             .resizable(false)
             .exact_size(rail_w)

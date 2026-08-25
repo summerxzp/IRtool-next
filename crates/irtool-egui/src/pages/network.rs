@@ -1330,14 +1330,8 @@ fn paint_row(
             }
             table::cell_pad(ui);
             if cmd.is_empty() {
-                if item.cmdline_status != CmdlineStatus::Unknown && !history {
-                    cmdline_status_icon(ui, item.cmdline_status, pal);
-                }
                 table::cell_label(ui, "-", pal.fg_tertiary);
             } else {
-                if !history {
-                    cmdline_status_icon(ui, item.cmdline_status, pal);
-                }
                 table::cell_mono_label(ui, cmd, fg_sec);
             }
         });
@@ -1360,7 +1354,8 @@ fn state_roles(state: &ConnState, pal: &Palette) -> crate::design::tokens::RoleC
 }
 
 /// 命令行获取状态的行内图标（React CmdlineStatusIcon 对齐）：字符 + role 色。
-/// 命令行采集状态图标（lucide 纹理；Unicode ⟳⊘✗ 在雅黑缺字形渲染为 tofu）。
+#[allow(dead_code)]
+/// 命令行采集状态图标（lucide 纹理；用户反馈无用已停用，保留实现备查）。
 fn cmdline_status_icon(ui: &mut egui::Ui, status: CmdlineStatus, pal: &Palette) {
     use crate::design::icon::Icon;
     let (icon, col) = match status {

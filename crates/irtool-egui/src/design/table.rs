@@ -461,11 +461,22 @@ fn header_cell(ui: &mut egui::Ui, pal: &Palette, title_key: &str, sorted: Option
 /// 整行软底填充（risk 高亮 role.bg / 自绘选中底色等）。必须在单元格闭包内、
 /// 添加内容之前调用；扩张方式与 egui_extras 内建行背景一致（gapless）。
 pub fn paint_row_bg(ui: &mut egui::Ui, color: Color32) {
-    let mut gapless = ui.max_rect().expand2(0.5 * ui.spacing().item_spacing).round_ui();
-    // 纵向各扩 1px：覆盖行缘抗锯齿/亚像素缝，保证选中/risk 高亮贯穿完整
-    gapless.extend_with(egui::pos2(gapless.left(), gapless.top() - 1.0));
-    gapless.extend_with(egui::pos2(gapless.right(), gapless.bottom() + 1.0));
-    ui.painter().rect_filled(gapless, 0.0, color);
+    // 物理像素对齐（DPI 安全）：相邻行共享同一 y 坐标 → 取整后精确相接，
+    // 无缝且无重叠（expand+round_ui 在非整数 ppp 下上下取整方向不一致 → 上下缝不等）。
+    // 参见 docs/synced/ui-design-spec.md §4.3 疑难排查。
+    let ppp = ui.ctx().pixels_per_point();
+    let rect = ui.max_rect();
+    let r = egui::Rect::from_min_max(
+        egui::pos2(
+            (rect.min.x * ppp).round() / ppp,
+            (rect.min.y * ppp).round() / ppp,
+        ),
+        egui::pos2(
+            (rect.max.x * ppp).round() / ppp,
+            (rect.max.y * ppp).round() / ppp,
+        ),
+    );
+    ui.painter().rect_filled(r, 0.0, color);
 }
 
 /// 单元格文本标签（table 字号 + 不可选中，防文本光标）。

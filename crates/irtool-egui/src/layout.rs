@@ -90,12 +90,19 @@ impl IrtoolApp {
                     if mresp.hovered() {
                         p.rect_filled(mrect, 0.0, pal.hover);
                     }
-                    let r = egui::Rect::from_center_size(mrect.center(), egui::vec2(11.0, 11.0));
+                    let r = egui::Rect::from_center_size(mrect.center() + egui::vec2(1.5, 1.5), egui::vec2(10.0, 10.0));
                     p.rect_stroke(r, 0.0, egui::Stroke::new(1.2, pal.fg_secondary), egui::StrokeKind::Inside);
                     if maximized {
-                        // 还原态：左上偏移的背框提示
-                        let r2 = r.translate(egui::vec2(-2.5, -2.5));
-                        p.rect_stroke(r2, 0.0, egui::Stroke::new(1.0, pal.fg_tertiary), egui::StrokeKind::Inside);
+                        // 还原态：背框在左上，只画右边+下边（标准 Windows 还原图标，不与前框重叠）
+                        let back = r.translate(egui::vec2(-3.0, -3.0));
+                        p.line_segment(
+                            [egui::pos2(back.right(), back.top() + 2.0), egui::pos2(back.right(), back.bottom())],
+                            egui::Stroke::new(1.0, pal.fg_secondary),
+                        );
+                        p.line_segment(
+                            [egui::pos2(back.left() + 2.0, back.bottom()), egui::pos2(back.right(), back.bottom())],
+                            egui::Stroke::new(1.0, pal.fg_secondary),
+                        );
                     }
                 }
                 if mresp.clicked() {
@@ -123,9 +130,10 @@ impl IrtoolApp {
                 }
             });
             // ── 拖拽区（标题栏空白）：拖动移动窗口，双击切换最大化 ──
-            let (drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
-            let _ = drag_rect;
-            if drag_resp.dragged() {
+            let (_drag_rect, drag_resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+            // 官方文档（egui viewport.rs StartDrag）："除非调用前左键被立即按下，否则不保证
+            // 生效"——egui 的 dragged() 带移动阈值不可靠，改为按下+悬停即发（每帧重发无害）。
+            if drag_resp.contains_pointer() && ui.input(|i| i.pointer.primary_down()) {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
             }
             if drag_resp.double_clicked() {
@@ -202,7 +210,7 @@ impl IrtoolApp {
         // 展开 / 收起 toggle（panel-left 图标）
         let toggle_icon = if expanded { Icon::PanelLeftOpen } else { Icon::PanelLeft };
         let toggle_tip = if expanded { rust_i18n::t!("shell.sidebar.collapse") } else { rust_i18n::t!("shell.sidebar.expand") };
-        if Self::rail_row(ui, &pal, toggle_icon, toggle_tip.as_ref(), false, expanded).clicked() {
+        if Self::rail_row(ui, &pal, toggle_icon, &toggle_tip, false, expanded).clicked() {
             self.sidebar_expanded = !self.sidebar_expanded;
         }
         ui.add_space(6.0);
@@ -236,8 +244,7 @@ impl IrtoolApp {
     }
 
     fn rail_sep(ui: &mut egui::Ui, pal: &Palette) {
-        let w = (ui.available_width() - 24.0).max(0.0);
-        let (rect, _) = ui.allocate_exact_size(egui::Vec2::new(w, 1.0), Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(egui::Vec2::new(ui.available_width(), 1.0), Sense::hover());
         ui.painter().rect_filled(rect, 0.0, pal.border);
     }
 
@@ -253,7 +260,12 @@ impl IrtoolApp {
     ) -> egui::Response {
         let full_w = ui.available_width();
         let (full, resp) = ui.allocate_exact_size(egui::Vec2::new(full_w, RAIL_BTN), Sense::click());
-        let btn = egui::Rect::from_center_size(full.center(), egui::Vec2::splat(RAIL_BTN));
+        // 高亮块：收起态 42 方块居中；展开态整行（含图标+文字区）
+        let btn = if expanded {
+            full
+        } else {
+            egui::Rect::from_center_size(full.center(), egui::Vec2::splat(RAIL_BTN))
+        };
         if active {
             ui.painter().rect_filled(btn, egui::CornerRadius::same(10), pal.selected.bg);
         } else if resp.hovered() {

@@ -934,6 +934,10 @@
       "dns_pcap": "DNS Capture",
       "create_remote_thread": "Remote Thread",
       "file_create": "File Create"
+    },
+    "sidebar": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar"
     }
   },
   "design": {
