@@ -19,6 +19,10 @@ IRtool：Windows 应急响应工具（Rust workspace，16 crates）。网络监�
 4. 样式变更必须先经 demo（`E:\Code\solo\ir-ui-demos`）定稿，禁止在主项目页面试样式。
 5. 表格行渲染闭包零分配（`format!`/`clone` 禁入）；刷新增量更新，禁止整表重建；用 `TableBody::rows`。
 
+### egui 本地参考（疑难先查，别瞎猜）
+
+`E:\Code\refs\egui-0.36` — egui 0.36 官方仓库浅克隆（完整源码带文档注释 / `examples/` 官方示例 / `crates/egui_demo_lib`）。用法：自绘标题栏等交互先看 `examples/custom_window_frame.rs`；间距/字体默认值查 `crates/egui/src/style.rs`；表格行为查 `egui_extras/src/table.rs` + `layout.rs`。已踩坑的根因与修法见 `docs/synced/ui-design-spec.md` §4.3 疑难排查手册。
+
 ### 工程
 
 - 提交信息：中文 + conventional 前缀（`feat:` / `fix:` / `docs:` / `refactor:`）。
