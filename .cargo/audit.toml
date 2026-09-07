@@ -1,0 +1,50 @@
+# cargo-audit 配置：显式忽略无法修复的上游依赖通告。
+# 原则：真实漏洞优先升级修复；此处仅收录"上游未发布兼容补丁"或"已无维护、无替代版本"
+# 的项，每条附带原因与恢复条件。若某个 ID 对应的上游已修复，应立即从列表移除。
+
+[advisories]
+ignore = [
+    # ---- quick-xml：两侧依赖链被上游锁死在 <0.41 版本线 ----
+    # - 0.37.x：tauri-winrt-notification@0.7.2（Windows 通知）
+    # - 0.39.x：plist@1.9.0 <- tauri-utils（tauri-build/WiX 配置解析）
+    # 修复需要 >=0.41.0，但上游未发布 0.37/0.39 线的兼容补丁；升级到 0.42 的
+    # tauri-winrt-notification@0.7.3 会引入 windows 0.62，导致 wmi@0.18.4 编译失败
+    # （windows-core 0.59/0.62 双版本冲突，已本地 A/B 验证）。等待上游跟进后移除。
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+
+    # ---- gtk-rs GTK3 绑定（仅 Linux 目标，libappindicator -> tray-icon）----
+    # 上游已停止维护 GTK3 绑定（gtk-rs 迁移至 GTK4），无修复/替代版本；
+    # 仅影响 Linux 构建，Windows 目标不参与编译。
+    "RUSTSEC-2024-0411",
+    "RUSTSEC-2024-0412",
+    "RUSTSEC-2024-0413",
+    "RUSTSEC-2024-0414",
+    "RUSTSEC-2024-0415",
+    "RUSTSEC-2024-0416",
+    "RUSTSEC-2024-0417",
+    "RUSTSEC-2024-0418",
+    "RUSTSEC-2024-0419",
+    "RUSTSEC-2024-0420",
+
+    # ---- unic-*：unicode 工具链已停止维护（0.9 为最终版本）----
+    # 由 proc-macro-error / gtk3-macros 等传递引入，无替代版本。
+    "RUSTSEC-2025-0075",
+    "RUSTSEC-2025-0080",
+    "RUSTSEC-2025-0081",
+    "RUSTSEC-2025-0098",
+    "RUSTSEC-2025-0100",
+
+    # ---- 其它无维护/无兼容修复的传递依赖 ----
+    # glib 0.18 线为 GTK3 绑定的最后版本，上游未发布修复（需迁移 GTK4 生态）。
+    "RUSTSEC-2024-0429",
+    # paste：被 async-trait 等 proc-macro 生态广泛引用，无替代。
+    "RUSTSEC-2024-0436",
+    # proc-macro-error：proc-macro 早期生态库，已停止维护。
+    "RUSTSEC-2024-0370",
+    # serde_yml / libyml：rust-i18n@3.1.2 的 YAML 解析依赖，上游无更新。
+    "RUSTSEC-2025-0067",
+    "RUSTSEC-2025-0068",
+    # ttf-parser：main 分支锁定版本已无维护，随 egui 文本渲染引入；升级 egui 后可移除。
+    "RUSTSEC-2026-0192",
+]

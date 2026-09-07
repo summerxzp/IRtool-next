@@ -37,23 +37,23 @@ fn parse_event_inner(xml: &str, extract_record_id: bool) -> Result<(SysmonEvent,
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
                 let local = e.local_name();
-                let name = String::from_utf8_lossy(local.as_ref()).into_owned();
+                let name = local.as_ref().to_string();
                 match name.as_ref() {
                     "System" => in_system = true,
                     "EventData" => in_event_data = true,
                     "EventID" if in_system => in_event_id = true,
                     "TimeCreated" if in_system => {
                         for attr in e.attributes().flatten() {
-                            if attr.key.local_name().as_ref() == b"SystemTime" {
-                                timestamp_str = String::from_utf8_lossy(&attr.value).to_string();
+                            if attr.key.local_name().as_ref() == "SystemTime" {
+                                timestamp_str = attr.value.to_string();
                             }
                         }
                     }
                     "EventRecordID" if in_system && extract_record_id => in_record_id = true,
                     "Data" if in_event_data => {
                         for attr in e.attributes().flatten() {
-                            if attr.key.local_name().as_ref() == b"Name" {
-                                current_data_name = String::from_utf8_lossy(&attr.value).to_string();
+                            if attr.key.local_name().as_ref() == "Name" {
+                                current_data_name = attr.value.to_string();
                             }
                         }
                         in_data = true;
@@ -63,17 +63,17 @@ fn parse_event_inner(xml: &str, extract_record_id: bool) -> Result<(SysmonEvent,
             }
             Ok(Event::Empty(ref e)) => {
                 let local = e.local_name();
-                let name = String::from_utf8_lossy(local.as_ref()).into_owned();
+                let name = local.as_ref().to_string();
                 if name == "TimeCreated" && in_system {
                     for attr in e.attributes().flatten() {
-                        if attr.key.local_name().as_ref() == b"SystemTime" {
-                            timestamp_str = String::from_utf8_lossy(&attr.value).to_string();
+                        if attr.key.local_name().as_ref() == "SystemTime" {
+                            timestamp_str = attr.value.to_string();
                         }
                     }
                 }
             }
             Ok(Event::Text(ref e)) => {
-                let text = e.unescape().unwrap_or_default().to_string();
+                let text = e.xml_content(quick_xml::XmlVersion::Implicit1_0).to_string();
                 if in_event_id {
                     event_id = text.parse().unwrap_or(0);
                 } else if in_record_id {
@@ -84,7 +84,7 @@ fn parse_event_inner(xml: &str, extract_record_id: bool) -> Result<(SysmonEvent,
             }
             Ok(Event::End(ref e)) => {
                 let local = e.local_name();
-                let name = String::from_utf8_lossy(local.as_ref()).into_owned();
+                let name = local.as_ref().to_string();
                 match name.as_ref() {
                     "System" => in_system = false,
                     "EventData" => in_event_data = false,
